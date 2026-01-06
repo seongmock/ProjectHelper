@@ -29,22 +29,6 @@
         animation: slideIn var(--transition-normal);
     }
 
-    .modal-header h3 {
-        margin: 0;
-        font-size: var(--font-size-lg);
-        font-weight: 600;
-    }
-
-    .modal-close {
-        padding: var(--spacing-xs);
-        width: 32px;
-        height: 32px;
-        font-size: 20px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    }
-
     .modal-body {
         padding: var(--spacing-lg);
         overflow-y: auto;
