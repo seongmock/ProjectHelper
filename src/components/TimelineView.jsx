@@ -3,6 +3,8 @@ import { dateUtils } from '../utils/dateUtils';
 import TimelineHeader from './TimelineHeader';
 import TimelineBar from './TimelineBar';
 import TimelineBarPopover from './TimelineBarPopover';
+import MilestoneQuickAdd from './MilestoneQuickAdd';
+import { generateId } from '../utils/dataModel';
 import './TimelineView.css';
 
 function TimelineView({
@@ -19,7 +21,8 @@ function TimelineView({
     const [showTaskNames, setShowTaskNames] = useState(true);
     const [editingTaskId, setEditingTaskId] = useState(null);
     const [editingName, setEditingName] = useState('');
-    const [popoverInfo, setPopoverInfo] = useState(null); // { x, y, task }
+    const [popoverInfo, setPopoverInfo] = useState(null); // { x, y, task, date }
+    const [milestoneModalInfo, setMilestoneModalInfo] = useState(null); // { task, date }
 
     // 컨테이너 너비 감지 (타임라인 스크롤 영역 기준)
     useEffect(() => {
@@ -108,6 +111,32 @@ function TimelineView({
         // 임시로 onUpdateTask에 null을 보내 삭제 신호로 사용하거나, 별도 prop 추가 필요
         // 일단은 알림만 띄움 (구현 필요)
         console.log('Delete task:', taskId);
+    };
+
+    const handleAddMilestone = (taskId, milestoneData) => {
+        const task = tasks.find(t => t.id === taskId);
+        // tasks가 flat하지 않을 수 있으므로 재귀적으로 찾거나 flatTasks에서 찾아야 함
+        // 여기서는 flatTasks를 사용하거나 onUpdateTask를 통해 처리
+
+        // 새 마일스톤 객체 생성
+        const newMilestone = {
+            id: generateId(),
+            ...milestoneData
+        };
+
+        // 기존 마일스톤 배열에 추가
+        // task 객체를 직접 수정할 수 없으므로 onUpdateTask 호출
+        // 주의: task 객체는 flatTasks에서 가져온 것일 수 있음. 
+        // 원본 tasks 구조에서 해당 task를 찾아 업데이트해야 하는데, 
+        // onUpdateTask는 (taskId, updates)를 받으므로, 
+        // 기존 milestones를 가져와서 추가해야 함.
+
+        // 현재 선택된 task의 milestones를 가져오기 위해 flatTasks에서 찾음
+        const currentTask = flatTasks.find(t => t.id === taskId);
+        if (currentTask) {
+            const updatedMilestones = [...(currentTask.milestones || []), newMilestone];
+            onUpdateTask(taskId, { milestones: updatedMilestones });
+        }
     };
 
     return (
@@ -231,17 +260,4 @@ function TimelineView({
                     }}
                     onDelete={(taskId) => {
                         // onDeleteTask(taskId); // App.jsx에서 prop으로 받아야 함
-                        // 현재는 임시로 tasks에서 필터링하는 로직이 App.jsx에 있어야 함
-                        // 일단 onUpdateTask를 통해 처리하거나 별도 구현 필요
-                        // 여기서는 onUpdateTask에 deleted 플래그를 보내는 방식으로 우회 가능
-                        // 또는 상위에서 onDeleteTask prop을 내려줘야 함.
-                        // 일단은 onUpdateTask만 호출
-                        onUpdateTask(taskId, { deleted: true });
-                    }}
-                />
-            )}
-        </div>
-    );
-}
-
-export default TimelineView;
+                        export default TimelineView;
