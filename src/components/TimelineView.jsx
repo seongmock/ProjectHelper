@@ -14,6 +14,7 @@ function TimelineView({
 }) {
     const containerRef = useRef(null);
     const [containerWidth, setContainerWidth] = useState(0);
+    const [showTaskNames, setShowTaskNames] = useState(true);
 
     // 컨테이너 너비 감지
     useEffect(() => {
@@ -86,36 +87,74 @@ function TimelineView({
 
     return (
         <div className={`timeline-view ${viewMode === 'split' ? 'split-mode' : ''}`} ref={containerRef}>
-            <div className="timeline-scroll-container">
-                {/* 타임라인 헤더 */}
-                <TimelineHeader
-                    startDate={dateRange.start}
-                    endDate={dateRange.end}
-                    timeScale={timeScale}
-                    containerWidth={containerWidth}
-                />
+            {/* 작업명 토글 버튼 */}
+            <div className="timeline-controls">
+                <button
+                    className={`toggle-names-btn ${showTaskNames ? 'active' : ''}`}
+                    onClick={() => setShowTaskNames(!showTaskNames)}
+                    title={showTaskNames ? '작업명 숨기기' : '작업명 표시'}
+                >
+                    {showTaskNames ? '📄 작업명 숨기기' : '📄 작업명 표시'}
+                </button>
+            </div>
 
-                {/* 타임라인 바들 */}
-                <div className="timeline-content">
-                    {tasks.length === 0 ? (
-                        <div className="empty-timeline">
-                            <p>작업을 추가하여 타임라인을 시작하세요</p>
+            <div className={`timeline-container ${showTaskNames ? 'with-names' : ''}`}>
+                {/* 왼쪽 작업명 컬럼 */}
+                {showTaskNames && (
+                    <div className="task-names-column">
+                        <div className="task-names-header">작업명</div>
+                        <div className="task-names-list">
+                            {tasks.length === 0 ? (
+                                <div className="empty-names">작업 없음</div>
+                            ) : (
+                                flatTasks.map((task) => (
+                                    <div
+                                        key={task.id}
+                                        className={`task-name-item level-${task.level} ${task.id === selectedTaskId ? 'selected' : ''}`}
+                                        onClick={() => onSelectTask(task.id)}
+                                        style={{ paddingLeft: `${task.level * 24 + 12}px` }}
+                                    >
+                                        {task.name}
+                                    </div>
+                                ))
+                            )}
                         </div>
-                    ) : (
-                        flatTasks.map((task) => (
-                            <TimelineBar
-                                key={task.id}
-                                task={task}
-                                level={task.level}
-                                startDate={dateRange.start}
-                                endDate={dateRange.end}
-                                containerWidth={containerWidth}
-                                isSelected={task.id === selectedTaskId}
-                                onSelect={onSelectTask}
-                                onDragUpdate={handleDragUpdate}
-                            />
-                        ))
-                    )}
+                    </div>
+                )}
+
+                {/* 타임라인 스크롤 컨테이너 */}
+                <div className="timeline-scroll-container">
+                    {/* 타임라인 헤더 */}
+                    <TimelineHeader
+                        startDate={dateRange.start}
+                        endDate={dateRange.end}
+                        timeScale={timeScale}
+                        containerWidth={containerWidth}
+                    />
+
+                    {/* 타임라인 바들 */}
+                    <div className="timeline-content">
+                        {tasks.length === 0 ? (
+                            <div className="empty-timeline">
+                                <p>작업을 추가하여 타임라인을 시작하세요</p>
+                            </div>
+                        ) : (
+                            flatTasks.map((task) => (
+                                <TimelineBar
+                                    key={task.id}
+                                    task={task}
+                                    level={task.level}
+                                    startDate={dateRange.start}
+                                    endDate={dateRange.end}
+                                    containerWidth={containerWidth}
+                                    isSelected={task.id === selectedTaskId}
+                                    onSelect={onSelectTask}
+                                    onDragUpdate={handleDragUpdate}
+                                    showLabel={!showTaskNames}
+                                />
+                            ))
+                        )}
+                    </div>
                 </div>
             </div>
         </div>
