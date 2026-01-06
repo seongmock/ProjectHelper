@@ -14,17 +14,27 @@
 .timeline-years {
     position: relative;
     height: 37px;
-    border-bottom: 1px solid var(--color-border);
     background-color: var(--color-bg-secondary);
     flex-shrink: 0;
     box-sizing: border-box;
 }
 
+/* 가상 요소로 확실한 경계선 표시 */
+.timeline-years::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 1px;
+    background-color: var(--color-border);
+    z-index: 10;
+}
+
 .timeline-year {
     position: absolute;
     top: 0;
-    /* 중요: 테두리를 가리지 않도록 높이 조정 */
-    height: calc(100% - 1px);
+    height: 100%;
     display: flex;
     align-items: center;
     justify-content: center;
