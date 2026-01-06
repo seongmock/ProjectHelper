@@ -13,12 +13,13 @@ function TimelineView({
     viewMode
 }) {
     const containerRef = useRef(null);
+    const timelineScrollRef = useRef(null);
     const [containerWidth, setContainerWidth] = useState(0);
     const [showTaskNames, setShowTaskNames] = useState(true);
 
-    // 컨테이너 너비 감지
+    // 컨테이너 너비 감지 (타임라인 스크롤 영역 기준)
     useEffect(() => {
-        if (!containerRef.current) return;
+        if (!timelineScrollRef.current) return;
 
         const resizeObserver = new ResizeObserver((entries) => {
             for (const entry of entries) {
@@ -26,9 +27,9 @@ function TimelineView({
             }
         });
 
-        resizeObserver.observe(containerRef.current);
+        resizeObserver.observe(timelineScrollRef.current);
         return () => resizeObserver.disconnect();
-    }, []);
+    }, [showTaskNames]);
 
     // 전체 작업의 날짜 범위 계산
     const dateRange = useMemo(() => {
@@ -123,7 +124,7 @@ function TimelineView({
                 )}
 
                 {/* 타임라인 스크롤 컨테이너 */}
-                <div className="timeline-scroll-container">
+                <div className="timeline-scroll-container" ref={timelineScrollRef}>
                     {/* 타임라인 헤더 */}
                     <TimelineHeader
                         startDate={dateRange.start}

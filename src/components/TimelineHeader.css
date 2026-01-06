@@ -4,6 +4,7 @@
     background-color: var(--color-bg-primary);
     border-bottom: 2px solid var(--color-border);
     z-index: 100;
+    min-height: 62px;
     user-select: none;
 }
 
