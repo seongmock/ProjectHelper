@@ -44,140 +44,119 @@
 /* 작업명 컬럼 */
 .task-names-column {
     border-right: 1px solid var(--color-border);
-    background-color: var(--color-bg-primary);
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-}
 
-.task-names-header {
-    padding: var(--spacing-md) var(--spacing-lg);
-    font-weight: 600;
-    background-color: var(--color-bg-secondary);
-    border-bottom: 2px solid var(--color-primary);
-    flex-shrink: 0;
-    min-height: 62px;
-    display: flex;
-    align-items: center;
-}
+    .task-name-item {
+        padding: var(--spacing-sm) var(--spacing-lg);
+        height: var(--row-height);
+        display: flex;
+        align-items: center;
+        cursor: pointer;
+        border-bottom: 1px solid var(--color-grid);
+        transition: background-color var(--transition-fast);
+        font-size: var(--font-size-sm);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
 
-.task-names-list {
-    flex: 1;
-    overflow-y: auto;
-}
+    .task-name-item:hover {
+        background-color: var(--color-bg-secondary);
+    }
 
-.task-name-item {
-    padding: var(--spacing-sm) var(--spacing-lg);
-    height: var(--row-height);
-    display: flex;
-    align-items: center;
-    cursor: pointer;
-    border-bottom: 1px solid var(--color-grid);
-    transition: background-color var(--transition-fast);
-    font-size: var(--font-size-sm);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
+    .task-name-item.selected {
+        background-color: rgba(74, 144, 226, 0.1);
+        font-weight: 600;
+        border-left: 3px solid var(--color-primary);
+    }
 
-.task-name-item:hover {
-    background-color: var(--color-bg-secondary);
-}
+    .task-name-item.level-0 {
+        font-weight: 600;
+    }
 
-.task-name-item.selected {
-    background-color: rgba(74, 144, 226, 0.1);
-    font-weight: 600;
-    border-left: 3px solid var(--color-primary);
-}
+    .task-name-item.level-1 {
+        background-color: rgba(0, 0, 0, 0.015);
+    }
 
-.task-name-item.level-0 {
-    font-weight: 600;
-}
+    .task-name-item.level-2 {
+        background-color: rgba(0, 0, 0, 0.03);
+    }
 
-.task-name-item.level-1 {
-    background-color: rgba(0, 0, 0, 0.015);
-}
+    .empty-names {
+        padding: var(--spacing-xl);
+        text-align: center;
+        color: var(--color-text-secondary);
+    }
 
-.task-name-item.level-2 {
-    background-color: rgba(0, 0, 0, 0.03);
-}
+    /* 타임라인 기존 스타일 */
+    .timeline-view {
+        flex: 1;
+        overflow: hidden;
+        background-color: var(--color-bg-primary);
+        display: flex;
+        flex-direction: column;
+    }
 
-.empty-names {
-    padding: var(--spacing-xl);
-    text-align: center;
-    color: var(--color-text-secondary);
-}
-
-/* 타임라인 기존 스타일 */
-.timeline-view {
-    flex: 1;
-    overflow: hidden;
-    background-color: var(--color-bg-primary);
-    display: flex;
-    flex-direction: column;
-}
-
-.timeline-view.split-mode {
-    flex: 1;
-}
-
-.timeline-scroll-container {
-    flex: 1;
-    overflow: auto;
-    position: relative;
-}
-
-.timeline-content {
-    position: relative;
-    min-height: 400px;
-}
-
-.empty-timeline {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: var(--spacing-xl);
-    color: var(--color-text-secondary);
-    font-size: var(--font-size-lg);
-}
-
-/* 오늘 날짜 마커 */
-.today-marker {
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    width: 2px;
-    background-color: var(--color-danger);
-    pointer-events: none;
-    z-index: 50;
-}
-
-.today-marker::before {
-    content: '오늘';
-    position: absolute;
-    top: -20px;
-    left: 50%;
-    transform: translateX(-50%);
-    background-color: var(--color-danger);
-    color: white;
-    padding: 2px 6px;
-    border-radius: 3px;
-    font-size: var(--font-size-xs);
-    font-weight: 600;
-    white-space: nowrap;
-}
-
-@media (max-width: 768px) {
     .timeline-view.split-mode {
         flex: 1;
     }
 
-    .timeline-container.with-names {
-        grid-template-columns: 200px 1fr;
+    .timeline-scroll-container {
+        flex: 1;
+        overflow: auto;
+        position: relative;
     }
 
-    .task-name-item {
-        font-size: var(--font-size-xs);
-        padding: var(--spacing-xs) var(--spacing-md);
+    .timeline-content {
+        position: relative;
+        min-height: 400px;
     }
-}
+
+    .empty-timeline {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: var(--spacing-xl);
+        color: var(--color-text-secondary);
+        font-size: var(--font-size-lg);
+    }
+
+    /* 오늘 날짜 마커 */
+    .today-marker {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        width: 2px;
+        background-color: var(--color-danger);
+        pointer-events: none;
+        z-index: 50;
+    }
+
+    .today-marker::before {
+        content: '오늘';
+        position: absolute;
+        top: -20px;
+        left: 50%;
+        transform: translateX(-50%);
+        background-color: var(--color-danger);
+        color: white;
+        padding: 2px 6px;
+        border-radius: 3px;
+        font-size: var(--font-size-xs);
+        font-weight: 600;
+        white-space: nowrap;
+    }
+
+    @media (max-width: 768px) {
+        .timeline-view.split-mode {
+            flex: 1;
+        }
+
+        .timeline-container.with-names {
+            grid-template-columns: 200px 1fr;
+        }
+
+        .task-name-item {
+            font-size: var(--font-size-xs);
+            padding: var(--spacing-xs) var(--spacing-md);
+        }
+    }
