@@ -163,8 +163,8 @@
 }
 
 .milestone-item {
-    display: grid;
-    grid-template-columns: 2fr 1fr auto auto auto;
+    display: flex;
+    flex-wrap: wrap;
     gap: var(--spacing-sm);
     align-items: center;
     padding: var(--spacing-sm);
@@ -177,6 +177,8 @@
     font-size: var(--font-size-sm);
     border: 1px solid var(--color-border);
     border-radius: var(--border-radius);
+    flex: 1;
+    min-width: 150px;
 }
 
 .milestone-date-input {
@@ -184,6 +186,7 @@
     font-size: var(--font-size-sm);
     border: 1px solid var(--color-border);
     border-radius: var(--border-radius);
+    min-width: 140px;
 }
 
 .milestone-color-wrapper {
