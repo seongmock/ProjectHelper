@@ -131,6 +131,26 @@ function TimelineBar({
                         <div style={{ ...baseStyle, borderRadius: '2px' }} />
                     );
                     break;
+                case 'star':
+                    shapeElement = (
+                        <div style={{
+                            color: milestone.color,
+                            fontSize: '20px',
+                            filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3))',
+                            lineHeight: 1,
+                        }}>★</div>
+                    );
+                    break;
+                case 'flag':
+                    shapeElement = (
+                        <div style={{
+                            color: milestone.color,
+                            fontSize: '20px',
+                            filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3))',
+                            lineHeight: 1,
+                        }}>⚑</div>
+                    );
+                    break;
                 case 'diamond':
                 default:
                     shapeElement = (

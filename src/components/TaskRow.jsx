@@ -136,6 +136,10 @@ function TaskRow({
                 );
             case 'square':
                 return <span style={{ ...shapeStyle, borderRadius: '2px' }} />;
+            case 'star':
+                return <span style={{ color, fontSize: `${size}px`, marginRight: '4px', lineHeight: 1 }}>★</span>;
+            case 'flag':
+                return <span style={{ color, fontSize: `${size}px`, marginRight: '4px', lineHeight: 1 }}>⚑</span>;
             case 'diamond':
             default:
                 return (
@@ -339,6 +343,8 @@ function TaskRow({
                                         <option value="circle">● 원형</option>
                                         <option value="triangle">▲ 삼각형</option>
                                         <option value="square">■ 정사각형</option>
+                                        <option value="star">★ 별표</option>
+                                        <option value="flag">⚑ 깃발</option>
                                     </select>
 
                                     <button
