@@ -11,6 +11,7 @@ function TimelineBar({
     isSelected,
     onSelect,
     onDragUpdate,
+    onContextMenu,
     showLabel = true
 }) {
     const [isDragging, setIsDragging] = useState(false);
@@ -195,6 +196,7 @@ function TimelineBar({
                     e.stopPropagation();
                     onSelect(task.id);
                 }}
+                onContextMenu={onContextMenu}
             >
                 {/* 시작 핸들 */}
                 <div

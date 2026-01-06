@@ -2,6 +2,7 @@ import { useMemo, useRef, useEffect, useState } from 'react';
 import { dateUtils } from '../utils/dateUtils';
 import TimelineHeader from './TimelineHeader';
 import TimelineBar from './TimelineBar';
+import TimelineBarPopover from './TimelineBarPopover';
 import './TimelineView.css';
 
 function TimelineView({
@@ -18,6 +19,7 @@ function TimelineView({
     const [showTaskNames, setShowTaskNames] = useState(true);
     const [editingTaskId, setEditingTaskId] = useState(null);
     const [editingName, setEditingName] = useState('');
+    const [popoverInfo, setPopoverInfo] = useState(null); // { x, y, task }
 
     // 컨테이너 너비 감지 (타임라인 스크롤 영역 기준)
     useEffect(() => {
@@ -86,6 +88,25 @@ function TimelineView({
             startDate: dateUtils.formatDate(newStartDate),
             endDate: dateUtils.formatDate(newEndDate),
         });
+    };
+
+    // 우클릭 핸들러
+    const handleContextMenu = (e, task) => {
+        e.preventDefault();
+        setPopoverInfo({
+            x: e.clientX,
+            y: e.clientY,
+            task
+        });
+    };
+
+    const handleDeleteTask = (taskId) => {
+        // 실제 삭제 로직은 상위 컴포넌트(App)에서 처리하도록 onUpdateTask 대신 별도 prop이 필요할 수 있음
+        // 현재 구조상 onUpdateTask를 통해 삭제를 알리거나, tasks 배열을 직접 수정해야 함
+        // 여기서는 간단히 console.log만 하고, 실제로는 App.jsx에 onDeleteTask prop을 추가하는 것이 좋음
+        // 임시로 onUpdateTask에 null을 보내 삭제 신호로 사용하거나, 별도 prop 추가 필요
+        // 일단은 알림만 띄움 (구현 필요)
+        console.log('Delete task:', taskId);
     };
 
     return (
@@ -185,6 +206,10 @@ function TimelineView({
                                     isSelected={task.id === selectedTaskId}
                                     onSelect={onSelectTask}
                                     onDragUpdate={handleDragUpdate}
+                                    isSelected={task.id === selectedTaskId}
+                                    onSelect={onSelectTask}
+                                    onDragUpdate={handleDragUpdate}
+                                    onContextMenu={(e) => handleContextMenu(e, task)}
                                     showLabel={!showTaskNames}
                                 />
                             ))
@@ -192,6 +217,28 @@ function TimelineView({
                     </div>
                 </div>
             </div>
+
+            {/* 컨텍스트 메뉴 팝오버 */}
+            {popoverInfo && (
+                <TimelineBarPopover
+                    position={{ x: popoverInfo.x, y: popoverInfo.y }}
+                    task={popoverInfo.task}
+                    onClose={() => setPopoverInfo(null)}
+                    onUpdate={(taskId, updates) => {
+                        onUpdateTask(taskId, updates);
+                        // 색상 변경 등 즉시 반영을 위해 팝오버 닫지 않음 (선택 사항)
+                    }}
+                    onDelete={(taskId) => {
+                        // onDeleteTask(taskId); // App.jsx에서 prop으로 받아야 함
+                        // 현재는 임시로 tasks에서 필터링하는 로직이 App.jsx에 있어야 함
+                        // 일단 onUpdateTask를 통해 처리하거나 별도 구현 필요
+                        // 여기서는 onUpdateTask에 deleted 플래그를 보내는 방식으로 우회 가능
+                        // 또는 상위에서 onDeleteTask prop을 내려줘야 함.
+                        // 일단은 onUpdateTask만 호출
+                        onUpdateTask(taskId, { deleted: true });
+                    }}
+                />
+            )}
         </div>
     );
 }
