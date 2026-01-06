@@ -7,14 +7,19 @@
     user-select: none;
     display: flex;
     flex-direction: column;
+    height: 70px;
+    box-sizing: border-box;
+    /* 중요: 테두리 포함 높이 계산 */
 }
 
 .timeline-years {
     position: relative;
-    height: 36px;
+    height: 37px;
     border-bottom: 1px solid var(--color-border);
     background-color: var(--color-bg-secondary);
     flex-shrink: 0;
+    box-sizing: border-box;
+    /* 중요 */
 }
 
 .timeline-year {
@@ -25,6 +30,7 @@
     align-items: center;
     justify-content: center;
     border-right: 1px solid var(--color-border);
+    box-sizing: border-box;
 }
 
 .year-label {
@@ -40,6 +46,8 @@
     height: 33px;
     display: flex;
     flex-shrink: 0;
+    box-sizing: border-box;
+    /* 중요 */
 }
 
 .timeline-unit {
@@ -49,6 +57,7 @@
     border-right: 1px solid var(--color-grid);
     background-color: var(--color-bg-primary);
     transition: background-color var(--transition-fast);
+    box-sizing: border-box;
 }
 
 .timeline-unit:hover {
