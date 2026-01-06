@@ -5,6 +5,7 @@ import TimelineBar from './TimelineBar';
 import TimelineBarPopover from './TimelineBarPopover';
 import MilestoneQuickAdd from './MilestoneQuickAdd';
 import { generateId } from '../utils/dataModel';
+import html2canvas from 'html2canvas';
 import './TimelineView.css';
 
 function TimelineView({
@@ -23,6 +24,7 @@ function TimelineView({
     const [editingName, setEditingName] = useState('');
     const [popoverInfo, setPopoverInfo] = useState(null); // { x, y, task, date }
     const [milestoneModalInfo, setMilestoneModalInfo] = useState(null); // { task, date }
+    const [zoomLevel, setZoomLevel] = useState(1.0); // 줌 레벨 (0.5 ~ 2.0)
 
     // 컨테이너 너비 감지 (타임라인 스크롤 영역 기준)
     useEffect(() => {
@@ -115,23 +117,11 @@ function TimelineView({
 
     const handleAddMilestone = (taskId, milestoneData) => {
         const task = tasks.find(t => t.id === taskId);
-        // tasks가 flat하지 않을 수 있으므로 재귀적으로 찾거나 flatTasks에서 찾아야 함
-        // 여기서는 flatTasks를 사용하거나 onUpdateTask를 통해 처리
-
-        // 새 마일스톤 객체 생성
         const newMilestone = {
             id: generateId(),
             ...milestoneData
         };
 
-        // 기존 마일스톤 배열에 추가
-        // task 객체를 직접 수정할 수 없으므로 onUpdateTask 호출
-        // 주의: task 객체는 flatTasks에서 가져온 것일 수 있음. 
-        // 원본 tasks 구조에서 해당 task를 찾아 업데이트해야 하는데, 
-        // onUpdateTask는 (taskId, updates)를 받으므로, 
-        // 기존 milestones를 가져와서 추가해야 함.
-
-        // 현재 선택된 task의 milestones를 가져오기 위해 flatTasks에서 찾음
         const currentTask = flatTasks.find(t => t.id === taskId);
         if (currentTask) {
             const updatedMilestones = [...(currentTask.milestones || []), newMilestone];
@@ -139,9 +129,48 @@ function TimelineView({
         }
     };
 
+    // 줌 인/아웃 핸들러
+    const handleZoomIn = () => {
+        setZoomLevel(prev => Math.min(prev + 0.1, 2.0));
+    };
+
+    const handleZoomOut = () => {
+        setZoomLevel(prev => Math.max(prev - 0.1, 0.5));
+    };
+
+    // 이미지 복사 핸들러
+    const handleCopyToClipboard = async () => {
+        if (!timelineScrollRef.current) return;
+
+        try {
+            const canvas = await html2canvas(timelineScrollRef.current);
+            canvas.toBlob(async (blob) => {
+                if (!blob) {
+                    alert('이미지 생성 실패');
+                    return;
+                }
+                try {
+                    await navigator.clipboard.write([
+                        new ClipboardItem({ 'image/png': blob })
+                    ]);
+                    alert('타임라인 이미지가 클립보드에 복사되었습니다.');
+                } catch (err) {
+                    console.error('클립보드 복사 실패:', err);
+                    alert('클립보드 복사에 실패했습니다.');
+                }
+            });
+        } catch (err) {
+            console.error('이미지 캡처 실패:', err);
+            alert('이미지 캡처 중 오류가 발생했습니다.');
+        }
+    };
+
+    // 줌 레벨에 따른 컨텐츠 너비
+    const contentWidth = containerWidth * zoomLevel;
+
     return (
         <div className={`timeline-view ${viewMode === 'split' ? 'split-mode' : ''}`} ref={containerRef}>
-            {/* 작업명 토글 버튼 */}
+            {/* 컨트롤 바 */}
             <div className="timeline-controls">
                 <button
                     className={`toggle-names-btn ${showTaskNames ? 'active' : ''}`}
@@ -149,6 +178,21 @@ function TimelineView({
                     title={showTaskNames ? '작업명 숨기기' : '작업명 표시'}
                 >
                     {showTaskNames ? '📄 작업명 숨기기' : '📄 작업명 표시'}
+                </button>
+
+                <div className="zoom-controls" style={{ marginLeft: '16px', display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <button className="icon-btn" onClick={handleZoomOut} title="축소 (-)">➖</button>
+                    <span style={{ fontSize: '12px', minWidth: '40px', textAlign: 'center' }}>{Math.round(zoomLevel * 100)}%</span>
+                    <button className="icon-btn" onClick={handleZoomIn} title="확대 (+)">➕</button>
+                </div>
+
+                <button
+                    className="icon-btn"
+                    onClick={handleCopyToClipboard}
+                    title="이미지로 복사"
+                    style={{ marginLeft: 'auto' }}
+                >
+                    📷 이미지 복사
                 </button>
             </div>
 
@@ -215,7 +259,7 @@ function TimelineView({
                         startDate={dateRange.start}
                         endDate={dateRange.end}
                         timeScale={timeScale}
-                        containerWidth={containerWidth}
+                        containerWidth={contentWidth}
                     />
 
                     {/* 타임라인 바들 */}
@@ -232,7 +276,7 @@ function TimelineView({
                                     level={task.level}
                                     startDate={dateRange.start}
                                     endDate={dateRange.end}
-                                    containerWidth={containerWidth}
+                                    containerWidth={contentWidth}
                                     isSelected={task.id === selectedTaskId}
                                     onSelect={onSelectTask}
                                     onDragUpdate={handleDragUpdate}
@@ -246,44 +290,48 @@ function TimelineView({
             </div>
 
             {/* 컨텍스트 메뉴 팝오버 */}
-            {popoverInfo && (
-                <TimelineBarPopover
-                    position={{ x: popoverInfo.x, y: popoverInfo.y }}
-                    task={popoverInfo.task}
-                    onClose={() => setPopoverInfo(null)}
-                    onUpdate={(taskId, updates) => {
-                        onUpdateTask(taskId, updates);
-                        // 색상 변경 등 즉시 반영을 위해 팝오버 닫지 않음 (선택 사항)
-                    }}
-                    onDelete={(taskId) => {
-                        // onDeleteTask(taskId); // App.jsx에서 prop으로 받아야 함
-                        // 현재는 임시로 tasks에서 필터링하는 로직이 App.jsx에 있어야 함
-                        // 일단 onUpdateTask를 통해 처리하거나 별도 구현 필요
-                        // 여기서는 onUpdateTask에 deleted 플래그를 보내는 방식으로 우회 가능
-                        // 또는 상위에서 onDeleteTask prop을 내려줘야 함.
-                        // 일단은 onUpdateTask만 호출
-                        onUpdateTask(taskId, { deleted: true });
-                    }}
-                    onAddMilestone={() => {
-                        setMilestoneModalInfo({
-                            task: popoverInfo.task,
-                            date: popoverInfo.date
-                        });
-                        setPopoverInfo(null);
-                    }}
-                />
-            )}
+            {
+                popoverInfo && (
+                    <TimelineBarPopover
+                        position={{ x: popoverInfo.x, y: popoverInfo.y }}
+                        task={popoverInfo.task}
+                        onClose={() => setPopoverInfo(null)}
+                        onUpdate={(taskId, updates) => {
+                            onUpdateTask(taskId, updates);
+                            // 색상 변경 등 즉시 반영을 위해 팝오버 닫지 않음 (선택 사항)
+                        }}
+                        onDelete={(taskId) => {
+                            // onDeleteTask(taskId); // App.jsx에서 prop으로 받아야 함
+                            // 현재는 임시로 tasks에서 필터링하는 로직이 App.jsx에 있어야 함
+                            // 일단 onUpdateTask를 통해 처리하거나 별도 구현 필요
+                            // 여기서는 onUpdateTask에 deleted 플래그를 보내는 방식으로 우회 가능
+                            // 또는 상위에서 onDeleteTask prop을 내려줘야 함.
+                            // 일단은 onUpdateTask만 호출
+                            onUpdateTask(taskId, { deleted: true });
+                        }}
+                        onAddMilestone={() => {
+                            setMilestoneModalInfo({
+                                task: popoverInfo.task,
+                                date: popoverInfo.date
+                            });
+                            setPopoverInfo(null);
+                        }}
+                    />
+                )
+            }
 
             {/* 마일스톤 추가 모달 */}
-            {milestoneModalInfo && (
-                <MilestoneQuickAdd
-                    task={milestoneModalInfo.task}
-                    date={milestoneModalInfo.date}
-                    onClose={() => setMilestoneModalInfo(null)}
-                    onAdd={handleAddMilestone}
-                />
-            )}
-        </div>
+            {
+                milestoneModalInfo && (
+                    <MilestoneQuickAdd
+                        task={milestoneModalInfo.task}
+                        date={milestoneModalInfo.date}
+                        onClose={() => setMilestoneModalInfo(null)}
+                        onAdd={handleAddMilestone}
+                    />
+                )
+            }
+        </div >
     );
 }
 
