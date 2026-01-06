@@ -61,40 +61,6 @@
     font-weight: 500;
 }
 
-.color-grid {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 8px;
-}
-
-.color-option {
-    width: 24px;
-    height: 24px;
-    border-radius: 50%;
-    cursor: pointer;
-    border: 2px solid transparent;
-    transition: transform 0.1s;
-}
-
-.color-option:hover {
-    transform: scale(1.1);
-}
-
-.color-option.selected {
-    border-color: var(--color-text-primary);
-}
-
-.progress-slider {
-    width: 100%;
-    cursor: pointer;
-}
-
-.popover-actions {
-    display: flex;
-    justify-content: flex-end;
-    padding-top: 8px;
-    border-top: 1px solid var(--color-grid);
-}
 
 .action-btn {
     padding: 6px 12px;

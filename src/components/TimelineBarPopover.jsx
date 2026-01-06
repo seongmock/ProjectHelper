@@ -17,15 +17,16 @@ function TimelineBarPopover({ position, task, onClose, onUpdate, onDelete }) {
         };
     }, [onClose]);
 
+    // 샘플 데이터에서 사용된 색상 팔레트
     const colors = [
-        '#3498db', // Blue
-        '#e74c3c', // Red
-        '#2ecc71', // Green
-        '#f1c40f', // Yellow
-        '#9b59b6', // Purple
-        '#e67e22', // Orange
-        '#95a5a6', // Gray
-        '#34495e'  // Dark Blue
+        '#4A90E2', // Blue
+        '#5CB85C', // Green
+        '#7B68EE', // Purple
+        '#F0AD4E', // Orange/Yellow
+        '#9B59B6', // Violet
+        '#D9534F', // Red
+        '#E67E22', // Dark Orange
+        '#34495e', // Dark Blue (Additional)
     ];
 
     return (
@@ -50,20 +51,19 @@ function TimelineBarPopover({ position, task, onClose, onUpdate, onDelete }) {
                             onClick={() => onUpdate(task.id, { color })}
                         />
                     ))}
+                    {/* 커스텀 색상 선택기 */}
+                    <label className="color-option custom-color-picker" title="사용자 지정 색상">
+                        <input
+                            type="color"
+                            value={task.color}
+                            onChange={(e) => onUpdate(task.id, { color: e.target.value })}
+                        />
+                        <span className="plus-icon">+</span>
+                    </label>
                 </div>
             </div>
 
-            <div className="popover-section">
-                <div className="section-title">진행률: {task.progress}%</div>
-                <input
-                    type="range"
-                    min="0"
-                    max="100"
-                    value={task.progress}
-                    onChange={(e) => onUpdate(task.id, { progress: parseInt(e.target.value) })}
-                    className="progress-slider"
-                />
-            </div>
+            {/* 진행률 섹션 제거됨 */}
 
             <div className="popover-actions">
                 <button
