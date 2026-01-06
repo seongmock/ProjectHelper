@@ -236,9 +236,6 @@ function TimelineView({
                                     isSelected={task.id === selectedTaskId}
                                     onSelect={onSelectTask}
                                     onDragUpdate={handleDragUpdate}
-                                    isSelected={task.id === selectedTaskId}
-                                    onSelect={onSelectTask}
-                                    onDragUpdate={handleDragUpdate}
                                     onContextMenu={(e, date) => handleContextMenu(e, task, date)}
                                     showLabel={!showTaskNames}
                                 />
@@ -260,4 +257,34 @@ function TimelineView({
                     }}
                     onDelete={(taskId) => {
                         // onDeleteTask(taskId); // App.jsx에서 prop으로 받아야 함
-                        export default TimelineView;
+                        // 현재는 임시로 tasks에서 필터링하는 로직이 App.jsx에 있어야 함
+                        // 일단 onUpdateTask를 통해 처리하거나 별도 구현 필요
+                        // 여기서는 onUpdateTask에 deleted 플래그를 보내는 방식으로 우회 가능
+                        // 또는 상위에서 onDeleteTask prop을 내려줘야 함.
+                        // 일단은 onUpdateTask만 호출
+                        onUpdateTask(taskId, { deleted: true });
+                    }}
+                    onAddMilestone={() => {
+                        setMilestoneModalInfo({
+                            task: popoverInfo.task,
+                            date: popoverInfo.date
+                        });
+                        setPopoverInfo(null);
+                    }}
+                />
+            )}
+
+            {/* 마일스톤 추가 모달 */}
+            {milestoneModalInfo && (
+                <MilestoneQuickAdd
+                    task={milestoneModalInfo.task}
+                    date={milestoneModalInfo.date}
+                    onClose={() => setMilestoneModalInfo(null)}
+                    onAdd={handleAddMilestone}
+                />
+            )}
+        </div>
+    );
+}
+
+export default TimelineView;
