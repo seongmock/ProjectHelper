@@ -196,7 +196,20 @@ function TimelineBar({
                     e.stopPropagation();
                     onSelect(task.id);
                 }}
-                onContextMenu={onContextMenu}
+                onContextMenu={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+
+                    // 클릭 위치에 따른 날짜 계산
+                    const rect = barRef.current.getBoundingClientRect();
+                    const offsetX = e.clientX - rect.left;
+                    const width = rect.width;
+                    const totalDays = dateUtils.getDaysBetween(task.startDate, task.endDate);
+                    const daysToAdd = Math.round((offsetX / width) * totalDays);
+                    const clickDate = dateUtils.addDays(task.startDate, daysToAdd);
+
+                    onContextMenu(e, clickDate);
+                }}
             >
                 {/* 시작 핸들 */}
                 <div

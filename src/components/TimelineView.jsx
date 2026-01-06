@@ -91,12 +91,13 @@ function TimelineView({
     };
 
     // 우클릭 핸들러
-    const handleContextMenu = (e, task) => {
+    const handleContextMenu = (e, task, date) => {
         e.preventDefault();
         setPopoverInfo({
             x: e.clientX,
             y: e.clientY,
-            task
+            task,
+            date // 클릭한 날짜 정보 추가
         });
     };
 
@@ -209,7 +210,7 @@ function TimelineView({
                                     isSelected={task.id === selectedTaskId}
                                     onSelect={onSelectTask}
                                     onDragUpdate={handleDragUpdate}
-                                    onContextMenu={(e) => handleContextMenu(e, task)}
+                                    onContextMenu={(e, date) => handleContextMenu(e, task, date)}
                                     showLabel={!showTaskNames}
                                 />
                             ))
