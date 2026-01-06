@@ -12,7 +12,7 @@ export const createNewTask = (name = '새 작업', parentId = null) => {
         expanded: true,
         labels: [],
         parentId,
-        milestones: [], // 마일스톤 배열
+        milestones: [], // 마일스톤 배열: { id, date, label, color, shape: 'diamond'|'circle'|'triangle'|'square' }
     };
 };
 
@@ -42,7 +42,7 @@ export const getSampleData = () => {
             expanded: true,
             labels: ['기획'],
             milestones: [
-                { id: 'm1', date: '2026-01-20', label: '초안 완료', color: '#5CB85C' }
+                { id: 'm1', date: '2026-01-20', label: '초안 완료', color: '#5CB85C', shape: 'circle' }
             ],
             children: [
                 {
@@ -81,7 +81,7 @@ export const getSampleData = () => {
             expanded: true,
             labels: ['개발'],
             milestones: [
-                { id: 'm2', date: '2026-03-15', label: 'Alpha 릴리즈', color: '#F0AD4E' }
+                { id: 'm2', date: '2026-03-15', label: 'Alpha 릴리즈', color: '#F0AD4E', shape: 'triangle' }
             ],
             children: [
                 {
@@ -120,7 +120,7 @@ export const getSampleData = () => {
             expanded: true,
             labels: ['QA', '배포'],
             milestones: [
-                { id: 'm3', date: '2026-05-30', label: '정식 출시', color: '#D9534F' }
+                { id: 'm3', date: '2026-05-30', label: '정식 출시', color: '#D9534F', shape: 'square' }
             ],
             children: [
                 {

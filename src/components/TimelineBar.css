@@ -84,39 +84,45 @@
     transform: translate(-50%, -50%);
     z-index: 40;
     pointer-events: none;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
 }
 
-.milestone-diamond {
-    width: 16px;
-    height: 16px;
-    transform: rotate(45deg);
-    border: 2px solid white;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+.milestone-shape {
     display: flex;
     align-items: center;
     justify-content: center;
-    position: relative;
+    pointer-events: auto;
+}
+
+.milestone-shape>div {
+    transition: transform var(--transition-fast);
+}
+
+.milestone-marker:hover .milestone-shape>div {
+    transform: scale(1.15);
 }
 
 .milestone-label {
     position: absolute;
-    top: -30px;
+    top: -24px;
     left: 50%;
-    transform: translateX(-50%) rotate(-45deg);
+    transform: translateX(-50%);
     white-space: nowrap;
     background-color: rgba(0, 0, 0, 0.8);
     color: white;
-    padding: 2px 8px;
-    border-radius: 4px;
+    padding: 2px 6px;
+    border-radius: 3px;
     font-size: var(--font-size-xs);
     font-weight: 600;
     pointer-events: auto;
-    opacity: 0;
-    transition: opacity var(--transition-fast);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
 .milestone-marker:hover .milestone-label {
-    opacity: 1;
+    background-color: rgba(0, 0, 0, 0.95);
+    transform: translateX(-50%) scale(1.05);
 }
 
 /* 레벨별 여백 */
@@ -143,8 +149,7 @@
         font-size: var(--font-size-xs);
     }
 
-    .milestone-diamond {
-        width: 12px;
-        height: 12px;
+    .milestone-shape {
+        transform: scale(0.8);
     }
 }

@@ -96,19 +96,65 @@ function TimelineBar({
             const daysFromStart = dateUtils.getDaysBetween(startDate, milestone.date);
             const position = (daysFromStart / totalDays) * containerWidth;
 
+            const shape = milestone.shape || 'diamond';
+
+            // 모양별 스타일
+            let shapeElement;
+            const baseStyle = {
+                width: '16px',
+                height: '16px',
+                backgroundColor: milestone.color,
+                border: '2px solid white',
+                boxShadow: '0 2px 6px rgba(0, 0, 0, 0.3)',
+            };
+
+            switch (shape) {
+                case 'circle':
+                    shapeElement = (
+                        <div style={{ ...baseStyle, borderRadius: '50%' }} />
+                    );
+                    break;
+                case 'triangle':
+                    shapeElement = (
+                        <div style={{
+                            width: 0,
+                            height: 0,
+                            borderLeft: '10px solid transparent',
+                            borderRight: '10px solid transparent',
+                            borderBottom: `18px solid ${milestone.color}`,
+                            filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3))',
+                        }} />
+                    );
+                    break;
+                case 'square':
+                    shapeElement = (
+                        <div style={{ ...baseStyle, borderRadius: '2px' }} />
+                    );
+                    break;
+                case 'diamond':
+                default:
+                    shapeElement = (
+                        <div style={{
+                            ...baseStyle,
+                            transform: 'rotate(45deg)',
+                        }} />
+                    );
+                    break;
+            }
+
             return (
                 <div
                     key={milestone.id}
                     className="milestone-marker"
                     style={{
                         left: `${position}px`,
-                        borderColor: milestone.color,
                     }}
                     title={`${milestone.label} (${milestone.date})`}
                 >
-                    <div className="milestone-diamond" style={{ backgroundColor: milestone.color }}>
-                        <span className="milestone-label">{milestone.label}</span>
+                    <div className="milestone-shape">
+                        {shapeElement}
                     </div>
+                    <span className="milestone-label">{milestone.label}</span>
                 </div>
             );
         });

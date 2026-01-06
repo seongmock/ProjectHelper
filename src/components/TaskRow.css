@@ -65,19 +65,40 @@
 }
 
 .milestone-button {
-    padding: 4px 12px;
+    padding: 4px 8px;
     font-size: var(--font-size-sm);
     border-radius: var(--border-radius);
     background-color: var(--color-bg-tertiary);
     border: 1px solid var(--color-border);
     cursor: pointer;
     transition: all var(--transition-fast);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 60px;
 }
 
 .milestone-button:hover {
     background-color: var(--color-bg-secondary);
     border-color: var(--color-primary);
     transform: translateY(-1px);
+}
+
+.milestone-preview {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+}
+
+.milestone-shape-preview {
+    display: flex;
+    align-items: center;
+}
+
+.milestone-more {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-secondary);
+    margin-left: 4px;
 }
 
 .color-picker-wrapper {
@@ -130,7 +151,7 @@
 
 .milestone-item {
     display: grid;
-    grid-template-columns: 2fr 1fr auto auto;
+    grid-template-columns: 2fr 1fr auto auto auto;
     gap: var(--spacing-sm);
     align-items: center;
     padding: var(--spacing-sm);
@@ -152,12 +173,39 @@
     border-radius: var(--border-radius);
 }
 
-.milestone-color-input {
-    width: 50px;
+.milestone-color-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.milestone-color-button {
+    width: 40px;
     height: 36px;
     border: 1px solid var(--color-border);
     border-radius: var(--border-radius);
     cursor: pointer;
+    transition: transform var(--transition-fast);
+    padding: 0;
+}
+
+.milestone-color-button:hover {
+    transform: scale(1.05);
+    border-color: var(--color-primary);
+}
+
+.milestone-shape-select {
+    padding: 6px 10px;
+    font-size: var(--font-size-sm);
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius);
+    background-color: var(--color-bg-primary);
+    cursor: pointer;
+    min-width: 140px;
+}
+
+.milestone-shape-select:hover {
+    border-color: var(--color-primary);
 }
 
 .no-milestones {
@@ -187,5 +235,9 @@
     .milestone-item {
         grid-template-columns: 1fr;
         gap: var(--spacing-xs);
+    }
+
+    .milestone-shape-select {
+        width: 100%;
     }
 }

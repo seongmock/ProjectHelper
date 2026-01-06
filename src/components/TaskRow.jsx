@@ -16,6 +16,7 @@ function TaskRow({
     const [editedName, setEditedName] = useState(task.name);
     const [showColorPicker, setShowColorPicker] = useState(false);
     const [showMilestoneModal, setShowMilestoneModal] = useState(false);
+    const [editingMilestoneColor, setEditingMilestoneColor] = useState(null);
 
     const isSelected = task.id === selectedTaskId;
     const hasChildren = task.children && task.children.length > 0;
@@ -82,7 +83,8 @@ function TaskRow({
             id: `m-${Date.now()}`,
             date: task.startDate,
             label: '새 마일스톤',
-            color: '#5CB85C'
+            color: '#5CB85C',
+            shape: 'diamond'
         };
         onUpdateTask(task.id, { milestones: [...milestones, newMilestone] });
     };
@@ -99,6 +101,51 @@ function TaskRow({
             m.id === milestoneId ? { ...m, [field]: value } : m
         );
         onUpdateTask(task.id, { milestones });
+    };
+
+    // 마일스톤 색상 변경 (ColorPicker 사용)
+    const handleMilestoneColorChange = (milestoneId, color) => {
+        handleUpdateMilestone(milestoneId, 'color', color);
+        setEditingMilestoneColor(null);
+    };
+
+    // 마일스톤 모양 아이콘 렌더링
+    const renderMilestoneShape = (shape, color, size = 16) => {
+        const shapeStyle = {
+            width: `${size}px`,
+            height: `${size}px`,
+            backgroundColor: color,
+            display: 'inline-block',
+            marginRight: '4px',
+        };
+
+        switch (shape) {
+            case 'circle':
+                return <span style={{ ...shapeStyle, borderRadius: '50%' }} />;
+            case 'triangle':
+                return (
+                    <span style={{
+                        width: 0,
+                        height: 0,
+                        borderLeft: `${size / 2}px solid transparent`,
+                        borderRight: `${size / 2}px solid transparent`,
+                        borderBottom: `${size}px solid ${color}`,
+                        display: 'inline-block',
+                        marginRight: '4px',
+                    }} />
+                );
+            case 'square':
+                return <span style={{ ...shapeStyle, borderRadius: '2px' }} />;
+            case 'diamond':
+            default:
+                return (
+                    <span style={{
+                        ...shapeStyle,
+                        transform: 'rotate(45deg)',
+                        marginRight: '8px',
+                    }} />
+                );
+        }
     };
 
     return (
@@ -171,7 +218,18 @@ function TaskRow({
                         }}
                         title="마일스톤 관리"
                     >
-                        🏁 {task.milestones?.length || 0}
+                        {task.milestones && task.milestones.length > 0 ? (
+                            <div className="milestone-preview">
+                                {task.milestones.slice(0, 3).map((m) => (
+                                    <span key={m.id} className="milestone-shape-preview">
+                                        {renderMilestoneShape(m.shape || 'diamond', m.color, 12)}
+                                    </span>
+                                ))}
+                                {task.milestones.length > 3 && <span className="milestone-more">+{task.milestones.length - 3}</span>}
+                            </div>
+                        ) : (
+                            <>🏁 0</>
+                        )}
                     </button>
                 </div>
 
@@ -225,7 +283,10 @@ function TaskRow({
             {/* 마일스톤 모달 */}
             <Modal
                 isOpen={showMilestoneModal}
-                onClose={() => setShowMilestoneModal(false)}
+                onClose={() => {
+                    setShowMilestoneModal(false);
+                    setEditingMilestoneColor(null);
+                }}
                 title={`마일스톤 관리: ${task.name}`}
             >
                 <div className="milestone-manager">
@@ -246,12 +307,40 @@ function TaskRow({
                                         onChange={(e) => handleUpdateMilestone(milestone.id, 'date', e.target.value)}
                                         className="milestone-date-input"
                                     />
-                                    <input
-                                        type="color"
-                                        value={milestone.color}
-                                        onChange={(e) => handleUpdateMilestone(milestone.id, 'color', e.target.value)}
-                                        className="milestone-color-input"
-                                    />
+
+                                    {/* 색상 선택 (ColorPicker 사용) */}
+                                    <div className="milestone-color-wrapper">
+                                        <button
+                                            className="milestone-color-button"
+                                            style={{ backgroundColor: milestone.color }}
+                                            onClick={() => setEditingMilestoneColor(
+                                                editingMilestoneColor === milestone.id ? null : milestone.id
+                                            )}
+                                            title="색상 선택"
+                                        />
+                                        {editingMilestoneColor === milestone.id && (
+                                            <div style={{ position: 'absolute', zIndex: 100 }}>
+                                                <ColorPicker
+                                                    currentColor={milestone.color}
+                                                    onColorChange={(color) => handleMilestoneColorChange(milestone.id, color)}
+                                                    onClose={() => setEditingMilestoneColor(null)}
+                                                />
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* 모양 선택 */}
+                                    <select
+                                        value={milestone.shape || 'diamond'}
+                                        onChange={(e) => handleUpdateMilestone(milestone.id, 'shape', e.target.value)}
+                                        className="milestone-shape-select"
+                                    >
+                                        <option value="diamond">◆ 다이아몬드</option>
+                                        <option value="circle">● 원형</option>
+                                        <option value="triangle">▲ 삼각형</option>
+                                        <option value="square">■ 정사각형</option>
+                                    </select>
+
                                     <button
                                         className="icon danger"
                                         onClick={() => handleDeleteMilestone(milestone.id)}
