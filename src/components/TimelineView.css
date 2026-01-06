@@ -1,0 +1,63 @@
+.timeline-view {
+    flex: 1;
+    overflow: hidden;
+    background-color: var(--color-bg-primary);
+    display: flex;
+    flex-direction: column;
+}
+
+.timeline-view.split-mode {
+    flex: 1;
+}
+
+.timeline-scroll-container {
+    flex: 1;
+    overflow: auto;
+    position: relative;
+}
+
+.timeline-content {
+    position: relative;
+    min-height: 400px;
+}
+
+.empty-timeline {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--spacing-xl);
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-lg);
+}
+
+/* 오늘 날짜 마커 */
+.today-marker {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background-color: var(--color-danger);
+    pointer-events: none;
+    z-index: 50;
+}
+
+.today-marker::before {
+    content: '오늘';
+    position: absolute;
+    top: -20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: var(--color-danger);
+    color: white;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+@media (max-width: 768px) {
+    .timeline-view.split-mode {
+        flex: 1;
+    }
+}

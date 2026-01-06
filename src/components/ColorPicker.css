@@ -1,0 +1,59 @@
+.color-picker {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    margin-top: var(--spacing-xs);
+    background-color: var(--color-bg-primary);
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius);
+    box-shadow: var(--shadow-lg);
+    padding: var(--spacing-md);
+    z-index: 1000;
+    min-width: 200px;
+    animation: slideIn var(--transition-fast);
+}
+
+.color-preset-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: var(--spacing-sm);
+    margin-bottom: var(--spacing-md);
+}
+
+.color-preset-item {
+    width: 40px;
+    height: 40px;
+    border-radius: var(--border-radius);
+    border: 2px solid transparent;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    padding: 0;
+}
+
+.color-preset-item:hover {
+    transform: scale(1.1);
+    border-color: var(--color-text-primary);
+}
+
+.color-preset-item.selected {
+    border-color: var(--color-text-primary);
+    box-shadow: 0 0 0 2px var(--color-bg-primary);
+}
+
+.color-custom {
+    padding-top: var(--spacing-sm);
+    border-top: 1px solid var(--color-border);
+}
+
+.color-custom label {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+}
+
+.color-custom input[type="color"] {
+    width: 50px;
+    height: 32px;
+}
