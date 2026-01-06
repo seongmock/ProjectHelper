@@ -18,6 +18,7 @@ function TimelineView({
 }) {
     const containerRef = useRef(null);
     const timelineScrollRef = useRef(null);
+    const captureRef = useRef(null);
     const [containerWidth, setContainerWidth] = useState(0);
     const [showTaskNames, setShowTaskNames] = useState(true);
     const [editingTaskId, setEditingTaskId] = useState(null);
@@ -140,10 +141,10 @@ function TimelineView({
 
     // 이미지 복사 핸들러
     const handleCopyToClipboard = async () => {
-        if (!timelineScrollRef.current) return;
+        if (!captureRef.current) return;
 
         try {
-            const canvas = await html2canvas(timelineScrollRef.current);
+            const canvas = await html2canvas(captureRef.current);
             canvas.toBlob(async (blob) => {
                 if (!blob) {
                     alert('이미지 생성 실패');
@@ -196,7 +197,7 @@ function TimelineView({
                 </button>
             </div>
 
-            <div className={`timeline-container ${showTaskNames ? 'with-names' : ''}`}>
+            <div className={`timeline-container ${showTaskNames ? 'with-names' : ''}`} ref={captureRef}>
                 {/* 왼쪽 작업명 컬럼 */}
                 {showTaskNames && (
                     <div className="task-names-column">
