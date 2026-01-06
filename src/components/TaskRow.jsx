@@ -55,11 +55,6 @@ function TaskRow({
         onUpdateTask(task.id, { [field]: value });
     };
 
-    // 진행률 변경
-    const handleProgressChange = (e) => {
-        onUpdateTask(task.id, { progress: parseInt(e.target.value) });
-    };
-
     // 색상 변경
     const handleColorChange = (color) => {
         onUpdateTask(task.id, { color });
@@ -136,22 +131,6 @@ function TaskRow({
                         onChange={(e) => handleDateChange('endDate', e.target.value)}
                         onClick={(e) => e.stopPropagation()}
                     />
-                </div>
-
-                {/* 진행률 */}
-                <div className="col-progress">
-                    <div className="progress-container">
-                        <input
-                            type="range"
-                            min="0"
-                            max="100"
-                            value={task.progress}
-                            onChange={handleProgressChange}
-                            onClick={(e) => e.stopPropagation()}
-                            className="progress-slider"
-                        />
-                        <span className="progress-label">{task.progress}%</span>
-                    </div>
                 </div>
 
                 {/* 색상 */}

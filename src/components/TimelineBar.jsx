@@ -83,6 +83,37 @@ function TimelineBar({
         };
     }, [isDragging, dragType, dragStart, containerWidth, totalDays, task.id, onDragUpdate]);
 
+    // 마일스톤 렌더링
+    const renderMilestones = () => {
+        if (!task.milestones || task.milestones.length === 0) return null;
+
+        return task.milestones.map((milestone) => {
+            const milestoneDate = new Date(milestone.date);
+            if (milestoneDate < new Date(startDate) || milestoneDate > new Date(endDate)) {
+                return null;
+            }
+
+            const daysFromStart = dateUtils.getDaysBetween(startDate, milestone.date);
+            const position = (daysFromStart / totalDays) * containerWidth;
+
+            return (
+                <div
+                    key={milestone.id}
+                    className="milestone-marker"
+                    style={{
+                        left: `${position}px`,
+                        borderColor: milestone.color,
+                    }}
+                    title={`${milestone.label} (${milestone.date})`}
+                >
+                    <div className="milestone-diamond" style={{ backgroundColor: milestone.color }}>
+                        <span className="milestone-label">{milestone.label}</span>
+                    </div>
+                </div>
+            );
+        });
+    };
+
     return (
         <div className={`timeline-row level-${level}`}>
             <div
@@ -110,12 +141,6 @@ function TimelineBar({
                     className="bar-content"
                     onMouseDown={(e) => handleMouseDown(e, 'move')}
                 >
-                    {/* 진행률 표시 */}
-                    <div
-                        className="progress-fill"
-                        style={{ width: `${task.progress}%` }}
-                    />
-
                     {/* 작업명 레이블 */}
                     <span className="bar-label">
                         {task.name}
@@ -129,6 +154,9 @@ function TimelineBar({
                     title="종료일 조정"
                 />
             </div>
+
+            {/* 마일스톤 마커들 */}
+            {renderMilestones()}
         </div>
     );
 }
