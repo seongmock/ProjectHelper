@@ -6,54 +6,6 @@
     z-index: 100;
     user-select: none;
     display: flex;
-    flex-direction: column;
-    height: 70px;
-    box-sizing: border-box;
-    /* 중요: 테두리 포함 높이 계산 */
-}
-
-.timeline-years {
-    position: relative;
-    height: 37px;
-    border-bottom: 1px solid var(--color-border);
-    background-color: var(--color-bg-secondary);
-    flex-shrink: 0;
-    box-sizing: border-box;
-    /* 중요 */
-}
-
-.timeline-year {
-    position: absolute;
-    top: 0;
-    height: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-right: 1px solid var(--color-border);
-    box-sizing: border-box;
-}
-
-.year-label {
-    font-size: var(--font-size-md);
-    font-weight: 700;
-    color: var(--color-text-primary);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-}
-
-.timeline-units {
-    position: relative;
-    height: 33px;
-    display: flex;
-    flex-shrink: 0;
-    box-sizing: border-box;
-    /* 중요 */
-}
-
-.timeline-unit {
-    display: flex;
-    align-items: center;
-    justify-content: center;
     border-right: 1px solid var(--color-grid);
     background-color: var(--color-bg-primary);
     transition: background-color var(--transition-fast);
