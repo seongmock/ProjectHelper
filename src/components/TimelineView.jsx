@@ -16,6 +16,8 @@ function TimelineView({
     const timelineScrollRef = useRef(null);
     const [containerWidth, setContainerWidth] = useState(0);
     const [showTaskNames, setShowTaskNames] = useState(true);
+    const [editingTaskId, setEditingTaskId] = useState(null);
+    const [editingName, setEditingName] = useState('');
 
     // 컨테이너 너비 감지 (타임라인 스크롤 영역 기준)
     useEffect(() => {
@@ -113,9 +115,41 @@ function TimelineView({
                                         key={task.id}
                                         className={`task-name-item level-${task.level} ${task.id === selectedTaskId ? 'selected' : ''}`}
                                         onClick={() => onSelectTask(task.id)}
+                                        onDoubleClick={(e) => {
+                                            e.stopPropagation();
+                                            setEditingTaskId(task.id);
+                                            setEditingName(task.name);
+                                        }}
                                         style={{ paddingLeft: `${task.level * 24 + 12}px` }}
                                     >
-                                        {task.name}
+                                        {editingTaskId === task.id ? (
+                                            <input
+                                                type="text"
+                                                className="task-name-edit-input"
+                                                value={editingName}
+                                                onChange={(e) => setEditingName(e.target.value)}
+                                                onBlur={() => {
+                                                    if (editingName.trim() !== task.name) {
+                                                        onUpdateTask(task.id, { name: editingName });
+                                                    }
+                                                    setEditingTaskId(null);
+                                                }}
+                                                onKeyDown={(e) => {
+                                                    if (e.key === 'Enter') {
+                                                        if (editingName.trim() !== task.name) {
+                                                            onUpdateTask(task.id, { name: editingName });
+                                                        }
+                                                        setEditingTaskId(null);
+                                                    } else if (e.key === 'Escape') {
+                                                        setEditingTaskId(null);
+                                                    }
+                                                }}
+                                                autoFocus
+                                                onClick={(e) => e.stopPropagation()}
+                                            />
+                                        ) : (
+                                            task.name
+                                        )}
                                     </div>
                                 ))
                             )}

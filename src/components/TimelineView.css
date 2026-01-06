@@ -63,7 +63,6 @@
     display: flex;
     align-items: center;
     box-sizing: border-box;
-    /* 중요: 테두리 포함 높이 계산 */
 }
 
 .task-names-list {
@@ -106,6 +105,18 @@
 
 .task-name-item.level-2 {
     background-color: rgba(0, 0, 0, 0.03);
+}
+
+/* 인라인 편집 입력창 스타일 */
+.task-name-edit-input {
+    width: 100%;
+    padding: 4px 8px;
+    border: 2px solid var(--color-primary);
+    border-radius: 4px;
+    font-size: inherit;
+    font-family: inherit;
+    outline: none;
+    background-color: white;
 }
 
 .empty-names {
