@@ -3,56 +3,6 @@
     top: 0;
     background-color: var(--color-bg-primary);
     border-bottom: 2px solid var(--color-primary);
-    z-index: 100;
-    user-select: none;
-    display: flex;
-    flex-direction: column;
-    height: 70px;
-    box-sizing: border-box;
-}
-
-.timeline-years {
-    position: relative;
-    height: 37px;
-    /* border-bottom 제거: 자식 요소가 덮는 문제 해결 */
-    background-color: var(--color-bg-secondary);
-    flex-shrink: 0;
-    box-sizing: border-box;
-}
-
-.timeline-year {
-    position: absolute;
-    top: 0;
-    height: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-right: 1px solid var(--color-border);
-    box-sizing: border-box;
-}
-
-.year-label {
-    font-size: var(--font-size-md);
-    font-weight: 700;
-    color: var(--color-text-primary);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-}
-
-.timeline-units {
-    position: relative;
-    height: 33px;
-    display: flex;
-    flex-shrink: 0;
-    /* border-top 추가: 확실한 경계선 표시 */
-    border-top: 1px solid var(--color-border);
-    box-sizing: border-box;
-}
-
-.timeline-unit {
-    display: flex;
-    align-items: center;
-    justify-content: center;
     border-right: 1px solid var(--color-grid);
     background-color: var(--color-bg-primary);
     transition: background-color var(--transition-fast);
