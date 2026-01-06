@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import ColorPicker from './ColorPicker';
+import Modal from './Modal';
 import './TaskRow.css';
 
 function TaskRow({
@@ -14,6 +15,7 @@ function TaskRow({
     const [isEditing, setIsEditing] = useState(false);
     const [editedName, setEditedName] = useState(task.name);
     const [showColorPicker, setShowColorPicker] = useState(false);
+    const [showMilestoneModal, setShowMilestoneModal] = useState(false);
 
     const isSelected = task.id === selectedTaskId;
     const hasChildren = task.children && task.children.length > 0;
@@ -71,6 +73,32 @@ function TaskRow({
     // 하위 작업 추가
     const handleAddChild = () => {
         onAddTask(task.id);
+    };
+
+    // 마일스톤 추가
+    const handleAddMilestone = () => {
+        const milestones = task.milestones || [];
+        const newMilestone = {
+            id: `m-${Date.now()}`,
+            date: task.startDate,
+            label: '새 마일스톤',
+            color: '#5CB85C'
+        };
+        onUpdateTask(task.id, { milestones: [...milestones, newMilestone] });
+    };
+
+    // 마일스톤 삭제
+    const handleDeleteMilestone = (milestoneId) => {
+        const milestones = task.milestones.filter(m => m.id !== milestoneId);
+        onUpdateTask(task.id, { milestones });
+    };
+
+    // 마일스톤 수정
+    const handleUpdateMilestone = (milestoneId, field, value) => {
+        const milestones = task.milestones.map(m =>
+            m.id === milestoneId ? { ...m, [field]: value } : m
+        );
+        onUpdateTask(task.id, { milestones });
     };
 
     return (
@@ -133,6 +161,20 @@ function TaskRow({
                     />
                 </div>
 
+                {/* 마일스톤 */}
+                <div className="col-milestones">
+                    <button
+                        className="milestone-button"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            setShowMilestoneModal(true);
+                        }}
+                        title="마일스톤 관리"
+                    >
+                        🏁 {task.milestones?.length || 0}
+                    </button>
+                </div>
+
                 {/* 색상 */}
                 <div className="col-color">
                     <div className="color-picker-wrapper">
@@ -179,6 +221,55 @@ function TaskRow({
                     </button>
                 </div>
             </div>
+
+            {/* 마일스톤 모달 */}
+            <Modal
+                isOpen={showMilestoneModal}
+                onClose={() => setShowMilestoneModal(false)}
+                title={`마일스톤 관리: ${task.name}`}
+            >
+                <div className="milestone-manager">
+                    {task.milestones && task.milestones.length > 0 ? (
+                        <div className="milestone-list">
+                            {task.milestones.map((milestone) => (
+                                <div key={milestone.id} className="milestone-item">
+                                    <input
+                                        type="text"
+                                        value={milestone.label}
+                                        onChange={(e) => handleUpdateMilestone(milestone.id, 'label', e.target.value)}
+                                        placeholder="레이블"
+                                        className="milestone-label-input"
+                                    />
+                                    <input
+                                        type="date"
+                                        value={milestone.date}
+                                        onChange={(e) => handleUpdateMilestone(milestone.id, 'date', e.target.value)}
+                                        className="milestone-date-input"
+                                    />
+                                    <input
+                                        type="color"
+                                        value={milestone.color}
+                                        onChange={(e) => handleUpdateMilestone(milestone.id, 'color', e.target.value)}
+                                        className="milestone-color-input"
+                                    />
+                                    <button
+                                        className="icon danger"
+                                        onClick={() => handleDeleteMilestone(milestone.id)}
+                                        title="삭제"
+                                    >
+                                        🗑️
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <p className="no-milestones">마일스톤이 없습니다.</p>
+                    )}
+                    <button className="primary" onClick={handleAddMilestone} style={{ marginTop: '12px' }}>
+                        ➕ 마일스톤 추가
+                    </button>
+                </div>
+            </Modal>
 
             {/* 하위 작업들 */}
             {hasChildren && task.expanded && (

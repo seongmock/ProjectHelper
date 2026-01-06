@@ -19,6 +19,7 @@ function TableView({
                     <div className="col-name">작업명</div>
                     <div className="col-dates">시작일</div>
                     <div className="col-dates">종료일</div>
+                    <div className="col-milestones">마일스톤</div>
                     <div className="col-color">색상</div>
                     <div className="col-actions">작업</div>
                 </div>

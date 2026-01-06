@@ -10,12 +10,12 @@
 }
 
 .table-container {
-    min-width: 800px;
+    min-width: 900px;
 }
 
 .table-header {
     display: grid;
-    grid-template-columns: 1fr 140px 140px 80px 200px;
+    grid-template-columns: 1fr 140px 140px 120px 80px 200px;
     gap: var(--spacing-sm);
     padding: var(--spacing-md) var(--spacing-lg);
     background-color: var(--color-bg-secondary);
@@ -40,6 +40,12 @@
 .col-dates {
     display: flex;
     align-items: center;
+}
+
+.col-milestones {
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .col-color {
@@ -82,7 +88,7 @@
     }
 
     .table-header {
-        grid-template-columns: 1fr 100px 100px 60px 150px;
+        grid-template-columns: 1fr 100px 100px 100px 60px 150px;
         padding: var(--spacing-sm) var(--spacing-md);
         font-size: var(--font-size-xs);
     }
