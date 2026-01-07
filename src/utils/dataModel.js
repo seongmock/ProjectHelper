@@ -13,6 +13,7 @@ export const createNewTask = (name = '새 작업', parentId = null) => {
         labels: [],
         parentId,
         milestones: [], // 마일스톤 배열: { id, date, label, color, shape: 'diamond'|'circle'|'triangle'|'square' }
+        dependencies: [], // 선행 작업 ID 배열
     };
 };
 

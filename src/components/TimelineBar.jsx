@@ -12,6 +12,7 @@ function TimelineBar({
     onSelect,
     onDragUpdate,
     onContextMenu,
+    onMilestoneContextMenu,
     showLabel = true
 }) {
     const [isDragging, setIsDragging] = useState(false);
@@ -164,6 +165,26 @@ function TimelineBar({
                     break;
             }
 
+            // 레이블 위치 스타일
+            let labelStyle = {};
+            const labelPos = milestone.labelPosition || 'bottom';
+
+            switch (labelPos) {
+                case 'top':
+                    labelStyle = { bottom: '100%', left: '50%', transform: 'translateX(-50%)', marginBottom: '4px' };
+                    break;
+                case 'left':
+                    labelStyle = { right: '100%', top: '50%', transform: 'translateY(-50%)', marginRight: '8px' };
+                    break;
+                case 'right':
+                    labelStyle = { left: '100%', top: '50%', transform: 'translateY(-50%)', marginLeft: '8px' };
+                    break;
+                case 'bottom':
+                default:
+                    labelStyle = { top: '100%', left: '50%', transform: 'translateX(-50%)', marginTop: '4px' };
+                    break;
+            }
+
             return (
                 <div
                     key={milestone.id}
@@ -172,11 +193,16 @@ function TimelineBar({
                         left: `${position}px`,
                     }}
                     title={`${milestone.label} (${milestone.date})`}
+                    onContextMenu={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        onMilestoneContextMenu(e, milestone);
+                    }}
                 >
                     <div className="milestone-shape">
                         {shapeElement}
                     </div>
-                    <span className="milestone-label">{milestone.label}</span>
+                    <span className="milestone-label" style={labelStyle}>{milestone.label}</span>
                 </div>
             );
         });

@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import './TimelineBarPopover.css';
 
-function TimelineBarPopover({ position, task, onClose, onUpdate, onDelete, onAddMilestone }) {
+function TimelineBarPopover({ position, task, successors = [], predecessors = [], onClose, onUpdate, onDelete, onAddMilestone, onStartLinking }) {
     const popoverRef = useRef(null);
 
     useEffect(() => {
@@ -61,6 +61,67 @@ function TimelineBarPopover({ position, task, onClose, onUpdate, onDelete, onAdd
                         <span className="plus-icon">+</span>
                     </label>
                 </div>
+            </div>
+
+            {/* 의존성 관리 */}
+            <div className="popover-section">
+                <div className="section-title">연결 (Dependencies)</div>
+                <button
+                    className="action-btn secondary full-width"
+                    onClick={onStartLinking}
+                    style={{ marginBottom: '8px', width: '100%', textAlign: 'center', padding: '4px 8px', fontSize: '12px' }}
+                >
+                    + 연결 추가 (Link Task)
+                </button>
+
+                {/* 선행 작업 (Predecessors) */}
+                {predecessors && predecessors.length > 0 && (
+                    <div className="dependency-list">
+                        <div className="dependency-subtitle" style={{ fontSize: '11px', color: '#666', marginBottom: '4px' }}>선행 (Predecessors)</div>
+                        {predecessors.map(predTask => (
+                            <div key={predTask.id} className="dependency-item" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px', marginBottom: '4px' }}>
+                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '150px' }}>
+                                    ← {predTask.name}
+                                </span>
+                                <button
+                                    className="close-btn"
+                                    style={{ fontSize: '14px', color: '#D9534F' }}
+                                    onClick={() => {
+                                        const newDeps = task.dependencies.filter(id => id !== predTask.id);
+                                        onUpdate(task.id, { dependencies: newDeps });
+                                    }}
+                                >
+                                    &times;
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                )}
+
+                {/* 후행 작업 (Successors) */}
+                {successors && successors.length > 0 && (
+                    <div className="dependency-list" style={{ marginTop: '8px' }}>
+                        <div className="dependency-subtitle" style={{ fontSize: '11px', color: '#666', marginBottom: '4px' }}>후행 (Successors)</div>
+                        {successors.map(succTask => (
+                            <div key={succTask.id} className="dependency-item" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px', marginBottom: '4px' }}>
+                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '150px' }}>
+                                    → {succTask.name}
+                                </span>
+                                <button
+                                    className="close-btn"
+                                    style={{ fontSize: '14px', color: '#D9534F' }}
+                                    onClick={() => {
+                                        // 후행 작업의 dependencies에서 현재 작업 ID 제거
+                                        const newDeps = succTask.dependencies.filter(id => id !== task.id);
+                                        onUpdate(succTask.id, { dependencies: newDeps });
+                                    }}
+                                >
+                                    &times;
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                )}
             </div>
 
             <div className="popover-actions" style={{ justifyContent: 'space-between' }}>

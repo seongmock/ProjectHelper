@@ -1,31 +1,46 @@
-import { useMemo, useRef, useEffect, useState } from 'react';
+import { useMemo, useRef, useEffect, useState, forwardRef, useImperativeHandle } from 'react';
 import { dateUtils } from '../utils/dateUtils';
 import TimelineHeader from './TimelineHeader';
 import TimelineBar from './TimelineBar';
 import TimelineBarPopover from './TimelineBarPopover';
 import MilestoneQuickAdd from './MilestoneQuickAdd';
+import MilestoneEditPopover from './MilestoneEditPopover';
 import { generateId } from '../utils/dataModel';
 import html2canvas from 'html2canvas';
 import './TimelineView.css';
 
-function TimelineView({
+const TimelineView = forwardRef(({
     tasks,
     selectedTaskId,
     onSelectTask,
     onUpdateTask,
     timeScale,
-    viewMode
-}) {
+    viewMode,
+    // Props from App
+    zoomLevel = 1.0,
+    showToday = true,
+    isCompact = false,
+    showTaskNames = true
+}, ref) => {
     const containerRef = useRef(null);
     const timelineScrollRef = useRef(null);
     const captureRef = useRef(null);
     const [containerWidth, setContainerWidth] = useState(0);
-    const [showTaskNames, setShowTaskNames] = useState(true);
+
     const [editingTaskId, setEditingTaskId] = useState(null);
     const [editingName, setEditingName] = useState('');
-    const [popoverInfo, setPopoverInfo] = useState(null); // { x, y, task, date }
+    const [popoverInfo, setPopoverInfo] = useState(null); // { x, y, taskId, date }
     const [milestoneModalInfo, setMilestoneModalInfo] = useState(null); // { task, date }
-    const [zoomLevel, setZoomLevel] = useState(1.0); // 줌 레벨 (0.5 ~ 2.0)
+    const [milestoneEditInfo, setMilestoneEditInfo] = useState(null); // { x, y, task, milestone }
+
+    // 의존성 연결 모드 상태
+    const [isLinkingMode, setIsLinkingMode] = useState(false);
+    const [linkSourceTaskId, setLinkSourceTaskId] = useState(null);
+
+    // Expose copyToClipboard to parent
+    useImperativeHandle(ref, () => ({
+        copyToClipboard: handleCopyToClipboard
+    }));
 
     // 컨테이너 너비 감지 (타임라인 스크롤 영역 기준)
     useEffect(() => {
@@ -40,6 +55,18 @@ function TimelineView({
         resizeObserver.observe(timelineScrollRef.current);
         return () => resizeObserver.disconnect();
     }, [showTaskNames]);
+
+    // ESC 키로 연결 모드 취소
+    useEffect(() => {
+        const handleKeyDown = (e) => {
+            if (e.key === 'Escape' && isLinkingMode) {
+                setIsLinkingMode(false);
+                setLinkSourceTaskId(null);
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [isLinkingMode]);
 
     // 전체 작업의 날짜 범위 계산
     const dateRange = useMemo(() => {
@@ -96,23 +123,69 @@ function TimelineView({
         });
     };
 
+    // 작업 클릭 핸들러 (연결 모드 처리)
+    const handleTaskClick = (taskId) => {
+        if (isLinkingMode) {
+            if (taskId === linkSourceTaskId) {
+                // 자기 자신 선택 시 취소
+                setIsLinkingMode(false);
+                setLinkSourceTaskId(null);
+                return;
+            }
+
+            // 의존성 추가
+            const targetTask = flatTasks.find(t => t.id === taskId);
+            if (targetTask) {
+                // 이미 존재하는지 확인
+                if (targetTask.dependencies && targetTask.dependencies.includes(linkSourceTaskId)) {
+                    alert('이미 연결된 작업입니다.');
+                    setIsLinkingMode(false);
+                    setLinkSourceTaskId(null);
+                    return;
+                }
+
+                // 순환 참조 방지 (간단한 체크)
+                const sourceTask = flatTasks.find(t => t.id === linkSourceTaskId);
+                if (sourceTask && sourceTask.dependencies && sourceTask.dependencies.includes(taskId)) {
+                    alert('순환 참조가 발생할 수 있어 연결할 수 없습니다.');
+                    setIsLinkingMode(false);
+                    setLinkSourceTaskId(null);
+                    return;
+                }
+
+                const newDependencies = [...(targetTask.dependencies || []), linkSourceTaskId];
+                onUpdateTask(taskId, { dependencies: newDependencies });
+                setIsLinkingMode(false);
+                setLinkSourceTaskId(null);
+            }
+        } else {
+            onSelectTask(taskId);
+        }
+    };
+
     // 우클릭 핸들러
     const handleContextMenu = (e, task, date) => {
         e.preventDefault();
         setPopoverInfo({
             x: e.clientX,
             y: e.clientY,
-            task,
+            taskId: task.id, // ID만 저장
             date // 클릭한 날짜 정보 추가
         });
     };
 
+    // 마일스톤 우클릭 핸들러
+    const handleMilestoneContextMenu = (e, task, milestone) => {
+        e.preventDefault();
+        setMilestoneEditInfo({
+            x: e.clientX,
+            y: e.clientY,
+            task,
+            milestone
+        });
+    };
+
     const handleDeleteTask = (taskId) => {
-        // 실제 삭제 로직은 상위 컴포넌트(App)에서 처리하도록 onUpdateTask 대신 별도 prop이 필요할 수 있음
-        // 현재 구조상 onUpdateTask를 통해 삭제를 알리거나, tasks 배열을 직접 수정해야 함
-        // 여기서는 간단히 console.log만 하고, 실제로는 App.jsx에 onDeleteTask prop을 추가하는 것이 좋음
-        // 임시로 onUpdateTask에 null을 보내 삭제 신호로 사용하거나, 별도 prop 추가 필요
-        // 일단은 알림만 띄움 (구현 필요)
         console.log('Delete task:', taskId);
     };
 
@@ -130,13 +203,45 @@ function TimelineView({
         }
     };
 
-    // 줌 인/아웃 핸들러
-    const handleZoomIn = () => {
-        setZoomLevel(prev => Math.min(prev + 0.1, 2.0));
+    const handleUpdateMilestone = (milestoneId, updates) => {
+        if (!milestoneEditInfo) return;
+
+        const { task } = milestoneEditInfo;
+        const currentTask = flatTasks.find(t => t.id === task.id);
+
+        if (currentTask && currentTask.milestones) {
+            const updatedMilestones = currentTask.milestones.map(m =>
+                m.id === milestoneId ? { ...m, ...updates } : m
+            );
+            onUpdateTask(task.id, { milestones: updatedMilestones });
+
+            // 업데이트 후 팝오버 정보도 갱신 (즉시 반영을 위해)
+            const updatedMilestone = updatedMilestones.find(m => m.id === milestoneId);
+            setMilestoneEditInfo(prev => ({
+                ...prev,
+                milestone: updatedMilestone
+            }));
+        }
     };
 
-    const handleZoomOut = () => {
-        setZoomLevel(prev => Math.max(prev - 0.1, 0.5));
+    const handleDeleteMilestone = (milestoneId) => {
+        if (!milestoneEditInfo) return;
+
+        const { task } = milestoneEditInfo;
+        const currentTask = flatTasks.find(t => t.id === task.id);
+
+        if (currentTask && currentTask.milestones) {
+            const updatedMilestones = currentTask.milestones.filter(m => m.id !== milestoneId);
+            onUpdateTask(task.id, { milestones: updatedMilestones });
+            setMilestoneEditInfo(null);
+        }
+    };
+
+    // 연결 모드 시작
+    const startLinking = (taskId) => {
+        setIsLinkingMode(true);
+        setLinkSourceTaskId(taskId);
+        setPopoverInfo(null); // 팝오버 닫기
     };
 
     // 이미지 복사 핸들러
@@ -169,35 +274,98 @@ function TimelineView({
     // 줌 레벨에 따른 컨텐츠 너비
     const contentWidth = containerWidth * zoomLevel;
 
+    // 의존성 선 렌더링
+    const renderDependencies = () => {
+        const lines = [];
+        const totalDays = dateUtils.getDaysBetween(dateRange.start, dateRange.end);
+
+        flatTasks.forEach((task) => {
+            if (task.dependencies && task.dependencies.length > 0) {
+                task.dependencies.forEach(depId => {
+                    const sourceTask = flatTasks.find(t => t.id === depId);
+                    if (sourceTask) {
+                        // 좌표 계산
+                        const sourceDays = dateUtils.getDaysBetween(dateRange.start, sourceTask.endDate);
+                        const targetDays = dateUtils.getDaysBetween(dateRange.start, task.startDate);
+
+                        const startX = (sourceDays / totalDays) * contentWidth;
+                        const endX = (targetDays / totalDays) * contentWidth;
+
+                        // Y좌표: 각 row의 높이는 CSS 변수 --row-height와 일치해야 함
+                        // App.css: --row-height: 40px
+                        // TimelineView.css (.compact-mode): --row-height: 28px
+                        const rowHeight = isCompact ? 28 : 40;
+
+                        // flatTasks에서의 인덱스를 사용하여 Y좌표 계산
+                        const sourceIndex = flatTasks.findIndex(t => t.id === depId);
+                        const targetIndex = flatTasks.findIndex(t => t.id === task.id);
+
+                        const startY = sourceIndex * rowHeight + rowHeight / 2;
+                        const endY = targetIndex * rowHeight + rowHeight / 2;
+
+                        // 직각 경로 생성 (Right -> Vertical -> Right)
+                        const midX = startX + 20; // 시작점에서 20px 오른쪽으로 이동 후 꺾임
+
+                        let path = '';
+                        if (startX < endX - 40) { // 여유 공간 40px로 증가
+                            // 일반적인 경우: 소스가 타겟보다 충분히 왼쪽에 있음
+                            path = `M ${startX} ${startY} L ${midX} ${startY} L ${midX} ${endY} L ${endX} ${endY}`;
+                        } else {
+                            // 소스가 타겟보다 뒤에 있거나 너무 가까운 경우: S자 형태로 꺾임
+                            const backX = startX + 10;
+                            const forwardX = endX - 30; // 3배 더 왼쪽으로 (10 -> 30)
+                            const midY = (startY + endY) / 2;
+                            path = `M ${startX} ${startY} L ${backX} ${startY} L ${backX} ${midY} L ${forwardX} ${midY} L ${forwardX} ${endY} L ${endX} ${endY}`;
+                        }
+
+                        lines.push(
+                            <path
+                                key={`${sourceTask.id}-${task.id}`}
+                                d={path}
+                                fill="none"
+                                stroke="#999"
+                                strokeWidth="2"
+                                strokeDasharray="4 2"
+                                markerEnd="url(#arrowhead)"
+                            />
+                        );
+                    }
+                });
+            }
+        });
+
+        return (
+            <svg className="dependency-layer" style={{ width: contentWidth, height: flatTasks.length * 46 }}>
+                <defs>
+                    <marker
+                        id="arrowhead"
+                        markerWidth="10"
+                        markerHeight="7"
+                        refX="9"
+                        refY="3.5"
+                        orient="auto"
+                    >
+                        <polygon points="0 0, 10 3.5, 0 7" fill="#999" />
+                    </marker>
+                </defs>
+                {lines}
+            </svg>
+        );
+    };
+
+    // 팝오버를 위한 현재 작업 찾기
+    const popoverTask = popoverInfo ? flatTasks.find(t => t.id === popoverInfo.taskId) : null;
+
+    // 후행 작업(Successors) 찾기
+    const successors = popoverTask ? flatTasks.filter(t => t.dependencies && t.dependencies.includes(popoverTask.id)) : [];
+
+    // 선행 작업(Predecessors) 찾기
+    const predecessors = popoverTask ? flatTasks.filter(t => popoverTask.dependencies && popoverTask.dependencies.includes(t.id)) : [];
+
     return (
-        <div className={`timeline-view ${viewMode === 'split' ? 'split-mode' : ''}`} ref={containerRef}>
-            {/* 컨트롤 바 */}
-            <div className="timeline-controls">
-                <button
-                    className={`toggle-names-btn ${showTaskNames ? 'active' : ''}`}
-                    onClick={() => setShowTaskNames(!showTaskNames)}
-                    title={showTaskNames ? '작업명 숨기기' : '작업명 표시'}
-                >
-                    {showTaskNames ? '📄 작업명 숨기기' : '📄 작업명 표시'}
-                </button>
-
-                <div className="zoom-controls" style={{ marginLeft: '16px', display: 'flex', gap: '8px', alignItems: 'center' }}>
-                    <button className="icon-btn" onClick={handleZoomOut} title="축소 (-)">➖</button>
-                    <span style={{ fontSize: '12px', minWidth: '40px', textAlign: 'center' }}>{Math.round(zoomLevel * 100)}%</span>
-                    <button className="icon-btn" onClick={handleZoomIn} title="확대 (+)">➕</button>
-                </div>
-
-                <button
-                    className="icon-btn"
-                    onClick={handleCopyToClipboard}
-                    title="이미지로 복사"
-                    style={{ marginLeft: 'auto' }}
-                >
-                    📷 이미지 복사
-                </button>
-            </div>
-
+        <div className={`timeline-view ${viewMode === 'split' ? 'split-mode' : ''} ${isCompact ? 'compact-mode' : ''}`} ref={containerRef}>
             <div className={`timeline-container ${showTaskNames ? 'with-names' : ''}`} ref={captureRef}>
+                {/* ... (Existing JSX) ... */}
                 {/* 왼쪽 작업명 컬럼 */}
                 {showTaskNames && (
                     <div className="task-names-column">
@@ -210,7 +378,7 @@ function TimelineView({
                                     <div
                                         key={task.id}
                                         className={`task-name-item level-${task.level} ${task.id === selectedTaskId ? 'selected' : ''}`}
-                                        onClick={() => onSelectTask(task.id)}
+                                        onClick={() => handleTaskClick(task.id)}
                                         onDoubleClick={(e) => {
                                             e.stopPropagation();
                                             setEditingTaskId(task.id);
@@ -261,10 +429,14 @@ function TimelineView({
                         endDate={dateRange.end}
                         timeScale={timeScale}
                         containerWidth={contentWidth}
+                        showToday={showToday}
                     />
 
                     {/* 타임라인 바들 */}
-                    <div className="timeline-content">
+                    <div className={`timeline-content ${isLinkingMode ? 'linking-mode' : ''}`}>
+                        {/* 의존성 라인 레이어 */}
+                        {renderDependencies()}
+
                         {tasks.length === 0 ? (
                             <div className="empty-timeline">
                                 <p>작업을 추가하여 타임라인을 시작하세요</p>
@@ -279,9 +451,10 @@ function TimelineView({
                                     endDate={dateRange.end}
                                     containerWidth={contentWidth}
                                     isSelected={task.id === selectedTaskId}
-                                    onSelect={onSelectTask}
+                                    onSelect={() => handleTaskClick(task.id)}
                                     onDragUpdate={handleDragUpdate}
                                     onContextMenu={(e, date) => handleContextMenu(e, task, date)}
+                                    onMilestoneContextMenu={(e, milestone) => handleMilestoneContextMenu(e, task, milestone)}
                                     showLabel={!showTaskNames}
                                 />
                             ))
@@ -291,49 +464,52 @@ function TimelineView({
             </div>
 
             {/* 컨텍스트 메뉴 팝오버 */}
-            {
-                popoverInfo && (
-                    <TimelineBarPopover
-                        position={{ x: popoverInfo.x, y: popoverInfo.y }}
-                        task={popoverInfo.task}
-                        onClose={() => setPopoverInfo(null)}
-                        onUpdate={(taskId, updates) => {
-                            onUpdateTask(taskId, updates);
-                            // 색상 변경 등 즉시 반영을 위해 팝오버 닫지 않음 (선택 사항)
-                        }}
-                        onDelete={(taskId) => {
-                            // onDeleteTask(taskId); // App.jsx에서 prop으로 받아야 함
-                            // 현재는 임시로 tasks에서 필터링하는 로직이 App.jsx에 있어야 함
-                            // 일단 onUpdateTask를 통해 처리하거나 별도 구현 필요
-                            // 여기서는 onUpdateTask에 deleted 플래그를 보내는 방식으로 우회 가능
-                            // 또는 상위에서 onDeleteTask prop을 내려줘야 함.
-                            // 일단은 onUpdateTask만 호출
-                            onUpdateTask(taskId, { deleted: true });
-                        }}
-                        onAddMilestone={() => {
-                            setMilestoneModalInfo({
-                                task: popoverInfo.task,
-                                date: popoverInfo.date
-                            });
-                            setPopoverInfo(null);
-                        }}
-                    />
-                )
-            }
+            {popoverInfo && popoverTask && (
+                <TimelineBarPopover
+                    position={{ x: popoverInfo.x, y: popoverInfo.y }}
+                    task={popoverTask}
+                    successors={successors}
+                    predecessors={predecessors}
+                    onClose={() => setPopoverInfo(null)}
+                    onUpdate={(taskId, updates) => {
+                        onUpdateTask(taskId, updates);
+                    }}
+                    onDelete={(taskId) => {
+                        onUpdateTask(taskId, { deleted: true });
+                    }}
+                    onAddMilestone={() => {
+                        setMilestoneModalInfo({
+                            task: popoverTask,
+                            date: popoverInfo.date
+                        });
+                        setPopoverInfo(null);
+                    }}
+                    onStartLinking={() => startLinking(popoverTask.id)}
+                />
+            )}
+
+            {/* 마일스톤 편집 팝오버 */}
+            {milestoneEditInfo && (
+                <MilestoneEditPopover
+                    position={{ x: milestoneEditInfo.x, y: milestoneEditInfo.y }}
+                    milestone={milestoneEditInfo.milestone}
+                    onClose={() => setMilestoneEditInfo(null)}
+                    onUpdate={handleUpdateMilestone}
+                    onDelete={handleDeleteMilestone}
+                />
+            )}
 
             {/* 마일스톤 추가 모달 */}
-            {
-                milestoneModalInfo && (
-                    <MilestoneQuickAdd
-                        task={milestoneModalInfo.task}
-                        date={milestoneModalInfo.date}
-                        onClose={() => setMilestoneModalInfo(null)}
-                        onAdd={handleAddMilestone}
-                    />
-                )
-            }
-        </div >
+            {milestoneModalInfo && (
+                <MilestoneQuickAdd
+                    task={milestoneModalInfo.task}
+                    date={milestoneModalInfo.date}
+                    onClose={() => setMilestoneModalInfo(null)}
+                    onAdd={handleAddMilestone}
+                />
+            )}
+        </div>
     );
-}
+});
 
 export default TimelineView;

@@ -153,3 +153,24 @@
         transform: scale(0.8);
     }
 }
+
+/* 컴팩트 모드 바 높이 조정 */
+.compact-mode .timeline-row.level-0 .timeline-bar {
+    height: 20px;
+}
+
+.compact-mode .timeline-row.level-1 .timeline-bar {
+    height: 18px;
+}
+
+.compact-mode .timeline-row.level-2 .timeline-bar {
+    height: 16px;
+}
+
+.compact-mode .bar-label {
+    font-size: 11px;
+}
+
+.compact-mode .milestone-marker {
+    transform: translate(-50%, -50%) scale(0.8);
+}

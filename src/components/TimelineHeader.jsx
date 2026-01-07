@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { dateUtils } from '../utils/dateUtils';
 import './TimelineHeader.css';
 
-function TimelineHeader({ startDate, endDate, timeScale, containerWidth }) {
+function TimelineHeader({ startDate, endDate, timeScale, containerWidth, showToday = true }) {
     // 월별 또는 분기별 범위 생성
     const timeUnits = useMemo(() => {
         if (timeScale === 'monthly') {
@@ -66,12 +66,13 @@ function TimelineHeader({ startDate, endDate, timeScale, containerWidth }) {
 
     // 오늘 날짜 마커 위치 계산
     const todayPosition = useMemo(() => {
+        if (!showToday) return null; // 오늘 보기 꺼져있으면 계산 안함
         const today = new Date();
         if (today < startDate || today > endDate) return null;
 
         const days = dateUtils.getDaysBetween(startDate, today);
         return (days / totalDays) * containerWidth;
-    }, [startDate, endDate, totalDays, containerWidth]);
+    }, [startDate, endDate, totalDays, containerWidth, showToday]);
 
     return (
         <div className="timeline-header">

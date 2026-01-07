@@ -7,7 +7,18 @@ function Toolbar({
     onTimeScaleChange,
     searchQuery,
     onSearchChange,
-    onAddTask
+    onAddTask,
+    // 타임라인 컨트롤 props
+    zoomLevel,
+    onZoomIn,
+    onZoomOut,
+    showToday,
+    onToggleToday,
+    isCompact,
+    onToggleCompact,
+    showTaskNames,
+    onToggleTaskNames,
+    onCopyImage
 }) {
     return (
         <div className="toolbar">
@@ -38,24 +49,85 @@ function Toolbar({
                         </button>
                     </div>
 
-                    {/* 타임스케일 전환 */}
+                    {/* 타임스케일 및 컨트롤 (타임라인/분할 뷰일 때만 표시) */}
                     {(viewMode === 'timeline' || viewMode === 'split') && (
-                        <div className="time-scale-toggle">
-                            <button
-                                className={timeScale === 'monthly' ? 'active' : ''}
-                                onClick={() => onTimeScaleChange('monthly')}
-                                title="월별 보기"
-                            >
-                                월별
-                            </button>
-                            <button
-                                className={timeScale === 'quarterly' ? 'active' : ''}
-                                onClick={() => onTimeScaleChange('quarterly')}
-                                title="분기별 보기"
-                            >
-                                분기별
-                            </button>
-                        </div>
+                        <>
+                            <div className="divider" style={{ width: '1px', height: '24px', backgroundColor: 'var(--color-border)', margin: '0 8px' }}></div>
+
+                            <div className="time-scale-toggle">
+                                <button
+                                    className={timeScale === 'monthly' ? 'active' : ''}
+                                    onClick={() => onTimeScaleChange('monthly')}
+                                    title="월별 보기"
+                                >
+                                    월별
+                                </button>
+                                <button
+                                    className={timeScale === 'quarterly' ? 'active' : ''}
+                                    onClick={() => onTimeScaleChange('quarterly')}
+                                    title="분기별 보기"
+                                >
+                                    분기별
+                                </button>
+                            </div>
+
+                            <div className="divider" style={{ width: '1px', height: '24px', backgroundColor: 'var(--color-border)', margin: '0 8px' }}></div>
+
+                            {/* 타임라인 컨트롤 */}
+                            <div className="timeline-controls-group">
+                                <button
+                                    className={`icon-btn ${showTaskNames ? 'active' : ''}`}
+                                    onClick={onToggleTaskNames}
+                                    title={showTaskNames ? '작업명 숨기기' : '작업명 표시'}
+                                >
+                                    {showTaskNames ? '📄 숨기기' : '📄 표시'}
+                                </button>
+
+                                <button
+                                    className={`icon-btn ${showToday ? 'active' : ''}`}
+                                    onClick={onToggleToday}
+                                    title={showToday ? '오늘 날짜 숨기기' : '오늘 날짜 표시'}
+                                >
+                                    {showToday ? '📅 오늘 숨기기' : '📅 오늘 보기'}
+                                </button>
+
+                                <button
+                                    className={`icon-btn ${isCompact ? 'active' : ''}`}
+                                    onClick={onToggleCompact}
+                                    title={isCompact ? '일반 모드로 전환' : '컴팩트 모드로 전환'}
+                                >
+                                    {isCompact ? '↕️ 넓게' : '↕️ 좁게'}
+                                </button>
+
+                                <div className="zoom-controls" style={{ display: 'flex', gap: '2px', alignItems: 'center', marginLeft: '4px' }}>
+                                    <button
+                                        className="icon-btn"
+                                        onClick={onZoomOut}
+                                        title="축소"
+                                        style={{ width: '32px', padding: '0' }}
+                                    >
+                                        ➖
+                                    </button>
+                                    <button
+                                        className="icon-btn"
+                                        onClick={onZoomIn}
+                                        title="확대"
+                                        style={{ width: '32px', padding: '0' }}
+                                    >
+                                        ➕
+                                    </button>
+                                </div>
+
+                                <button
+                                    className="icon-btn"
+                                    onClick={onCopyImage}
+                                    title="이미지로 복사"
+                                    style={{ marginLeft: '4px' }}
+                                >
+                                    📷 캡처
+                                </button>
+                            </div>
+                        </>
                     )}
                 </div>
 

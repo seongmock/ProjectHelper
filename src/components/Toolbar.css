@@ -69,6 +69,43 @@
     font-weight: 600;
 }
 
+/* 타임라인 컨트롤 버튼 */
+.icon-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--spacing-xs) var(--spacing-sm);
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius);
+    background-color: var(--color-bg-tertiary);
+    color: var(--color-text-primary);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    font-size: var(--font-size-sm);
+    height: 32px;
+    /* 다른 버튼과 높이 맞춤 */
+    box-sizing: border-box;
+}
+
+.icon-btn:hover {
+    background-color: var(--color-bg-primary);
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+    transform: translateY(-1px);
+}
+
+.icon-btn.active {
+    background-color: var(--color-primary);
+    color: white;
+    border-color: var(--color-primary);
+}
+
+.timeline-controls-group {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+}
+
 @media (max-width: 768px) {
     .toolbar-content {
         flex-direction: column;
@@ -84,5 +121,10 @@
 
     .search-box input {
         width: 100%;
+    }
+
+    .timeline-controls-group {
+        flex-wrap: wrap;
+        justify-content: center;
     }
 }

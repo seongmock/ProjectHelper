@@ -1,0 +1,116 @@
+[
+    {
+        "id": "q1-2026",
+        "name": "2026년 1분기 계획",
+        "startDate": "2026-01-01",
+        "endDate": "2026-03-31",
+        "color": "#4A90E2",
+        "description": "1분기 주요 목표 및 실행 계획",
+        "expanded": true,
+        "labels": [
+            "1분기"
+        ],
+        "milestones": [
+            {
+                "id": "m-q1-start",
+                "date": "2026-01-01",
+                "label": "1분기 시작",
+                "color": "#5CB85C",
+                "shape": "diamond",
+                "labelPosition": "top"
+            },
+            {
+                "id": "m-q1-review",
+                "date": "2026-03-31",
+                "label": "1분기 리뷰",
+                "color": "#D9534F",
+                "shape": "flag",
+                "labelPosition": "bottom"
+            }
+        ],
+        "children": [
+            {
+                "id": "q1-jan",
+                "name": "1월: 기반 구축",
+                "startDate": "2026-01-01",
+                "endDate": "2026-01-31",
+                "color": "#5CB85C",
+                "expanded": true,
+                "children": [],
+                "milestones": []
+            },
+            {
+                "id": "q1-feb",
+                "name": "2월: 핵심 기능 개발",
+                "startDate": "2026-02-01",
+                "endDate": "2026-02-28",
+                "color": "#F0AD4E",
+                "expanded": true,
+                "children": [],
+                "milestones": [
+                    {
+                        "id": "m-feb-mid",
+                        "date": "2026-02-15",
+                        "label": "중간 점검",
+                        "color": "#F0AD4E",
+                        "shape": "circle"
+                    }
+                ]
+            },
+            {
+                "id": "q1-mar",
+                "name": "3월: 안정화 및 테스트",
+                "startDate": "2026-03-01",
+                "endDate": "2026-03-31",
+                "color": "#9B59B6",
+                "expanded": true,
+                "children": [],
+                "milestones": []
+            }
+        ]
+    },
+    {
+        "id": "q2-2026",
+        "name": "2026년 2분기 계획",
+        "startDate": "2026-04-01",
+        "endDate": "2026-06-30",
+        "color": "#E67E22",
+        "description": "2분기 확장 및 고도화",
+        "expanded": true,
+        "labels": [
+            "2분기"
+        ],
+        "milestones": [
+            {
+                "id": "m-q2-launch",
+                "date": "2026-04-15",
+                "label": "서비스 런칭",
+                "color": "#D9534F",
+                "shape": "star",
+                "labelPosition": "top"
+            }
+        ],
+        "children": [
+            {
+                "id": "q2-apr",
+                "name": "4월: 마케팅 및 홍보",
+                "startDate": "2026-04-01",
+                "endDate": "2026-04-30",
+                "color": "#E67E22",
+                "expanded": true,
+                "children": [],
+                "milestones": []
+            },
+            {
+                "id": "q2-may",
+                "name": "5월: 피드백 반영",
+                "startDate": "2026-05-01",
+                "endDate": "2026-05-31",
+                "color": "#4A90E2",
+                "expanded": true,
+                "children": [],
+                "milestones": []
+            }
+        ]
+    }
+]

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { getSampleData, createNewTask } from './utils/dataModel';
 import { storage } from './utils/storage';
 import { useUndoRedo } from './hooks/useUndoRedo';
@@ -10,7 +10,7 @@ import './App.css';
 
 function App() {
     // 뷰 모드: 'table', 'timeline', 'split'
-    const [viewMode, setViewMode] = useState('split');
+    const [viewMode, setViewMode] = useState('timeline');
 
     // 타임스케일: 'monthly', 'quarterly'
     const [timeScale, setTimeScale] = useState('monthly');
@@ -201,6 +201,24 @@ function App() {
         return filterTasks(tasks);
     }, [tasks, searchQuery]);
 
+    // 타임라인 뷰 상태 (Toolbar로 이동)
+    const [zoomLevel, setZoomLevel] = useState(1.0);
+    const [showToday, setShowToday] = useState(true);
+    const [isCompact, setIsCompact] = useState(false);
+    const [showTaskNames, setShowTaskNames] = useState(true);
+    const timelineRef = useRef(null);
+
+    // 줌 핸들러
+    const handleZoomIn = () => setZoomLevel(prev => prev + 0.1);
+    const handleZoomOut = () => setZoomLevel(prev => Math.max(prev - 0.1, 0.1));
+
+    // 타임라인 이미지 복사
+    const handleCopyTimeline = () => {
+        if (timelineRef.current) {
+            timelineRef.current.copyToClipboard();
+        }
+    };
+
     return (
         <div className="app">
             <Header
@@ -222,6 +240,17 @@ function App() {
                 searchQuery={searchQuery}
                 onSearchChange={setSearchQuery}
                 onAddTask={() => handleAddTask()}
+                // 타임라인 컨트롤 props
+                zoomLevel={zoomLevel}
+                onZoomIn={handleZoomIn}
+                onZoomOut={handleZoomOut}
+                showToday={showToday}
+                onToggleToday={() => setShowToday(!showToday)}
+                isCompact={isCompact}
+                onToggleCompact={() => setIsCompact(!isCompact)}
+                showTaskNames={showTaskNames}
+                onToggleTaskNames={() => setShowTaskNames(!showTaskNames)}
+                onCopyImage={handleCopyTimeline}
             />
 
             <div className="main-content">
@@ -240,12 +269,18 @@ function App() {
 
                 {(viewMode === 'timeline' || viewMode === 'split') && (
                     <TimelineView
+                        ref={timelineRef}
                         tasks={filteredTasks()}
                         selectedTaskId={selectedTaskId}
                         onSelectTask={setSelectedTaskId}
                         onUpdateTask={handleUpdateTask}
                         timeScale={timeScale}
                         viewMode={viewMode}
+                        // 상태 전달
+                        zoomLevel={zoomLevel}
+                        showToday={showToday}
+                        isCompact={isCompact}
+                        showTaskNames={showTaskNames}
                     />
                 )}
             </div>
