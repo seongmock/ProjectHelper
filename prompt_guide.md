@@ -19,19 +19,6 @@
 제공된 일정 정보(이미지 또는 텍스트)를 바탕으로 다음 JSON 스키마에 맞는 데이터를 생성해주세요.
 
 ### JSON 데이터 구조 규칙
-1. **최상위 구조**: 객체들의 배열(`[]`) 형태여야 합니다.
-2. **날짜 형식**: `YYYY-MM-DD` (예: "2026-01-01")
-3. **ID 생성**: 각 작업과 마일스톤은 고유한 `id` 문자열을 가져야 합니다. (예: "task-1", "m-1")
-4. **색상**: Hex 코드 (예: "#4A90E2") 사용.
-   - 파랑: #4A90E2, 초록: #5CB85C, 보라: #7B68EE, 주황: #F0AD4E, 빨강: #D9534F
-5. **마일스톤 모양**: 다음 중 하나 선택 - `diamond`, `circle`, `triangle`, `square`, `star`, `flag`
-6. **마일스톤 레이블 위치**: `top`, `bottom`, `left`, `right` 중 하나 (기본값: bottom)
-
-### JSON 스키마 예시
-```json
-[
-  {
-    "id": "unique-task-id",
     "name": "작업 이름",
     "startDate": "2026-01-01",
     "endDate": "2026-01-31",
@@ -50,7 +37,14 @@
         "shape": "star",
         "labelPosition": "top"
       }
-    ]
+    ],
+    "dependencies": ["predecessor-task-id"],
+    "divider": {
+      "enabled": true,
+      "style": "solid",
+      "color": "#000000",
+      "thickness": 2
+    }
   }
 ]
 ```
