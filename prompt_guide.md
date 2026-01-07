@@ -1,73 +1,62 @@
-# AI 일정 데이터 생성 프롬프트 가이드
+# AI 일정 생성 프롬프트 (복사 붙여넣기용)
 
-이 가이드는 AI(ChatGPT, Claude 등)를 활용하여 프로젝트 일정을 이 프로그램에서 사용할 수 있는 JSON 데이터로 변환하거나, 새로운 일정을 생성할 때 사용하는 상세 가이드입니다.
-
-## 1. 시스템 개요 (System Overview)
-
-이 프로그램은 **React 기반의 현대적인 간트 차트(Gantt Chart) 및 타임라인 관리 도구**입니다.
-사용자는 작업을 계층적(Hierarchy)으로 관리하고, 시각적인 타임라인 바(Bar)와 마일스톤(Milestone)을 통해 프로젝트의 흐름을 한눈에 파악할 수 있습니다.
-
-### 주요 기능 (Key Features)
-*   **계층 구조 (Hierarchy)**: 작업(Task)은 하위 작업(Children)을 가질 수 있으며, 무한 깊이의 트리 구조를 지원합니다.
-*   **타임라인 (Timeline)**: 각 작업은 시작일(StartDate)과 종료일(EndDate)을 가지며, 타임라인 상에 바 형태로 표시됩니다.
-*   **마일스톤 (Milestone)**: 특정 날짜에 중요한 이벤트를 표시합니다. 다양한 모양(별, 다이아몬드 등)과 색상을 지원합니다.
-*   **의존성 (Dependency)**: 작업 간, 또는 마일스톤 간의 선후 관계를 화살표로 연결하여 표시합니다.
-*   **구분선 (Divider)**: 작업 리스트 내에 시각적인 구분선을 추가하여 섹션을 나눌 수 있습니다.
+아래의 **[프롬프트 시작]**부터 **[프롬프트 끝]**까지의 내용을 통째로 복사하여 AI(ChatGPT, Claude 등)에게 붙여넣으세요.
+그 후, 마지막에 원하시는 일정 내용을 적으시면 됩니다.
 
 ---
 
-## 2. 데이터 구조 (Data Structure)
+**[프롬프트 시작]**
 
-AI에게 데이터를 요청할 때는 아래의 JSON 구조를 준수하도록 지시해야 합니다.
+**역할 (Role)**:
+당신은 React 기반의 간트 차트(Gantt Chart) 애플리케이션을 위한 데이터 생성 전문가입니다. 사용자의 자연어 설명이나 이미지 내용을 분석하여, 시스템이 이해할 수 있는 완벽한 JSON 구조로 변환하는 것이 임무입니다.
+
+**시스템 컨텍스트 (System Context)**:
+이 애플리케이션은 다음 기능들을 지원합니다:
+1.  **계층 구조 (Hierarchy)**: 작업(Task)은 `children` 배열을 통해 무한 깊이의 하위 작업을 가질 수 있습니다.
+2.  **타임라인 (Timeline)**: 모든 작업은 `startDate`와 `endDate`를 가집니다.
+3.  **마일스톤 (Milestone)**: 작업 내에 `milestones` 배열로 중요 이벤트를 표시합니다. (모양: star, diamond, flag, circle, square, triangle)
+4.  **의존성 (Dependencies)**: `dependencies` 배열에 선행 작업의 ID를 넣어 연결 관계를 표현합니다.
+5.  **구분선 (Divider)**: 작업 하단에 `divider` 객체를 추가하여 시각적 구분을 줄 수 있습니다.
+
+**데이터 스키마 (JSON Schema)**:
+반드시 아래 형식을 준수해야 합니다.
 
 ```json
 {
   "meta": {
     "viewSettings": {
-      "timeScale": "monthly", // "monthly" (월별) 또는 "quarterly" (분기별)
-      "viewMode": "timeline"  // "table" (표), "timeline" (타임라인), "split" (분할)
+      "timeScale": "monthly", // "monthly" 또는 "quarterly"
+      "viewMode": "timeline"  // "timeline" 고정
     }
   },
   "data": [
     {
-      "id": "unique-id-1",            // 고유 ID (필수)
-      "name": "프로젝트 착수",          // 작업 이름 (필수)
-      "startDate": "2026-01-01",      // 시작일 (YYYY-MM-DD)
-      "endDate": "2026-01-15",        // 종료일 (YYYY-MM-DD)
-      "color": "#4A90E2",             // 타임라인 바 색상 (Hex 코드)
-      "description": "기획 단계",      // 상세 설명
-      "expanded": true,               // 하위 작업 펼침 여부
+      "id": "unique_id_1",       // 고유한 문자열 ID
+      "name": "작업 이름",
+      "startDate": "YYYY-MM-DD",
+      "endDate": "YYYY-MM-DD",
+      "color": "#HexColor",      // 예: #4A90E2
+      "expanded": true,          // 하위 작업 펼침 여부
+      "description": "설명 (선택)",
       
-      // 하위 작업 (재귀적 구조)
-      "children": [
+      "children": [],            // 하위 작업이 있을 경우 재귀적으로 동일 구조 포함
+
+      "milestones": [            // 마일스톤이 있을 경우
         {
-          "id": "child-id-1",
-          "name": "요구사항 분석",
-          "startDate": "2026-01-02",
-          "endDate": "2026-01-10",
-          "color": "#50E3C2"
+          "id": "ms_id_1",
+          "date": "YYYY-MM-DD",
+          "label": "마일스톤 이름",
+          "shape": "star",       // star, diamond, flag, circle, square, triangle 중 택 1
+          "color": "#HexColor",
+          "labelPosition": "top" // top, bottom, right 중 택 1
         }
       ],
 
-      // 마일스톤 (작업 내에 포함됨)
-      "milestones": [
-        {
-          "id": "ms-1",
-          "date": "2026-01-15",
-          "label": "킥오프 미팅",
-          "color": "#F5A623",
-          "shape": "star",           // 모양: "diamond", "circle", "square", "triangle", "star", "flag"
-          "labelPosition": "top"     // 위치: "top", "bottom", "right"
-        }
-      ],
+      "dependencies": ["target_id_1"], // 선행 작업의 ID 목록
 
-      // 의존성 (선행 작업 ID 목록)
-      "dependencies": ["predecessor-id"],
-
-      // 구분선 (작업 하단에 표시)
-      "divider": {
+      "divider": {               // 구분선이 필요할 경우
         "enabled": true,
-        "style": "solid",            // "solid", "dashed", "dotted"
+        "style": "solid",        // solid, dashed, dotted
         "color": "#DDDDDD",
         "thickness": 1
       }
@@ -76,35 +65,19 @@ AI에게 데이터를 요청할 때는 아래의 JSON 구조를 준수하도록 
 }
 ```
 
----
+**생성 규칙 (Rules)**:
+1.  **날짜 추론**: 사용자가 정확한 날짜를 명시하지 않은 경우, 문맥에 맞는 합리적인 기간(예: 1월 = 01-01 ~ 01-31)을 할당하세요.
+2.  **ID 생성**: 모든 `id`는 고유해야 합니다 (예: task_1, task_1_1).
+3.  **시각화**: 단계별로 서로 다른 색상(`color`)을 사용하여 시각적으로 구분되게 하세요.
+4.  **출력 형식**: 설명이나 사족 없이, 오직 **JSON 코드 블록** 하나만 출력하세요.
 
-## 3. 프롬프트 예시 (Example Prompts)
-
-상황에 맞춰 아래 프롬프트를 복사하여 사용하세요.
-
-### 상황 A: 이미지나 텍스트 문서를 일정으로 변환할 때
-> "이 이미지(또는 텍스트)에 있는 프로젝트 일정을 분석해서, 아래 JSON 포맷으로 변환해줘.
-> 대주제는 상위 작업으로, 세부 내용은 하위 작업으로 계층을 만들어줘.
-> 중요한 날짜에는 'star' 모양의 마일스톤을 추가해줘."
-> (JSON 템플릿 붙여넣기)
-
-### 상황 B: 새로운 일정을 제안받을 때
-> "2026년도 신규 모바일 앱 개발 일정을 짜줘. 기간은 1월부터 6월까지야.
-> 기획, 디자인, 개발, 테스트, 배포 단계로 나누고, 각 단계가 끝날 때마다 마일스톤을 넣어줘.
-> 개발 단계는 프론트엔드와 백엔드로 하위 작업을 나눠줘.
-> 전체적인 색감은 파스텔 톤으로 해주고, 아래 JSON 형식으로 출력해줘."
-> (JSON 템플릿 붙여넣기)
-
-### 상황 C: 스타일을 구체적으로 지정할 때
-> "일정 데이터를 만들어주는데, 모든 메인 단계(Level 0) 아래에는 회색 점선(dotted) 구분선을 넣어줘.
-> 마일스톤은 'flag' 모양을 사용하고 빨간색(#FF5555)으로 강조해줘.
-> 작업 간의 의존성(dependencies)도 논리적으로 연결해줘."
-> (JSON 템플릿 붙여넣기)
+**[프롬프트 끝]**
 
 ---
 
-## 4. 팁 (Tips for Better Results)
+### 사용 예시 (AI에게 이렇게 입력하세요)
 
-*   **색상 지정**: "메인 컬러는 파란색 계열, 강조 컬러는 주황색으로 해줘"라고 구체적으로 요청하면 더 예쁜 차트가 나옵니다.
-*   **계층 구조**: "3단계 깊이까지 상세하게 나눠줘"라고 하면 더 구체적인 일정을 얻을 수 있습니다.
-*   **마일스톤**: "매월 말일에는 '월간 보고' 마일스톤을 넣어줘"와 같은 반복적인 패턴도 요청 가능합니다.
+> (위의 내용을 복사해서 붙여넣은 후...)
+>
+> **사용자 요청**:
+> "2026년 상반기 신제품 출시 일정을 짜줘. 1월 기획, 2월 개발, 3월 테스트 순서로 진행되고 각 단계가 끝날 때마다 'star' 모양의 마일스톤을 넣어줘. 개발 단계는 프론트/백엔드로 나눠줘."

@@ -1,0 +1,455 @@
+{
+    "meta": {
+        "viewSettings": {
+            "timeScale": "quarterly",
+            "viewMode": "timeline"
+        }
+    },
+    "data": [
+        {
+            "id": "task_0",
+            "name": "프로젝트 일정",
+            "startDate": "2026-01-01",
+            "endDate": "2030-03-31",
+            "color": "#2D3E50",
+            "expanded": true,
+            "description": "분기(Quarter) 기준으로 정리한 전체 프로젝트 마스터 일정",
+            "children": [
+                {
+                    "id": "task_1",
+                    "name": "표준 적용 및 양산",
+                    "startDate": "2027-01-01",
+                    "endDate": "2030-03-31",
+                    "color": "#4A90E2",
+                    "expanded": true,
+                    "description": "OEM 의사결정 및 양산(SOP)까지의 상위 일정",
+                    "children": [],
+                    "milestones": [
+                        {
+                            "id": "ms_1_1",
+                            "date": "2027-01-15",
+                            "label": "OEM 개발비 투자 결정",
+                            "shape": "diamond",
+                            "color": "#D0021B",
+                            "labelPosition": "top"
+                        },
+                        {
+                            "id": "ms_1_2",
+                            "date": "2029-12-15",
+                            "label": "SOP (’29 Q4 ~ ’30 Q1)",
+                            "shape": "diamond",
+                            "color": "#D0021B",
+                            "labelPosition": "top"
+                        }
+                    ],
+                    "dependencies": [
+                        "task_3"
+                    ],
+                    "divider": {
+                        "enabled": true,
+                        "style": "solid",
+                        "color": "#DDDDDD",
+                        "thickness": 1
+                    }
+                },
+                {
+                    "id": "task_2",
+                    "name": "Series 요구사항",
+                    "startDate": "2026-01-01",
+                    "endDate": "2026-06-30",
+                    "color": "#7B61FF",
+                    "expanded": true,
+                    "description": "요구사항 수렴/정의 및 동결(Freeze)",
+                    "children": [],
+                    "milestones": [
+                        {
+                            "id": "ms_2_1",
+                            "date": "2026-02-15",
+                            "label": "Bosch Draft REQ",
+                            "shape": "diamond",
+                            "color": "#D0021B",
+                            "labelPosition": "top"
+                        },
+                        {
+                            "id": "ms_2_2",
+                            "date": "2026-05-15",
+                            "label": "REQ Freeze",
+                            "shape": "diamond",
+                            "color": "#D0021B",
+                            "labelPosition": "top"
+                        }
+                    ],
+                    "dependencies": [],
+                    "divider": {
+                        "enabled": false,
+                        "style": "solid",
+                        "color": "#DDDDDD",
+                        "thickness": 1
+                    }
+                },
+                {
+                    "id": "task_3",
+                    "name": "Series Chiplet 개발",
+                    "startDate": "2026-04-01",
+                    "endDate": "2029-09-30",
+                    "color": "#F5A623",
+                    "expanded": true,
+                    "description": "Chiplet 설계/구현/실리콘 단계(BS/ES/CS)까지",
+                    "children": [
+                        {
+                            "id": "task_3_1",
+                            "name": "아키텍처/요건 정합 & IP 선정",
+                            "startDate": "2026-04-01",
+                            "endDate": "2026-09-30",
+                            "color": "#F8C471",
+                            "expanded": true,
+                            "description": "요구사항 기반 아키텍처 정합 및 핵심 IP 확정",
+                            "children": [],
+                            "milestones": [
+                                {
+                                    "id": "ms_3_1_1",
+                                    "date": "2026-08-15",
+                                    "label": "CPU/GPU/PUF IP 선정",
+                                    "shape": "diamond",
+                                    "color": "#F5A623",
+                                    "labelPosition": "top"
+                                }
+                            ],
+                            "dependencies": [
+                                "task_2"
+                            ],
+                            "divider": {
+                                "enabled": false,
+                                "style": "solid",
+                                "color": "#DDDDDD",
+                                "thickness": 1
+                            }
+                        },
+                        {
+                            "id": "task_3_2",
+                            "name": "RTL 설계/통합",
+                            "startDate": "2026-10-01",
+                            "endDate": "2027-06-30",
+                            "color": "#F39C12",
+                            "expanded": true,
+                            "description": "RTL 구현 및 통합, 동결(Freeze)",
+                            "children": [],
+                            "milestones": [
+                                {
+                                    "id": "ms_3_2_1",
+                                    "date": "2027-05-15",
+                                    "label": "RTL Freeze",
+                                    "shape": "diamond",
+                                    "color": "#D0021B",
+                                    "labelPosition": "top"
+                                }
+                            ],
+                            "dependencies": [
+                                "task_3_1"
+                            ],
+                            "divider": {
+                                "enabled": false,
+                                "style": "solid",
+                                "color": "#DDDDDD",
+                                "thickness": 1
+                            }
+                        },
+                        {
+                            "id": "task_3_3",
+                            "name": "P&R / Sign-off / Tapeout",
+                            "startDate": "2027-07-01",
+                            "endDate": "2027-12-31",
+                            "color": "#D35400",
+                            "expanded": true,
+                            "description": "물리 구현 및 Tapeout",
+                            "children": [],
+                            "milestones": [
+                                {
+                                    "id": "ms_3_3_1",
+                                    "date": "2027-12-15",
+                                    "label": "Tapeout",
+                                    "shape": "diamond",
+                                    "color": "#D0021B",
+                                    "labelPosition": "top"
+                                }
+                            ],
+                            "dependencies": [
+                                "task_3_2"
+                            ],
+                            "divider": {
+                                "enabled": true,
+                                "style": "dashed",
+                                "color": "#DDDDDD",
+                                "thickness": 1
+                            }
+                        },
+                        {
+                            "id": "task_3_4",
+                            "name": "실리콘 단계 (BS/ES/CS) & 검증",
+                            "startDate": "2028-01-01",
+                            "endDate": "2029-09-30",
+                            "color": "#2ECC71",
+                            "expanded": true,
+                            "description": "초도 실리콘/엔지니어링 샘플/고객 샘플 단계 및 검증",
+                            "children": [],
+                            "milestones": [
+                                {
+                                    "id": "ms_3_4_1",
+                                    "date": "2028-05-15",
+                                    "label": "BS",
+                                    "shape": "diamond",
+                                    "color": "#4A90E2",
+                                    "labelPosition": "top"
+                                },
+                                {
+                                    "id": "ms_3_4_2",
+                                    "date": "2028-11-15",
+                                    "label": "ES",
+                                    "shape": "diamond",
+                                    "color": "#4A90E2",
+                                    "labelPosition": "top"
+                                },
+                                {
+                                    "id": "ms_3_4_3",
+                                    "date": "2029-08-15",
+                                    "label": "CS",
+                                    "shape": "diamond",
+                                    "color": "#4A90E2",
+                                    "labelPosition": "top"
+                                }
+                            ],
+                            "dependencies": [
+                                "task_3_3"
+                            ],
+                            "divider": {
+                                "enabled": false,
+                                "style": "solid",
+                                "color": "#DDDDDD",
+                                "thickness": 1
+                            }
+                        }
+                    ],
+                    "milestones": [],
+                    "dependencies": [
+                        "task_2"
+                    ],
+                    "divider": {
+                        "enabled": true,
+                        "style": "solid",
+                        "color": "#DDDDDD",
+                        "thickness": 1
+                    }
+                },
+                {
+                    "id": "task_4",
+                    "name": "Plan B: Full Revision",
+                    "startDate": "2028-04-01",
+                    "endDate": "2030-03-31",
+                    "color": "#FF6F61",
+                    "expanded": true,
+                    "description": "대안 플랜(Full Revision) 개발 및 샘플 단계",
+                    "children": [
+                        {
+                            "id": "task_4_1",
+                            "name": "Revision RTL/통합",
+                            "startDate": "2028-04-01",
+                            "endDate": "2028-12-31",
+                            "color": "#FF8A80",
+                            "expanded": true,
+                            "children": [],
+                            "milestones": [
+                                {
+                                    "id": "ms_4_1_1",
+                                    "date": "2028-12-15",
+                                    "label": "RTL Freeze",
+                                    "shape": "diamond",
+                                    "color": "#D0021B",
+                                    "labelPosition": "top"
+                                }
+                            ],
+                            "dependencies": [
+                                "task_3_3"
+                            ],
+                            "divider": {
+                                "enabled": false,
+                                "style": "solid",
+                                "color": "#DDDDDD",
+                                "thickness": 1
+                            }
+                        },
+                        {
+                            "id": "task_4_2",
+                            "name": "Revision Tapeout",
+                            "startDate": "2029-01-01",
+                            "endDate": "2029-03-31",
+                            "color": "#FF6F61",
+                            "expanded": true,
+                            "children": [],
+                            "milestones": [
+                                {
+                                    "id": "ms_4_2_1",
+                                    "date": "2029-03-15",
+                                    "label": "Tapeout",
+                                    "shape": "diamond",
+                                    "color": "#D0021B",
+                                    "labelPosition": "top"
+                                }
+                            ],
+                            "dependencies": [
+                                "task_4_1"
+                            ],
+                            "divider": {
+                                "enabled": true,
+                                "style": "dotted",
+                                "color": "#DDDDDD",
+                                "thickness": 1
+                            }
+                        },
+                        {
+                            "id": "task_4_3",
+                            "name": "Revision 샘플/검증 (BS/ES)",
+                            "startDate": "2029-04-01",
+                            "endDate": "2030-03-31",
+                            "color": "#E74C3C",
+                            "expanded": true,
+                            "children": [],
+                            "milestones": [
+                                {
+                                    "id": "ms_4_3_1",
+                                    "date": "2029-07-15",
+                                    "label": "BS/ES",
+                                    "shape": "diamond",
+                                    "color": "#4A90E2",
+                                    "labelPosition": "top"
+                                },
+                                {
+                                    "id": "ms_4_3_2",
+                                    "date": "2030-02-15",
+                                    "label": "ES",
+                                    "shape": "diamond",
+                                    "color": "#4A90E2",
+                                    "labelPosition": "top"
+                                }
+                            ],
+                            "dependencies": [
+                                "task_4_2"
+                            ],
+                            "divider": {
+                                "enabled": false,
+                                "style": "solid",
+                                "color": "#DDDDDD",
+                                "thickness": 1
+                            }
+                        }
+                    ],
+                    "milestones": [],
+                    "dependencies": [
+                        "task_3"
+                    ],
+                    "divider": {
+                        "enabled": true,
+                        "style": "solid",
+                        "color": "#DDDDDD",
+                        "thickness": 1
+                    }
+                },
+                {
+                    "id": "task_5",
+                    "name": "ACS Substrate(PKG)",
+                    "startDate": "2028-04-01",
+                    "endDate": "2029-03-31",
+                    "color": "#9B59B6",
+                    "expanded": true,
+                    "description": "패키지/서브스트레이트 설계 및 샘플 확보",
+                    "children": [],
+                    "milestones": [
+                        {
+                            "id": "ms_5_1",
+                            "date": "2028-11-15",
+                            "label": "ACS Samples",
+                            "shape": "diamond",
+                            "color": "#9B59B6",
+                            "labelPosition": "top"
+                        }
+                    ],
+                    "dependencies": [
+                        "task_3_3"
+                    ],
+                    "divider": {
+                        "enabled": false,
+                        "style": "solid",
+                        "color": "#DDDDDD",
+                        "thickness": 1
+                    }
+                },
+                {
+                    "id": "task_6",
+                    "name": "Bring-up Board",
+                    "startDate": "2028-10-01",
+                    "endDate": "2029-06-30",
+                    "color": "#6C5CE7",
+                    "expanded": true,
+                    "description": "보드 제작/조립 및 Bring-up",
+                    "children": [],
+                    "milestones": [
+                        {
+                            "id": "ms_6_1",
+                            "date": "2029-02-15",
+                            "label": "Bring-up Board",
+                            "shape": "flag",
+                            "color": "#6C5CE7",
+                            "labelPosition": "top"
+                        }
+                    ],
+                    "dependencies": [
+                        "task_5"
+                    ],
+                    "divider": {
+                        "enabled": true,
+                        "style": "dashed",
+                        "color": "#DDDDDD",
+                        "thickness": 1
+                    }
+                },
+                {
+                    "id": "task_7",
+                    "name": "Pilot ECU",
+                    "startDate": "2029-01-01",
+                    "endDate": "2030-03-31",
+                    "color": "#00B894",
+                    "expanded": true,
+                    "description": "ECU 통합/파일럿 검증",
+                    "children": [],
+                    "milestones": [
+                        {
+                            "id": "ms_7_1",
+                            "date": "2029-12-01",
+                            "label": "ECU",
+                            "shape": "diamond",
+                            "color": "#4A90E2",
+                            "labelPosition": "top"
+                        }
+                    ],
+                    "dependencies": [
+                        "task_6",
+                        "task_3_4"
+                    ],
+                    "divider": {
+                        "enabled": false,
+                        "style": "solid",
+                        "color": "#DDDDDD",
+                        "thickness": 1
+                    }
+                }
+            ],
+            "milestones": [],
+            "dependencies": [],
+            "divider": {
+                "enabled": false,
+                "style": "solid",
+                "color": "#DDDDDD",
+                "thickness": 1
+            }
+        }
+    ]
+}

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useLayoutEffect } from 'react';
 import './MilestoneEditPopover.css';
 import ColorPicker from './ColorPicker';
 
-function MilestoneEditPopover({ position, milestone, onClose, onUpdate, onDelete, onStartLinking }) {
+function MilestoneEditPopover({ position, milestone, predecessors = [], successors = [], onClose, onUpdate, onDelete, onStartLinking, onRemoveDependency }) {
     const popoverRef = useRef(null);
     const [labelText, setLabelText] = useState(milestone.label || '');
     const [adjustedPos, setAdjustedPos] = useState(position);
@@ -156,6 +156,63 @@ function MilestoneEditPopover({ position, milestone, onClose, onUpdate, onDelete
                 </div>
             </div>
 
+            {/* 의존성 관리 */}
+            <div className="popover-section" style={{ marginTop: '16px', borderTop: '1px solid #eee', paddingTop: '12px' }}>
+                <div className="section-title" style={{ fontSize: '12px', fontWeight: 'bold', marginBottom: '8px' }}>연결 (Dependencies)</div>
+                <button
+                    className="action-btn secondary full-width"
+                    onClick={() => {
+                        onStartLinking();
+                        onClose();
+                    }}
+                    style={{ marginBottom: '8px', width: '100%', textAlign: 'center', padding: '4px 8px', fontSize: '12px' }}
+                >
+                    + 연결 추가 (Link)
+                </button>
+
+                {/* 선행 작업 (Predecessors) */}
+                {predecessors && predecessors.length > 0 && (
+                    <div className="dependency-list">
+                        <div className="dependency-subtitle" style={{ fontSize: '11px', color: '#666', marginBottom: '4px' }}>선행 (Predecessors)</div>
+                        {predecessors.map(pred => (
+                            <div key={pred.id} className="dependency-item" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px', marginBottom: '4px' }}>
+                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '150px' }}>
+                                    ← {pred.name}
+                                </span>
+                                <button
+                                    className="close-btn"
+                                    style={{ fontSize: '14px', color: '#D9534F', cursor: 'pointer', background: 'none', border: 'none' }}
+                                    onClick={() => onRemoveDependency(milestone.id, pred.id)}
+                                >
+                                    &times;
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                )}
+
+                {/* 후행 작업 (Successors) */}
+                {successors && successors.length > 0 && (
+                    <div className="dependency-list" style={{ marginTop: '8px' }}>
+                        <div className="dependency-subtitle" style={{ fontSize: '11px', color: '#666', marginBottom: '4px' }}>후행 (Successors)</div>
+                        {successors.map(succ => (
+                            <div key={succ.id} className="dependency-item" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px', marginBottom: '4px' }}>
+                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '150px' }}>
+                                    → {succ.name}
+                                </span>
+                                <button
+                                    className="close-btn"
+                                    style={{ fontSize: '14px', color: '#D9534F', cursor: 'pointer', background: 'none', border: 'none' }}
+                                    onClick={() => onRemoveDependency(succ.id, milestone.id)}
+                                >
+                                    &times;
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+
             <div className="popover-actions" style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '16px' }}>
                 <button
                     className="action-btn delete"
@@ -167,17 +224,6 @@ function MilestoneEditPopover({ position, milestone, onClose, onUpdate, onDelete
                     }}
                 >
                     삭제
-                </button>
-                <button
-                    className="action-btn link"
-                    onClick={() => {
-                        onStartLinking();
-                        onClose();
-                    }}
-                    title="의존성 연결 시작"
-                    style={{ backgroundColor: '#f0f0f0', color: '#333', border: '1px solid #ddd' }}
-                >
-                    🔗 연결
                 </button>
             </div>
         </div>

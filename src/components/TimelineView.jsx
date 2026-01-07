@@ -80,8 +80,16 @@ const TimelineView = forwardRef(({
         const getAllDates = (items) => {
             const dates = [];
             items.forEach(item => {
-                dates.push(new Date(item.startDate));
-                dates.push(new Date(item.endDate));
+                if (item.startDate) dates.push(new Date(item.startDate));
+                if (item.endDate) dates.push(new Date(item.endDate));
+
+                // 마일스톤 날짜도 포함
+                if (item.milestones && item.milestones.length > 0) {
+                    item.milestones.forEach(ms => {
+                        if (ms.date) dates.push(new Date(ms.date));
+                    });
+                }
+
                 if (item.children && item.children.length > 0) {
                     dates.push(...getAllDates(item.children));
                 }
@@ -129,6 +137,36 @@ const TimelineView = forwardRef(({
     };
 
     const flatTasks = useMemo(() => flattenTasks(tasks), [tasks]);
+
+    // 1. 모든 항목(작업 + 마일스톤)을 ID로 매핑하여 위치 정보 미리 계산
+    const itemMap = useMemo(() => {
+        const map = new Map();
+        flatTasks.forEach((task, index) => {
+            // 작업 정보 저장
+            map.set(task.id, {
+                type: 'task',
+                data: task,
+                index: index,
+                startDate: task.startDate,
+                endDate: task.endDate,
+                name: task.name
+            });
+
+            // 마일스톤 정보 저장
+            if (task.milestones) {
+                task.milestones.forEach(ms => {
+                    map.set(ms.id, {
+                        type: 'milestone',
+                        data: ms,
+                        parentIndex: index, // 마일스톤은 부모 작업의 행에 위치
+                        date: ms.date,
+                        name: ms.label || '마일스톤'
+                    });
+                });
+            }
+        });
+        return map;
+    }, [flatTasks]);
 
     // 드래그로 날짜 변경
     const handleDragUpdate = (taskId, newStartDate, newEndDate) => {
@@ -351,32 +389,6 @@ const TimelineView = forwardRef(({
         const totalDays = dateUtils.getDuration(dateRange.start, dateRange.end);
         const rowHeight = isCompact ? 28 : 40;
 
-        // 1. 모든 항목(작업 + 마일스톤)을 ID로 매핑하여 위치 정보 미리 계산
-        const itemMap = new Map();
-
-        flatTasks.forEach((task, index) => {
-            // 작업 정보 저장
-            itemMap.set(task.id, {
-                type: 'task',
-                data: task,
-                index: index,
-                startDate: task.startDate,
-                endDate: task.endDate
-            });
-
-            // 마일스톤 정보 저장
-            if (task.milestones) {
-                task.milestones.forEach(ms => {
-                    itemMap.set(ms.id, {
-                        type: 'milestone',
-                        data: ms,
-                        parentIndex: index, // 마일스톤은 부모 작업의 행에 위치
-                        date: ms.date
-                    });
-                });
-            }
-        });
-
         // 2. 의존성 선 그리기
         flatTasks.forEach((task) => {
             // 작업의 의존성 처리
@@ -488,11 +500,81 @@ const TimelineView = forwardRef(({
     // 팝오버를 위한 현재 작업 찾기
     const popoverTask = popoverInfo ? flatTasks.find(t => t.id === popoverInfo.taskId) : null;
 
-    // 후행 작업(Successors) 찾기
+    // 후행 작업(Successors) 찾기 (작업용)
     const successors = popoverTask ? flatTasks.filter(t => t.dependencies && t.dependencies.includes(popoverTask.id)) : [];
 
-    // 선행 작업(Predecessors) 찾기
+    // 선행 작업(Predecessors) 찾기 (작업용)
     const predecessors = popoverTask ? flatTasks.filter(t => popoverTask.dependencies && popoverTask.dependencies.includes(t.id)) : [];
+
+    // 마일스톤용 선행/후행 찾기
+    const milestonePredecessors = useMemo(() => {
+        if (!milestoneEditInfo) return [];
+        const { milestone } = milestoneEditInfo;
+        const preds = [];
+        if (milestone.dependencies) {
+            milestone.dependencies.forEach(depId => {
+                const item = itemMap.get(depId);
+                if (item) preds.push({ id: item.data.id, name: item.name });
+            });
+        }
+        return preds;
+    }, [milestoneEditInfo, itemMap]);
+
+    const milestoneSuccessors = useMemo(() => {
+        if (!milestoneEditInfo) return [];
+        const { milestone } = milestoneEditInfo;
+        const succs = [];
+
+        // 1. 작업이 마일스톤을 의존하는 경우
+        flatTasks.forEach(t => {
+            if (t.dependencies && t.dependencies.includes(milestone.id)) {
+                succs.push({ id: t.id, name: t.name });
+            }
+        });
+
+        // 2. 다른 마일스톤이 이 마일스톤을 의존하는 경우
+        flatTasks.forEach(t => {
+            if (t.milestones) {
+                t.milestones.forEach(ms => {
+                    if (ms.dependencies && ms.dependencies.includes(milestone.id)) {
+                        succs.push({ id: ms.id, name: ms.label || '마일스톤' });
+                    }
+                });
+            }
+        });
+
+        return succs;
+    }, [milestoneEditInfo, flatTasks, itemMap]);
+
+    // 의존성 제거 핸들러
+    const handleRemoveDependency = (targetId, dependencyId) => {
+        // 1. Target이 작업인 경우
+        const targetTask = flatTasks.find(t => t.id === targetId);
+        if (targetTask) {
+            const newDeps = targetTask.dependencies.filter(id => id !== dependencyId);
+            onUpdateTask(targetId, { dependencies: newDeps });
+            return;
+        }
+
+        // 2. Target이 마일스톤인 경우
+        const parentTask = flatTasks.find(t => t.milestones && t.milestones.some(m => m.id === targetId));
+        if (parentTask) {
+            const updatedMilestones = parentTask.milestones.map(m => {
+                if (m.id === targetId) {
+                    const newDeps = (m.dependencies || []).filter(id => id !== dependencyId);
+                    return { ...m, dependencies: newDeps };
+                }
+                return m;
+            });
+            onUpdateTask(parentTask.id, { milestones: updatedMilestones });
+
+            // 팝오버 정보 갱신
+            if (milestoneEditInfo && milestoneEditInfo.milestone.id === targetId) {
+                const updatedMilestone = updatedMilestones.find(m => m.id === targetId);
+                setMilestoneEditInfo(prev => ({ ...prev, milestone: updatedMilestone }));
+            }
+        }
+    };
 
     return (
         <div className={`timeline-view ${viewMode === 'split' ? 'split-mode' : ''} ${isCompact ? 'compact-mode' : ''}`} ref={containerRef}>
@@ -501,7 +583,7 @@ const TimelineView = forwardRef(({
                 {/* 왼쪽 작업명 컬럼 */}
                 {showTaskNames && (
                     <div className="task-names-column">
-                        <div className="task-names-header">작업명</div>
+                        <div className="task-names-header" onClick={() => onSelectTask(null)}>작업명</div>
                         <div className="task-names-list">
                             {tasks.length === 0 ? (
                                 <div className="empty-names">작업 없음</div>
@@ -578,6 +660,7 @@ const TimelineView = forwardRef(({
                         timeScale={timeScale}
                         containerWidth={contentWidth}
                         showToday={showToday}
+                        onClick={() => onSelectTask(null)}
                     />
 
                     {/* 타임라인 바들 */}
@@ -646,10 +729,13 @@ const TimelineView = forwardRef(({
                 <MilestoneEditPopover
                     position={{ x: milestoneEditInfo.x, y: milestoneEditInfo.y }}
                     milestone={milestoneEditInfo.milestone}
+                    predecessors={milestonePredecessors}
+                    successors={milestoneSuccessors}
                     onClose={() => setMilestoneEditInfo(null)}
                     onUpdate={handleUpdateMilestone}
                     onDelete={handleDeleteMilestone}
                     onStartLinking={() => startLinking(milestoneEditInfo.milestone.id)}
+                    onRemoveDependency={handleRemoveDependency}
                 />
             )}
 

@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { dateUtils } from '../utils/dateUtils';
 import './TimelineHeader.css';
 
-function TimelineHeader({ startDate, endDate, timeScale, containerWidth, showToday = true }) {
+function TimelineHeader({ startDate, endDate, timeScale, containerWidth, showToday = true, onClick }) {
     // 월별 또는 분기별 범위 생성
     const timeUnits = useMemo(() => {
         if (timeScale === 'monthly') {
@@ -75,7 +75,7 @@ function TimelineHeader({ startDate, endDate, timeScale, containerWidth, showTod
     }, [startDate, endDate, totalDays, containerWidth, showToday]);
 
     return (
-        <div className="timeline-header">
+        <div className="timeline-header" onClick={onClick}>
             {/* 년도 행 */}
             <div className="timeline-years" style={{ width: containerWidth }}>
                 {yearGroups.map((yearGroup, index) => (

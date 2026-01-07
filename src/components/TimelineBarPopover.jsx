@@ -62,7 +62,33 @@ function TimelineBarPopover({ position, task, successors = [], predecessors = []
             </div>
 
             <div className="popover-section">
-                <div className="section-title">기간</div>
+                <div className="section-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span>기간</span>
+                    {(task.startDate || task.endDate) && (
+                        <button
+                            onClick={() => onUpdate(task.id, { startDate: '', endDate: '' })}
+                            title="날짜 지우기"
+                            style={{
+                                background: 'white',
+                                border: '1px solid #D9534F',
+                                color: '#D9534F',
+                                borderRadius: '50%',
+                                width: '18px',
+                                height: '18px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                cursor: 'pointer',
+                                fontSize: '14px',
+                                padding: 0,
+                                lineHeight: 1,
+                                marginLeft: '8px'
+                            }}
+                        >
+                            &times;
+                        </button>
+                    )}
+                </div>
                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                     <div style={{ flex: 1 }}>
                         <label style={{ fontSize: '11px', color: '#666', display: 'block', marginBottom: '2px' }}>시작일</label>

@@ -1,0 +1,9 @@
+version: '3'
+
+services:
+  project-management-app:
+    build: .
+    container_name: project-management-app
+    ports:
+      - "8080:80"
+    restart: always
