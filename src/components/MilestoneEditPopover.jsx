@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useLayoutEffect } from 'react';
 import './MilestoneEditPopover.css';
+import ColorPicker from './ColorPicker';
 
 function MilestoneEditPopover({ position, milestone, onClose, onUpdate, onDelete, onStartLinking }) {
     const popoverRef = useRef(null);
@@ -73,16 +74,7 @@ function MilestoneEditPopover({ position, milestone, onClose, onUpdate, onDelete
         { id: 'flag', label: '⚑' },
     ];
 
-    const colors = [
-        '#4A90E2', // Blue
-        '#5CB85C', // Green
-        '#7B68EE', // Purple
-        '#F0AD4E', // Orange/Yellow
-        '#9B59B6', // Violet
-        '#D9534F', // Red
-        '#E67E22', // Dark Orange
-        '#34495e', // Dark Blue
-    ];
+
 
     const positions = [
         { id: 'bottom', label: '하단' },
@@ -126,64 +118,45 @@ function MilestoneEditPopover({ position, milestone, onClose, onUpdate, onDelete
                     />
                 </div>
 
-                {/* 모양 선택 */}
-                <div className="popover-section">
-                    <div className="section-title">모양</div>
-                    <div className="shape-grid">
-                        {shapes.map(shape => (
-                            <button
-                                key={shape.id}
-                                className={`shape-option ${milestone.shape === shape.id ? 'selected' : ''}`}
-                                onClick={() => onUpdate(milestone.id, { shape: shape.id })}
-                                title={shape.id}
-                            >
-                                {shape.label}
-                            </button>
-                        ))}
+                {/* 모양 및 색상 (한 줄 배치) */}
+                <div className="popover-row" style={{ display: 'flex', gap: '12px', marginBottom: '16px' }}>
+                    <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
+                        <label>모양</label>
+                        <select
+                            value={milestone.shape}
+                            onChange={(e) => onUpdate(milestone.id, { shape: e.target.value })}
+                            style={{ width: '100%', padding: '6px', border: '1px solid #ddd', borderRadius: '4px' }}
+                        >
+                            {shapes.map(shape => (
+                                <option key={shape.id} value={shape.id}>{shape.label}</option>
+                            ))}
+                        </select>
                     </div>
-                </div>
-
-                {/* 색상 선택 */}
-                <div className="popover-section">
-                    <div className="section-title">색상</div>
-                    <div className="color-grid">
-                        {colors.map(color => (
-                            <div
-                                key={color}
-                                className={`color-option ${milestone.color === color ? 'selected' : ''}`}
-                                style={{ backgroundColor: color }}
-                                onClick={() => onUpdate(milestone.id, { color })}
-                            />
-                        ))}
-                        <label className="color-option custom-color-picker" title="사용자 지정 색상">
-                            <input
-                                type="color"
-                                value={milestone.color}
-                                onChange={(e) => onUpdate(milestone.id, { color: e.target.value })}
-                            />
-                            <span className="plus-icon">+</span>
-                        </label>
+                    <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
+                        <label>색상</label>
+                        <ColorPicker
+                            color={milestone.color}
+                            onChange={(color) => onUpdate(milestone.id, { color })}
+                        />
                     </div>
                 </div>
 
                 {/* 레이블 위치 */}
-                <div className="popover-section">
-                    <div className="section-title">레이블 위치</div>
-                    <div className="position-grid">
+                <div className="form-group">
+                    <label>레이블 위치</label>
+                    <select
+                        value={milestone.labelPosition || 'bottom'}
+                        onChange={(e) => onUpdate(milestone.id, { labelPosition: e.target.value })}
+                        style={{ width: '100%', padding: '6px', border: '1px solid #ddd', borderRadius: '4px' }}
+                    >
                         {positions.map(pos => (
-                            <button
-                                key={pos.id}
-                                className={`position-option ${milestone.labelPosition === pos.id ? 'selected' : ''}`}
-                                onClick={() => onUpdate(milestone.id, { labelPosition: pos.id })}
-                            >
-                                {pos.label}
-                            </button>
+                            <option key={pos.id} value={pos.id}>{pos.label}</option>
                         ))}
-                    </div>
+                    </select>
                 </div>
             </div>
 
-            <div className="popover-footer">
+            <div className="popover-actions" style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '16px' }}>
                 <button
                     className="action-btn delete"
                     onClick={() => {
@@ -202,6 +175,7 @@ function MilestoneEditPopover({ position, milestone, onClose, onUpdate, onDelete
                         onClose();
                     }}
                     title="의존성 연결 시작"
+                    style={{ backgroundColor: '#f0f0f0', color: '#333', border: '1px solid #ddd' }}
                 >
                     🔗 연결
                 </button>

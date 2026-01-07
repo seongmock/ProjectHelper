@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useLayoutEffect } from 'react';
 import './TimelineBarPopover.css';
+import ColorPicker from './ColorPicker';
 
 function TimelineBarPopover({ position, task, successors = [], predecessors = [], onClose, onUpdate, onDelete, onAddMilestone, onStartLinking }) {
     const popoverRef = useRef(null);
@@ -47,17 +48,7 @@ function TimelineBarPopover({ position, task, successors = [], predecessors = []
         };
     }, [onClose]);
 
-    // 샘플 데이터에서 사용된 색상 팔레트
-    const colors = [
-        '#4A90E2', // Blue
-        '#5CB85C', // Green
-        '#7B68EE', // Purple
-        '#F0AD4E', // Orange/Yellow
-        '#9B59B6', // Violet
-        '#D9534F', // Red
-        '#E67E22', // Dark Orange
-        '#34495e', // Dark Blue (Additional)
-    ];
+
 
     return (
         <div
@@ -97,23 +88,10 @@ function TimelineBarPopover({ position, task, successors = [], predecessors = []
             <div className="popover-section">
                 <div className="section-title">색상</div>
                 <div className="color-grid">
-                    {colors.map(color => (
-                        <div
-                            key={color}
-                            className={`color-option ${task.color === color ? 'selected' : ''}`}
-                            style={{ backgroundColor: color }}
-                            onClick={() => onUpdate(task.id, { color })}
-                        />
-                    ))}
-                    {/* 커스텀 색상 선택기 */}
-                    <label className="color-option custom-color-picker" title="사용자 지정 색상">
-                        <input
-                            type="color"
-                            value={task.color}
-                            onChange={(e) => onUpdate(task.id, { color: e.target.value })}
-                        />
-                        <span className="plus-icon">+</span>
-                    </label>
+                    <ColorPicker
+                        color={task.color}
+                        onChange={(color) => onUpdate(task.id, { color })}
+                    />
                 </div>
             </div>
 
@@ -200,35 +178,35 @@ function TimelineBarPopover({ position, task, successors = [], predecessors = []
                 {task.divider?.enabled && (
                     <div className="divider-settings" style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                            <span style={{ fontSize: '12px' }}>스타일</span>
+                            <span style={{ fontSize: '12px', whiteSpace: 'nowrap' }}>스타일</span>
                             <select
                                 value={task.divider?.style || 'solid'}
                                 onChange={(e) => onUpdate(task.id, { divider: { ...task.divider, style: e.target.value } })}
-                                style={{ padding: '2px 4px', fontSize: '12px' }}
+                                style={{ padding: '2px 4px', fontSize: '12px', fontFamily: 'monospace' }}
                             >
-                                <option value="solid">실선 (Solid)</option>
-                                <option value="dashed">파선 (Dashed)</option>
-                                <option value="dotted">점선 (Dotted)</option>
+                                <option value="solid">────── (Solid)</option>
+                                <option value="dashed">- - - - - - (Dashed)</option>
+                                <option value="dotted">·············· (Dotted)</option>
                             </select>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                            <span style={{ fontSize: '12px' }}>색상</span>
-                            <input
-                                type="color"
-                                value={task.divider?.color || '#000000'}
-                                onChange={(e) => onUpdate(task.id, { divider: { ...task.divider, color: e.target.value } })}
-                                style={{ width: '40px', height: '20px', padding: '0', border: 'none' }}
-                            />
+                            <span style={{ fontSize: '12px', whiteSpace: 'nowrap' }}>색상</span>
+                            <div style={{ width: '100%' }}>
+                                <ColorPicker
+                                    color={task.divider?.color || '#000000'}
+                                    onChange={(color) => onUpdate(task.id, { divider: { ...task.divider, color } })}
+                                />
+                            </div>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                            <span style={{ fontSize: '12px' }}>두께 ({task.divider?.thickness || 2}px)</span>
+                            <span style={{ fontSize: '12px', whiteSpace: 'nowrap' }}>두께 (px)</span>
                             <input
-                                type="range"
+                                type="number"
                                 min="1"
                                 max="10"
                                 value={task.divider?.thickness || 2}
                                 onChange={(e) => onUpdate(task.id, { divider: { ...task.divider, thickness: parseInt(e.target.value) } })}
-                                style={{ width: '80px' }}
+                                style={{ width: '60px', padding: '2px 4px', fontSize: '12px', border: '1px solid #ddd', borderRadius: '4px' }}
                             />
                         </div>
                     </div>

@@ -2,10 +2,11 @@
     position: fixed;
     background-color: white;
     border: 1px solid var(--color-border);
-    border-radius: var(--border-radius);
+    border-radius: 8px;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
     z-index: 1000;
-    width: 350px;
+    width: 320px;
+    padding: 12px;
     font-size: var(--font-size-sm);
     animation: fadeIn 0.2s ease-out;
 }
@@ -13,7 +14,7 @@
 @keyframes fadeIn {
     from {
         opacity: 0;
-        transform: translateY(-10px);
+        transform: translateY(-5px);
     }
 
     to {
@@ -26,14 +27,17 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: var(--spacing-sm) var(--spacing-md);
-    border-bottom: 1px solid var(--color-border);
-    background-color: var(--color-bg-secondary);
-    border-radius: var(--border-radius) var(--border-radius) 0 0;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--color-grid);
+    background-color: transparent;
+    border-radius: 0;
+    padding: 0 0 8px 0;
 }
 
 .popover-title {
     font-weight: 600;
+    font-size: var(--font-size-sm);
     color: var(--color-text-primary);
 }
 
@@ -43,7 +47,7 @@
     font-size: 18px;
     cursor: pointer;
     color: var(--color-text-secondary);
-    padding: 0;
+    padding: 0 4px;
     line-height: 1;
 }
 
@@ -52,178 +56,85 @@
 }
 
 .popover-content {
-    padding: var(--spacing-md);
+    padding: 0;
 }
 
 .form-group {
-    margin-bottom: var(--spacing-md);
+    margin-bottom: 12px;
 }
 
 .form-group label {
     display: block;
-    margin-bottom: var(--spacing-xs);
-    font-weight: 500;
-    color: var(--color-text-secondary);
-    font-size: var(--font-size-xs);
+    margin-bottom: 4px;
+    font-size: 11px;
+    color: #666;
+    font-weight: 600;
 }
 
-.form-group input {
+.form-group input,
+.form-group select {
     width: 100%;
-    padding: var(--spacing-xs) var(--spacing-sm);
+    padding: 4px 8px;
     border: 1px solid var(--color-border);
-    border-radius: var(--border-radius);
-    font-size: var(--font-size-sm);
+    border-radius: 4px;
+    font-size: 12px;
     box-sizing: border-box;
 }
 
-.form-group input:focus {
+.form-group input:focus,
+.form-group select:focus {
     outline: none;
     border-color: var(--color-primary);
 }
 
 .popover-section {
-    margin-bottom: var(--spacing-md);
+    margin-bottom: 16px;
 }
 
 .section-title {
-    font-size: var(--font-size-xs);
-    font-weight: 600;
-    color: var(--color-text-secondary);
-    margin-bottom: var(--spacing-xs);
-}
-
-/* 모양 그리드 */
-.shape-grid {
-    display: grid;
-    grid-template-columns: repeat(6, 1fr);
-    gap: 4px;
-}
-
-.shape-option {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    height: 32px;
-    border: 1px solid var(--color-border);
-    border-radius: var(--border-radius);
-    background-color: white;
-    cursor: pointer;
-    font-size: 16px;
-    transition: all var(--transition-fast);
-}
-
-.shape-option:hover {
-    background-color: var(--color-bg-secondary);
-}
-
-.shape-option.selected {
-    border-color: var(--color-primary);
-    background-color: rgba(74, 144, 226, 0.1);
-    color: var(--color-primary);
-}
-
-/* 색상 그리드 (TimelineBarPopover와 공유 가능하지만 독립성 위해 재정의) */
-.color-grid {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-}
-
-.color-option {
-    width: 24px;
-    height: 24px;
-    border-radius: 50%;
-    cursor: pointer;
-    border: 2px solid transparent;
-    transition: transform var(--transition-fast);
-}
-
-.color-option:hover {
-    transform: scale(1.1);
-}
-
-.color-option.selected {
-    border-color: var(--color-text-primary);
-    box-shadow: 0 0 0 2px white inset;
-}
-
-.custom-color-picker {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background-color: white;
-    border: 1px solid var(--color-border);
-    position: relative;
-    overflow: hidden;
-}
-
-.custom-color-picker input {
-    position: absolute;
-    opacity: 0;
-    width: 100%;
-    height: 100%;
-    cursor: pointer;
-}
-
-.plus-icon {
-    font-size: 16px;
-    color: var(--color-text-secondary);
-    pointer-events: none;
-}
-
-/* 위치 그리드 */
-.position-grid {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 4px;
-}
-
-.position-option {
-    padding: 4px;
-    border: 1px solid var(--color-border);
-    border-radius: var(--border-radius);
-    background-color: white;
-    cursor: pointer;
     font-size: 11px;
-    transition: all var(--transition-fast);
-}
-
-.position-option:hover {
-    background-color: var(--color-bg-secondary);
-}
-
-.position-option.selected {
-    border-color: var(--color-primary);
-    background-color: rgba(74, 144, 226, 0.1);
-    color: var(--color-primary);
     font-weight: 600;
+    color: #888;
+    margin-bottom: 6px;
 }
 
-.popover-footer {
-    padding: var(--spacing-sm) var(--spacing-md);
-    border-top: 1px solid var(--color-border);
+.popover-row {
     display: flex;
-    justify-content: flex-end;
-    background-color: var(--color-bg-secondary);
-    border-radius: 0 0 var(--border-radius) var(--border-radius);
+    gap: 12px;
+}
+
+.popover-row .form-group {
+    flex: 1;
+    margin-bottom: 0;
 }
 
 .action-btn {
-    padding: var(--spacing-xs) var(--spacing-md);
-    border-radius: var(--border-radius);
-    font-size: var(--font-size-sm);
+    padding: 6px 12px;
+    border-radius: 4px;
+    font-size: var(--font-size-xs);
     cursor: pointer;
     border: none;
+    font-weight: 500;
     transition: background-color var(--transition-fast);
 }
 
 .action-btn.delete {
-    background-color: transparent;
+    background-color: rgba(231, 76, 60, 0.1);
     color: var(--color-danger);
-    border: 1px solid var(--color-danger);
+    border: none;
 }
 
 .action-btn.delete:hover {
     background-color: var(--color-danger);
     color: white;
+}
+
+.action-btn.link {
+    background-color: #f5f5f5;
+    color: #333;
+    border: 1px solid #ddd;
+}
+
+.action-btn.link:hover {
+    background-color: #e0e0e0;
 }

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { dateUtils } from '../utils/dateUtils';
 import './MilestoneQuickAdd.css';
+import ColorPicker from './ColorPicker';
 
 function MilestoneQuickAdd({ task, date, onClose, onAdd }) {
     const [label, setLabel] = useState('새 마일스톤');
@@ -30,8 +31,8 @@ function MilestoneQuickAdd({ task, date, onClose, onAdd }) {
     return (
         <div className="milestone-quick-add-overlay" onClick={onClose}>
             <div className="milestone-quick-add-dialog" onClick={e => e.stopPropagation()}>
-                <div className="dialog-header">
-                    <h3>마일스톤 추가</h3>
+                <div className="popover-header">
+                    <span className="popover-title">마일스톤 추가</span>
                     <button className="close-btn" onClick={onClose}>&times;</button>
                 </div>
                 <form onSubmit={handleSubmit}>
@@ -59,29 +60,27 @@ function MilestoneQuickAdd({ task, date, onClose, onAdd }) {
                         <div className="form-group">
                             <label>모양</label>
                             <select value={shape} onChange={(e) => setShape(e.target.value)}>
-                                <option value="diamond">마름모 (◆)</option>
-                                <option value="circle">원 (●)</option>
-                                <option value="triangle">삼각형 (▲)</option>
-                                <option value="square">사각형 (■)</option>
-                                <option value="star">별 (★)</option>
-                                <option value="flag">깃발 (⚑)</option>
+                                <option value="diamond">◆</option>
+                                <option value="circle">●</option>
+                                <option value="triangle">▲</option>
+                                <option value="square">■</option>
+                                <option value="star">★</option>
+                                <option value="flag">⚑</option>
                             </select>
                         </div>
                         <div className="form-group">
                             <label>색상</label>
                             <div className="color-picker-wrapper">
-                                <input
-                                    type="color"
-                                    value={color}
-                                    onChange={(e) => setColor(e.target.value)}
+                                <ColorPicker
+                                    color={color}
+                                    onChange={setColor}
                                 />
-                                <span className="color-preview" style={{ backgroundColor: color }}></span>
                             </div>
                         </div>
                     </div>
-                    <div className="dialog-actions">
-                        <button type="button" className="cancel-btn" onClick={onClose}>취소</button>
-                        <button type="submit" className="submit-btn">추가</button>
+                    <div className="popover-actions" style={{ justifyContent: 'flex-end', marginTop: '16px' }}>
+                        <button type="button" className="action-btn" onClick={onClose} style={{ backgroundColor: '#f5f5f5', color: '#333' }}>취소</button>
+                        <button type="submit" className="action-btn primary">추가</button>
                     </div>
                 </form>
             </div>

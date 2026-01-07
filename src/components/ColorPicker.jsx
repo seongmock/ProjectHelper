@@ -1,57 +1,37 @@
-import { useEffect, useRef } from 'react';
+import React from 'react';
 import './ColorPicker.css';
 
-const PRESET_COLORS = [
+const DEFAULT_COLORS = [
     '#4A90E2', // Blue
-    '#7B68EE', // Purple
     '#5CB85C', // Green
-    '#F0AD4E', // Orange
+    '#7B68EE', // Purple
+    '#F0AD4E', // Orange/Yellow
+    '#9B59B6', // Violet
     '#D9534F', // Red
-    '#00BCD4', // Cyan
-    '#9C27B0', // Deep Purple
-    '#FF9800', // Amber
-    '#FF5722', // Deep Orange
-    '#795548', // Brown
-    '#607D8B', // Blue Grey
-    '#E91E63', // Pink
+    '#E67E22', // Dark Orange
+    '#34495e', // Dark Blue
 ];
 
-function ColorPicker({ currentColor, onColorChange, onClose }) {
-    const pickerRef = useRef(null);
-
-    // 외부 클릭 감지
-    useEffect(() => {
-        const handleClickOutside = (e) => {
-            if (pickerRef.current && !pickerRef.current.contains(e.target)) {
-                onClose();
-            }
-        };
-
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, [onClose]);
-
+function ColorPicker({ color, onChange, colors = DEFAULT_COLORS }) {
     return (
-        <div className="color-picker" ref={pickerRef}>
-            <div className="color-preset-grid">
-                {PRESET_COLORS.map((color) => (
-                    <button
-                        key={color}
-                        className={`color-preset-item ${color === currentColor ? 'selected' : ''}`}
-                        style={{ backgroundColor: color }}
-                        onClick={() => onColorChange(color)}
-                        title={color}
+        <div className="color-picker-container">
+            <div className="color-grid">
+                {colors.map((c) => (
+                    <div
+                        key={c}
+                        className={`color-option ${color === c ? 'selected' : ''}`}
+                        style={{ backgroundColor: c }}
+                        onClick={() => onChange(c)}
+                        title={c}
                     />
                 ))}
-            </div>
-            <div className="color-custom">
-                <label>
-                    커스텀 색상:
+                <label className="color-option custom-color-picker" title="사용자 지정 색상">
                     <input
                         type="color"
-                        value={currentColor}
-                        onChange={(e) => onColorChange(e.target.value)}
+                        value={color}
+                        onChange={(e) => onChange(e.target.value)}
                     />
+                    <span className="plus-icon">+</span>
                 </label>
             </div>
         </div>

@@ -304,7 +304,23 @@ const TimelineView = forwardRef(({
         if (!captureRef.current) return;
 
         try {
-            const canvas = await html2canvas(captureRef.current);
+            // 캡처 시작: 클래스 추가
+            if (containerRef.current) {
+                containerRef.current.classList.add('capturing');
+            }
+
+            const canvas = await html2canvas(captureRef.current, {
+                scale: 2, // 고해상도
+                useCORS: true,
+                logging: false,
+                backgroundColor: '#ffffff'
+            });
+
+            // 캡처 종료: 클래스 제거
+            if (containerRef.current) {
+                containerRef.current.classList.remove('capturing');
+            }
+
             canvas.toBlob(async (blob) => {
                 if (!blob) {
                     alert('이미지 생성 실패');
