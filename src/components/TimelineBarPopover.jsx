@@ -124,6 +124,63 @@ function TimelineBarPopover({ position, task, successors = [], predecessors = []
                 )}
             </div>
 
+            {/* 구분선 (Divider) 설정 */}
+            <div className="popover-section">
+                <div className="section-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span>구분선 (Divider)</span>
+                    <input
+                        type="checkbox"
+                        checked={task.divider?.enabled || false}
+                        onChange={(e) => onUpdate(task.id, {
+                            divider: {
+                                ...task.divider,
+                                enabled: e.target.checked,
+                                style: task.divider?.style || 'solid',
+                                color: task.divider?.color || '#000000',
+                                thickness: task.divider?.thickness || 2
+                            }
+                        })}
+                    />
+                </div>
+
+                {task.divider?.enabled && (
+                    <div className="divider-settings" style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <span style={{ fontSize: '12px' }}>스타일</span>
+                            <select
+                                value={task.divider?.style || 'solid'}
+                                onChange={(e) => onUpdate(task.id, { divider: { ...task.divider, style: e.target.value } })}
+                                style={{ padding: '2px 4px', fontSize: '12px' }}
+                            >
+                                <option value="solid">실선 (Solid)</option>
+                                <option value="dashed">파선 (Dashed)</option>
+                                <option value="dotted">점선 (Dotted)</option>
+                            </select>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <span style={{ fontSize: '12px' }}>색상</span>
+                            <input
+                                type="color"
+                                value={task.divider?.color || '#000000'}
+                                onChange={(e) => onUpdate(task.id, { divider: { ...task.divider, color: e.target.value } })}
+                                style={{ width: '40px', height: '20px', padding: '0', border: 'none' }}
+                            />
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <span style={{ fontSize: '12px' }}>두께 ({task.divider?.thickness || 2}px)</span>
+                            <input
+                                type="range"
+                                min="1"
+                                max="10"
+                                value={task.divider?.thickness || 2}
+                                onChange={(e) => onUpdate(task.id, { divider: { ...task.divider, thickness: parseInt(e.target.value) } })}
+                                style={{ width: '80px' }}
+                            />
+                        </div>
+                    </div>
+                )}
+            </div>
+
             <div className="popover-actions" style={{ justifyContent: 'space-between' }}>
                 <button
                     className="action-btn primary"

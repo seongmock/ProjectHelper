@@ -384,6 +384,7 @@ const TimelineView = forwardRef(({
                                             setEditingTaskId(task.id);
                                             setEditingName(task.name);
                                         }}
+                                        onContextMenu={(e) => handleContextMenu(e, task, dateRange.start)}
                                         style={{ paddingLeft: `${task.level * 24 + 12}px` }}
                                     >
                                         {editingTaskId === task.id ? (
@@ -413,6 +414,21 @@ const TimelineView = forwardRef(({
                                             />
                                         ) : (
                                             task.name
+                                        )}
+                                        {/* 구분선 (Divider) */}
+                                        {task.divider && task.divider.enabled && (
+                                            <div
+                                                className="task-divider"
+                                                style={{
+                                                    position: 'absolute',
+                                                    bottom: 0,
+                                                    left: 0,
+                                                    width: '100%',
+                                                    borderBottom: `${task.divider.thickness}px ${task.divider.style} ${task.divider.color}`,
+                                                    pointerEvents: 'none',
+                                                    zIndex: 10
+                                                }}
+                                            />
                                         )}
                                     </div>
                                 ))

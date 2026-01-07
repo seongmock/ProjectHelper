@@ -57,7 +57,6 @@ function MilestoneEditPopover({ position, milestone, onClose, onUpdate, onDelete
     const positions = [
         { id: 'bottom', label: '하단' },
         { id: 'top', label: '상단' },
-        { id: 'left', label: '좌측' },
         { id: 'right', label: '우측' },
     ];
 

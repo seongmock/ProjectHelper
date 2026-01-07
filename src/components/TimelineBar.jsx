@@ -266,6 +266,22 @@ function TimelineBar({
 
             {/* 마일스톤 마커들 */}
             {renderMilestones()}
+
+            {/* 구분선 (Divider) */}
+            {task.divider && task.divider.enabled && (
+                <div
+                    className="task-divider"
+                    style={{
+                        position: 'absolute',
+                        bottom: 0,
+                        left: 0,
+                        width: '100%',
+                        borderBottom: `${task.divider.thickness}px ${task.divider.style} ${task.divider.color}`,
+                        pointerEvents: 'none',
+                        zIndex: 10
+                    }}
+                />
+            )}
         </div>
     );
 }

@@ -51,6 +51,7 @@
     overflow: hidden;
     text-overflow: ellipsis;
     box-sizing: border-box;
+    position: relative;
 }
 
 .task-name-item:hover {
