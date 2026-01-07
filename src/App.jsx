@@ -179,6 +179,145 @@ function App() {
         setTasks(reorderedTasks);
     }, [setTasks]);
 
+    // 작업 들여쓰기 (Indent)
+    const handleIndentTask = useCallback((taskId) => {
+        const indentTask = (items) => {
+            for (let i = 0; i < items.length; i++) {
+                if (items[i].id === taskId) {
+                    if (i === 0) return items; // 첫 번째 항목은 들여쓰기 불가
+
+                    const prevSibling = items[i - 1];
+                    const taskToMove = items[i];
+
+                    const newItems = [...items];
+                    newItems.splice(i, 1); // 현재 위치에서 제거
+
+                    // 이전 형제의 자식으로 추가
+                    const updatedPrevSibling = {
+                        ...prevSibling,
+                        children: [...prevSibling.children, taskToMove],
+                        expanded: true // 부모가 되면 자동 확장
+                    };
+
+                    newItems[i - 1] = updatedPrevSibling;
+                    return newItems;
+                }
+
+                if (items[i].children.length > 0) {
+                    const updatedChildren = indentTask(items[i].children);
+                    if (updatedChildren !== items[i].children) {
+                        return items.map((item, index) =>
+                            index === i ? { ...item, children: updatedChildren } : item
+                        );
+                    }
+                }
+            }
+            return items;
+        };
+
+        setTasks(prevTasks => indentTask(prevTasks));
+    }, [setTasks]);
+
+    // 작업 내어쓰기 (Outdent)
+    const handleOutdentTask = useCallback((taskId) => {
+        let taskToMove = null;
+
+        // 1. 이동할 작업 찾기 및 제거
+        const removeTask = (items) => {
+            for (let i = 0; i < items.length; i++) {
+                if (items[i].id === taskId) {
+                    taskToMove = items[i];
+                    const newItems = [...items];
+                    newItems.splice(i, 1);
+                    return newItems;
+                }
+                if (items[i].children.length > 0) {
+                    const updatedChildren = removeTask(items[i].children);
+                    if (updatedChildren !== items[i].children) {
+                        return items.map((item, index) =>
+                            index === i ? { ...item, children: updatedChildren } : item
+                        );
+                    }
+                }
+            }
+            return items;
+        };
+
+        // 2. 부모의 형제로 추가
+        const insertTask = (items) => {
+            for (let i = 0; i < items.length; i++) {
+                // 자식 중에 제거된 작업이 있었던 부모를 찾음 (이 부분은 removeTask와 로직이 겹치므로 최적화 필요하지만, 
+                // 불변성 유지를 위해 전체 트리를 순회하며 재구성하는 방식이 안전함)
+
+                // 하지만 위 removeTask에서 이미 제거를 했으므로, 여기서는 
+                // "원래 부모였던 항목"을 찾는 것이 아니라, 
+                // "제거된 작업이 어디에 있었는지"를 알고 그 부모의 다음 위치에 넣어야 함.
+                // 따라서 로직을 분리하지 않고 한 번에 처리하는 것이 좋음.
+            }
+            return items;
+        };
+
+        // 재귀적으로 처리하는 단일 함수
+        const outdentTaskRecursive = (items, parent = null) => {
+            for (let i = 0; i < items.length; i++) {
+                if (items[i].id === taskId) {
+                    // 최상위 레벨이면 내어쓰기 불가
+                    if (!parent) return items;
+
+                    // 여기서 찾았음. 반환값으로 "이 항목을 제거하고, 부모 레벨에서 처리하도록 신호"를 보내야 함
+                    // 하지만 구조상 복잡하므로, 부모를 찾는 방식 변경
+                    return { found: true, task: items[i], index: i };
+                }
+
+                if (items[i].children.length > 0) {
+                    const result = outdentTaskRecursive(items[i].children, items[i]);
+
+                    // 자식에서 찾았고, 결과가 배열이 아니라 객체라면 (작업을 찾음)
+                    if (result && result.found) {
+                        const task = result.task;
+
+                        // 현재 items[i]가 부모임.
+                        // 1. 자식 목록에서 해당 작업 제거
+                        const newChildren = [...items[i].children];
+                        newChildren.splice(result.index, 1);
+
+                        // 2. 현재 부모(items[i]) 바로 뒤에 작업 추가해야 하는데,
+                        // 이는 현재 레벨(items)에서 처리해야 함.
+                        // 따라서 여기서도 "작업을 찾았고, 내 자식에서 뺐으며, 내 뒤에 붙여야 한다"는 신호를 위로 보내야 함?
+                        // 아니면 여기서 바로 처리가 안됨 (내 뒤에 붙이는 건 내 부모가 해야 함).
+
+                        // 내어쓰기는 "현재 부모의 자식에서 빼서, 현재 부모의 형제로 만드는 것"
+                        // 즉, items[i]의 자식에서 빼서, items 배열의 i+1 위치에 넣어야 함.
+
+                        const updatedParent = { ...items[i], children: newChildren };
+
+                        const newItems = [...items];
+                        newItems[i] = updatedParent;
+                        newItems.splice(i + 1, 0, task);
+
+                        return newItems;
+                    }
+
+                    // 이미 처리되어 배열이 반환된 경우 (더 상위 레벨로 전파)
+                    if (Array.isArray(result) && result !== items[i].children) {
+                        return items.map((item, index) =>
+                            index === i ? { ...item, children: result } : item
+                        );
+                    }
+                }
+            }
+            return items;
+        };
+
+        setTasks(prevTasks => {
+            const result = outdentTaskRecursive(prevTasks);
+            // 최상위 레벨에서 객체가 반환되면 (루트의 자식이 내어쓰기 시도됨 -> 불가)
+            if (!Array.isArray(result) && result.found) return prevTasks;
+            return result;
+        });
+
+    }, [setTasks]);
+
     // 내보내기
     const handleExport = useCallback(() => {
         const timestamp = new Date().toISOString().split('T')[0];
@@ -314,6 +453,8 @@ function App() {
                         onDeleteTask={handleDeleteTask}
                         onAddTask={handleAddTask}
                         onReorderTasks={handleReorderTasks}
+                        onIndentTask={handleIndentTask}
+                        onOutdentTask={handleOutdentTask}
                         viewMode={viewMode}
                     />
                 )}

@@ -9,6 +9,8 @@ function TableView({
     onDeleteTask,
     onAddTask,
     onReorderTasks,
+    onIndentTask,
+    onOutdentTask,
     viewMode
 }) {
     return (
@@ -44,6 +46,8 @@ function TableView({
                                 onUpdateTask={onUpdateTask}
                                 onDeleteTask={onDeleteTask}
                                 onAddTask={onAddTask}
+                                onIndentTask={onIndentTask}
+                                onOutdentTask={onOutdentTask}
                             />
                         ))
                     )}

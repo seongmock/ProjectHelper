@@ -10,7 +10,9 @@ function TaskRow({
     onSelectTask,
     onUpdateTask,
     onDeleteTask,
-    onAddTask
+    onAddTask,
+    onIndentTask,
+    onOutdentTask
 }) {
     const [isEditing, setIsEditing] = useState(false);
     const [editedName, setEditedName] = useState(task.name);
@@ -50,6 +52,13 @@ function TaskRow({
         } else if (e.key === 'Escape') {
             setIsEditing(false);
             setEditedName(task.name);
+        } else if (e.key === 'Tab') {
+            e.preventDefault();
+            if (e.shiftKey) {
+                onOutdentTask(task.id);
+            } else {
+                onIndentTask(task.id);
+            }
         }
     };
 
@@ -265,6 +274,26 @@ function TaskRow({
                         className="icon"
                         onClick={(e) => {
                             e.stopPropagation();
+                            onOutdentTask(task.id);
+                        }}
+                        title="내어쓰기 (Shift+Tab)"
+                    >
+                        ⬅️
+                    </button>
+                    <button
+                        className="icon"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onIndentTask(task.id);
+                        }}
+                        title="들여쓰기 (Tab)"
+                    >
+                        ➡️
+                    </button>
+                    <button
+                        className="icon"
+                        onClick={(e) => {
+                            e.stopPropagation();
                             handleAddChild();
                         }}
                         title="하위 작업 추가"
@@ -379,6 +408,8 @@ function TaskRow({
                             onUpdateTask={onUpdateTask}
                             onDeleteTask={onDeleteTask}
                             onAddTask={onAddTask}
+                            onIndentTask={onIndentTask}
+                            onOutdentTask={onOutdentTask}
                         />
                     ))}
                 </>

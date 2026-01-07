@@ -13,6 +13,7 @@ function TimelineBar({
     onDragUpdate,
     onContextMenu,
     onMilestoneContextMenu,
+    onMilestoneClick,
     showLabel = true,
     timeScale = 'monthly'
 }) {
@@ -218,6 +219,11 @@ function TimelineBar({
                         e.preventDefault();
                         e.stopPropagation();
                         onMilestoneContextMenu(e, milestone);
+                    }}
+                    onClick={(e) => {
+                        if (onMilestoneClick) {
+                            onMilestoneClick(e, milestone);
+                        }
                     }}
                 >
                     <div className="milestone-shape">

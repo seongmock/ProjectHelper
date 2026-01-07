@@ -148,7 +148,7 @@ const TimelineView = forwardRef(({
                 return;
             }
 
-            // 의존성 추가
+            // 의존성 추가 (Target: Task)
             const targetTask = flatTasks.find(t => t.id === taskId);
             if (targetTask) {
                 // 이미 존재하는지 확인
@@ -159,7 +159,7 @@ const TimelineView = forwardRef(({
                     return;
                 }
 
-                // 순환 참조 방지 (간단한 체크)
+                // 순환 참조 방지 (간단한 체크 - 소스가 작업인 경우만)
                 const sourceTask = flatTasks.find(t => t.id === linkSourceTaskId);
                 if (sourceTask && sourceTask.dependencies && sourceTask.dependencies.includes(taskId)) {
                     alert('순환 참조가 발생할 수 있어 연결할 수 없습니다.');
@@ -175,6 +175,48 @@ const TimelineView = forwardRef(({
             }
         } else {
             onSelectTask(taskId);
+        }
+    };
+
+    // 마일스톤 클릭 핸들러 (연결 모드 처리)
+    const handleMilestoneClick = (e, milestone) => {
+        e.stopPropagation();
+
+        if (isLinkingMode) {
+            if (milestone.id === linkSourceTaskId) {
+                setIsLinkingMode(false);
+                setLinkSourceTaskId(null);
+                return;
+            }
+
+            // 의존성 추가 (Target: Milestone)
+            // 마일스톤이 속한 작업을 찾아서 업데이트해야 함
+            const parentTask = flatTasks.find(t => t.milestones && t.milestones.some(m => m.id === milestone.id));
+
+            if (parentTask) {
+                const updatedMilestones = parentTask.milestones.map(m => {
+                    if (m.id === milestone.id) {
+                        const currentDeps = m.dependencies || [];
+                        if (currentDeps.includes(linkSourceTaskId)) {
+                            alert('이미 연결된 마일스톤입니다.');
+                            return m;
+                        }
+                        return { ...m, dependencies: [...currentDeps, linkSourceTaskId] };
+                    }
+                    return m;
+                });
+
+                // 변경사항이 있을 때만 업데이트
+                const targetMilestone = updatedMilestones.find(m => m.id === milestone.id);
+                if (targetMilestone.dependencies.length !== (milestone.dependencies || []).length) {
+                    onUpdateTask(parentTask.id, { milestones: updatedMilestones });
+                    setIsLinkingMode(false);
+                    setLinkSourceTaskId(null);
+                } else {
+                    setIsLinkingMode(false);
+                    setLinkSourceTaskId(null);
+                }
+            }
         }
     };
 
@@ -200,9 +242,7 @@ const TimelineView = forwardRef(({
         });
     };
 
-    const handleDeleteTask = (taskId) => {
-        console.log('Delete task:', taskId);
-    };
+
 
     const handleAddMilestone = (taskId, milestoneData) => {
         const task = tasks.find(t => t.id === taskId);
@@ -293,64 +333,69 @@ const TimelineView = forwardRef(({
     const renderDependencies = () => {
         const lines = [];
         const totalDays = dateUtils.getDuration(dateRange.start, dateRange.end);
+        const rowHeight = isCompact ? 28 : 40;
 
+        // 1. 모든 항목(작업 + 마일스톤)을 ID로 매핑하여 위치 정보 미리 계산
+        const itemMap = new Map();
+
+        flatTasks.forEach((task, index) => {
+            // 작업 정보 저장
+            itemMap.set(task.id, {
+                type: 'task',
+                data: task,
+                index: index,
+                startDate: task.startDate,
+                endDate: task.endDate
+            });
+
+            // 마일스톤 정보 저장
+            if (task.milestones) {
+                task.milestones.forEach(ms => {
+                    itemMap.set(ms.id, {
+                        type: 'milestone',
+                        data: ms,
+                        parentIndex: index, // 마일스톤은 부모 작업의 행에 위치
+                        date: ms.date
+                    });
+                });
+            }
+        });
+
+        // 2. 의존성 선 그리기
         flatTasks.forEach((task) => {
-            if (task.dependencies && task.dependencies.length > 0) {
+            // 작업의 의존성 처리
+            if (task.dependencies) {
                 task.dependencies.forEach(depId => {
-                    const sourceTask = flatTasks.find(t => t.id === depId);
-                    if (sourceTask) {
-                        // 좌표 계산
-                        const sourceDays = dateUtils.getDuration(dateRange.start, sourceTask.endDate);
-                        const targetDays = dateUtils.getDaysBetween(dateRange.start, task.startDate);
+                    const source = itemMap.get(depId);
+                    const target = itemMap.get(task.id);
 
-                        const startX = (sourceDays / totalDays) * contentWidth;
-                        const endX = (targetDays / totalDays) * contentWidth;
+                    if (source && target) {
+                        lines.push(drawDependencyLine(source, target, totalDays, contentWidth, rowHeight));
+                    }
+                });
+            }
 
-                        // Y좌표: 각 row의 높이는 CSS 변수 --row-height와 일치해야 함
-                        // App.css: --row-height: 40px
-                        // TimelineView.css (.compact-mode): --row-height: 28px
-                        const rowHeight = isCompact ? 28 : 40;
+            // 마일스톤의 의존성 처리 (데이터 모델에 milestones 내 dependencies가 있다고 가정하거나, 
+            // 현재 구조상 마일스톤 객체에 dependencies 필드가 없으면 추가해야 함.
+            // 일단 기존 데이터 구조를 유지하면서, 마일스톤 객체에 dependencies가 추가될 수 있다고 가정)
+            if (task.milestones) {
+                task.milestones.forEach(ms => {
+                    if (ms.dependencies) {
+                        ms.dependencies.forEach(depId => {
+                            const source = itemMap.get(depId);
+                            const target = itemMap.get(ms.id);
 
-                        // flatTasks에서의 인덱스를 사용하여 Y좌표 계산
-                        const sourceIndex = flatTasks.findIndex(t => t.id === depId);
-                        const targetIndex = flatTasks.findIndex(t => t.id === task.id);
-
-                        const startY = sourceIndex * rowHeight + rowHeight / 2;
-                        const endY = targetIndex * rowHeight + rowHeight / 2;
-
-                        // 직각 경로 생성 (Right -> Vertical -> Right)
-                        const midX = startX + 20; // 시작점에서 20px 오른쪽으로 이동 후 꺾임
-
-                        let path = '';
-                        if (startX < endX - 40) { // 여유 공간 40px로 증가
-                            // 일반적인 경우: 소스가 타겟보다 충분히 왼쪽에 있음
-                            path = `M ${startX} ${startY} L ${midX} ${startY} L ${midX} ${endY} L ${endX} ${endY}`;
-                        } else {
-                            // 소스가 타겟보다 뒤에 있거나 너무 가까운 경우: S자 형태로 꺾임
-                            const backX = startX + 10;
-                            const forwardX = endX - 30; // 3배 더 왼쪽으로 (10 -> 30)
-                            const midY = (startY + endY) / 2;
-                            path = `M ${startX} ${startY} L ${backX} ${startY} L ${backX} ${midY} L ${forwardX} ${midY} L ${forwardX} ${endY} L ${endX} ${endY}`;
-                        }
-
-                        lines.push(
-                            <path
-                                key={`${sourceTask.id}-${task.id}`}
-                                d={path}
-                                fill="none"
-                                stroke="#999"
-                                strokeWidth="2"
-                                strokeDasharray="4 2"
-                                markerEnd="url(#arrowhead)"
-                            />
-                        );
+                            if (source && target) {
+                                lines.push(drawDependencyLine(source, target, totalDays, contentWidth, rowHeight));
+                            }
+                        });
                     }
                 });
             }
         });
 
         return (
-            <svg className="dependency-layer" style={{ width: contentWidth, height: flatTasks.length * 46 }}>
+            <svg className="dependency-layer" style={{ width: contentWidth, height: flatTasks.length * (isCompact ? 28 : 40) }}>
                 <defs>
                     <marker
                         id="arrowhead"
@@ -365,6 +410,62 @@ const TimelineView = forwardRef(({
                 </defs>
                 {lines}
             </svg>
+        );
+    };
+
+    // 의존성 선 그리기 헬퍼 함수
+    const drawDependencyLine = (source, target, totalDays, contentWidth, rowHeight) => {
+        let startX, startY, endX, endY;
+
+        // 시작점 계산 (Source)
+        if (source.type === 'task') {
+            // 작업인 경우: 종료일 기준
+            const sourceDays = dateUtils.getDuration(dateRange.start, source.endDate);
+            startX = (sourceDays / totalDays) * contentWidth;
+            startY = source.index * rowHeight + rowHeight / 2;
+        } else {
+            // 마일스톤인 경우: 해당 날짜 기준
+            const sourceDays = dateUtils.getDuration(dateRange.start, source.date);
+            startX = (sourceDays / totalDays) * contentWidth;
+            startY = source.parentIndex * rowHeight + rowHeight / 2;
+        }
+
+        // 끝점 계산 (Target)
+        if (target.type === 'task') {
+            // 작업인 경우: 시작일 기준
+            const targetDays = dateUtils.getDaysBetween(dateRange.start, target.startDate);
+            endX = (targetDays / totalDays) * contentWidth;
+            endY = target.index * rowHeight + rowHeight / 2;
+        } else {
+            // 마일스톤인 경우: 해당 날짜 기준
+            const targetDays = dateUtils.getDaysBetween(dateRange.start, target.date);
+            endX = (targetDays / totalDays) * contentWidth;
+            endY = target.parentIndex * rowHeight + rowHeight / 2;
+        }
+
+        // 경로 생성 로직
+        const midX = startX + 20;
+        let path = '';
+
+        if (startX < endX - 40) {
+            path = `M ${startX} ${startY} L ${midX} ${startY} L ${midX} ${endY} L ${endX} ${endY}`;
+        } else {
+            const backX = startX + 10;
+            const forwardX = endX - 30;
+            const midY = (startY + endY) / 2;
+            path = `M ${startX} ${startY} L ${backX} ${startY} L ${backX} ${midY} L ${forwardX} ${midY} L ${forwardX} ${endY} L ${endX} ${endY}`;
+        }
+
+        return (
+            <path
+                key={`${source.data.id}-${target.data.id}`}
+                d={path}
+                fill="none"
+                stroke="#999"
+                strokeWidth="2"
+                strokeDasharray="4 2"
+                markerEnd="url(#arrowhead)"
+            />
         );
     };
 
@@ -489,6 +590,7 @@ const TimelineView = forwardRef(({
                                     onDragUpdate={handleDragUpdate}
                                     onContextMenu={(e, date) => handleContextMenu(e, task, date)}
                                     onMilestoneContextMenu={(e, milestone) => handleMilestoneContextMenu(e, task, milestone)}
+                                    onMilestoneClick={handleMilestoneClick}
                                     showLabel={!showTaskNames}
                                     timeScale={timeScale}
                                 />
@@ -531,6 +633,7 @@ const TimelineView = forwardRef(({
                     onClose={() => setMilestoneEditInfo(null)}
                     onUpdate={handleUpdateMilestone}
                     onDelete={handleDeleteMilestone}
+                    onStartLinking={() => startLinking(milestoneEditInfo.milestone.id)}
                 />
             )}
 

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useLayoutEffect } from 'react';
 import './MilestoneEditPopover.css';
 
-function MilestoneEditPopover({ position, milestone, onClose, onUpdate, onDelete }) {
+function MilestoneEditPopover({ position, milestone, onClose, onUpdate, onDelete, onStartLinking }) {
     const popoverRef = useRef(null);
     const [labelText, setLabelText] = useState(milestone.label || '');
     const [adjustedPos, setAdjustedPos] = useState(position);
@@ -194,6 +194,16 @@ function MilestoneEditPopover({ position, milestone, onClose, onUpdate, onDelete
                     }}
                 >
                     삭제
+                </button>
+                <button
+                    className="action-btn link"
+                    onClick={() => {
+                        onStartLinking();
+                        onClose();
+                    }}
+                    title="의존성 연결 시작"
+                >
+                    🔗 연결
                 </button>
             </div>
         </div>

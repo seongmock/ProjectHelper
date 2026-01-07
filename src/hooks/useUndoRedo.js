@@ -11,8 +11,11 @@ export const useUndoRedo = (initialState) => {
     // 새 상태 추가 (실행 취소 히스토리 업데이트)
     const setState = useCallback((newState) => {
         setHistory((prev) => {
+            const currentState = prev[currentIndex];
+            const resolvedState = typeof newState === 'function' ? newState(currentState) : newState;
+
             // 현재 인덱스 이후의 히스토리 제거 후 새 상태 추가
-            const newHistory = [...prev.slice(0, currentIndex + 1), newState];
+            const newHistory = [...prev.slice(0, currentIndex + 1), resolvedState];
             // 최대 20개 히스토리 유지
             return newHistory.slice(-20);
         });
