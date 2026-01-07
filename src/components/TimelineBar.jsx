@@ -13,7 +13,8 @@ function TimelineBar({
     onDragUpdate,
     onContextMenu,
     onMilestoneContextMenu,
-    showLabel = true
+    showLabel = true,
+    timeScale = 'monthly'
 }) {
     const [isDragging, setIsDragging] = useState(false);
     const [dragType, setDragType] = useState(null); // 'move', 'resize-start', 'resize-end'
@@ -52,22 +53,42 @@ function TimelineBar({
             const deltaX = e.clientX - dragStart.x;
             const deltaDays = Math.round((deltaX / containerWidth) * totalDays);
 
+            // 스냅 로직 적용
+            const applySnapping = (date, type) => {
+                if (timeScale === 'quarterly') {
+                    return dateUtils.snapToQuarter(date, type);
+                } else {
+                    return dateUtils.snapToMonth(date, type);
+                }
+            };
+
             if (dragType === 'move') {
                 // 바 전체 이동
-                const newStart = dateUtils.addDays(dragStart.taskStart, deltaDays);
-                const newEnd = dateUtils.addDays(dragStart.taskEnd, deltaDays);
-                onDragUpdate(task.id, newStart, newEnd);
+                const rawNewStart = dateUtils.addDays(dragStart.taskStart, deltaDays);
+
+                // 시작일을 스냅
+                const snappedStart = applySnapping(rawNewStart, 'start');
+
+                // 기간 유지하며 종료일 계산
+                const duration = dateUtils.getDaysBetween(dragStart.taskStart, dragStart.taskEnd);
+                const snappedEnd = dateUtils.addDays(snappedStart, duration);
+
+                onDragUpdate(task.id, snappedStart, snappedEnd);
             } else if (dragType === 'resize-start') {
                 // 시작일 변경
-                const newStart = dateUtils.addDays(dragStart.taskStart, deltaDays);
-                if (newStart < dragStart.taskEnd) {
-                    onDragUpdate(task.id, newStart, dragStart.taskEnd);
+                const rawNewStart = dateUtils.addDays(dragStart.taskStart, deltaDays);
+                const snappedStart = applySnapping(rawNewStart, 'start');
+
+                if (snappedStart < dragStart.taskEnd) {
+                    onDragUpdate(task.id, snappedStart, dragStart.taskEnd);
                 }
             } else if (dragType === 'resize-end') {
                 // 종료일 변경
-                const newEnd = dateUtils.addDays(dragStart.taskEnd, deltaDays);
-                if (newEnd > dragStart.taskStart) {
-                    onDragUpdate(task.id, dragStart.taskStart, newEnd);
+                const rawNewEnd = dateUtils.addDays(dragStart.taskEnd, deltaDays);
+                const snappedEnd = applySnapping(rawNewEnd, 'end');
+
+                if (snappedEnd > dragStart.taskStart) {
+                    onDragUpdate(task.id, dragStart.taskStart, snappedEnd);
                 }
             }
         };
@@ -281,6 +302,28 @@ function TimelineBar({
                         zIndex: 10
                     }}
                 />
+            )}
+
+            {/* 드래그 툴팁 */}
+            {isDragging && (
+                <div className="drag-tooltip" style={{
+                    position: 'absolute',
+                    top: '-30px',
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                    color: 'white',
+                    padding: '4px 8px',
+                    borderRadius: '4px',
+                    fontSize: '12px',
+                    whiteSpace: 'nowrap',
+                    zIndex: 100,
+                    pointerEvents: 'none'
+                }}>
+                    {dragType === 'move' && `${dateUtils.formatDate(task.startDate)} ~ ${dateUtils.formatDate(task.endDate)}`}
+                    {dragType === 'resize-start' && dateUtils.formatDate(task.startDate)}
+                    {dragType === 'resize-end' && dateUtils.formatDate(task.endDate)}
+                </div>
             )}
         </div>
     );

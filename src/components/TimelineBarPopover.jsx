@@ -1,8 +1,38 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState, useLayoutEffect } from 'react';
 import './TimelineBarPopover.css';
 
 function TimelineBarPopover({ position, task, successors = [], predecessors = [], onClose, onUpdate, onDelete, onAddMilestone, onStartLinking }) {
     const popoverRef = useRef(null);
+    const [adjustedPos, setAdjustedPos] = useState(position);
+
+    useLayoutEffect(() => {
+        if (popoverRef.current) {
+            const rect = popoverRef.current.getBoundingClientRect();
+            let { x, y } = position;
+
+            // 화면 오른쪽을 벗어나는 경우
+            if (x + rect.width > window.innerWidth) {
+                x = window.innerWidth - rect.width - 20; // 20px 여유
+            }
+
+            // 화면 아래쪽을 벗어나는 경우
+            if (y + rect.height > window.innerHeight) {
+                y = window.innerHeight - rect.height - 20; // 20px 여유
+            }
+
+            // 화면 왼쪽을 벗어나는 경우
+            if (x < 20) {
+                x = 20;
+            }
+
+            // 화면 위쪽을 벗어나는 경우
+            if (y < 20) {
+                y = 20;
+            }
+
+            setAdjustedPos({ x, y });
+        }
+    }, [position]);
 
     useEffect(() => {
         const handleClickOutside = (event) => {
@@ -32,12 +62,36 @@ function TimelineBarPopover({ position, task, successors = [], predecessors = []
     return (
         <div
             className="timeline-popover"
-            style={{ top: position.y, left: position.x }}
+            style={{ top: adjustedPos.y, left: adjustedPos.x }}
             ref={popoverRef}
         >
             <div className="popover-header">
                 <span className="popover-title">작업 설정</span>
                 <button className="close-btn" onClick={onClose}>&times;</button>
+            </div>
+
+            <div className="popover-section">
+                <div className="section-title">기간</div>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <div style={{ flex: 1 }}>
+                        <label style={{ fontSize: '11px', color: '#666', display: 'block', marginBottom: '2px' }}>시작일</label>
+                        <input
+                            type="date"
+                            value={task.startDate}
+                            onChange={(e) => onUpdate(task.id, { startDate: e.target.value })}
+                            style={{ width: '100%', padding: '4px', border: '1px solid #ddd', borderRadius: '4px', fontSize: '12px' }}
+                        />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                        <label style={{ fontSize: '11px', color: '#666', display: 'block', marginBottom: '2px' }}>종료일</label>
+                        <input
+                            type="date"
+                            value={task.endDate}
+                            onChange={(e) => onUpdate(task.id, { endDate: e.target.value })}
+                            style={{ width: '100%', padding: '4px', border: '1px solid #ddd', borderRadius: '4px', fontSize: '12px' }}
+                        />
+                    </div>
+                </div>
             </div>
 
             <div className="popover-section">

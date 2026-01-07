@@ -12,7 +12,7 @@ function TimelineHeader({ startDate, endDate, timeScale, containerWidth, showTod
         }
     }, [startDate, endDate, timeScale]);
 
-    const totalDays = dateUtils.getDaysBetween(startDate, endDate);
+    const totalDays = dateUtils.getDuration(startDate, endDate);
 
     // 각 시간 단위의 너비 계산
     const getUnitWidth = (unit) => {
@@ -30,7 +30,7 @@ function TimelineHeader({ startDate, endDate, timeScale, containerWidth, showTod
         const clampedStart = unitStart < startDate ? startDate : unitStart;
         const clampedEnd = unitEnd > endDate ? endDate : unitEnd;
 
-        const days = dateUtils.getDaysBetween(clampedStart, clampedEnd);
+        const days = dateUtils.getDuration(clampedStart, clampedEnd);
         return (days / totalDays) * containerWidth;
     };
 

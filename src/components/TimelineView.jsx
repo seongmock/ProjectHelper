@@ -95,11 +95,26 @@ const TimelineView = forwardRef(({
 
         // 약간의 여유 공간 추가
         const padding = 14; // 14일
-        return {
-            start: dateUtils.addDays(minDate, -padding),
-            end: dateUtils.addDays(maxDate, padding),
-        };
-    }, [tasks]);
+        const paddedStart = dateUtils.addDays(minDate, -padding);
+        const paddedEnd = dateUtils.addDays(maxDate, padding);
+
+        let start, end;
+
+        if (timeScale === 'quarterly') {
+            // 분기별 보기일 경우 분기 시작/끝으로 맞춤
+            const startQuarter = Math.floor(paddedStart.getMonth() / 3) + 1;
+            start = dateUtils.getQuarterStart(paddedStart.getFullYear(), startQuarter);
+
+            const endQuarter = Math.floor(paddedEnd.getMonth() / 3) + 1;
+            end = dateUtils.getQuarterEnd(paddedEnd.getFullYear(), endQuarter);
+        } else {
+            // 월별 보기일 경우 월 시작/끝으로 맞춤
+            start = new Date(paddedStart.getFullYear(), paddedStart.getMonth(), 1);
+            end = new Date(paddedEnd.getFullYear(), paddedEnd.getMonth() + 1, 0);
+        }
+
+        return { start, end };
+    }, [tasks, timeScale]);
 
     // 타임라인 렌더링을 위한 플랫 리스트 생성
     const flattenTasks = (items, level = 0) => {
@@ -277,7 +292,7 @@ const TimelineView = forwardRef(({
     // 의존성 선 렌더링
     const renderDependencies = () => {
         const lines = [];
-        const totalDays = dateUtils.getDaysBetween(dateRange.start, dateRange.end);
+        const totalDays = dateUtils.getDuration(dateRange.start, dateRange.end);
 
         flatTasks.forEach((task) => {
             if (task.dependencies && task.dependencies.length > 0) {
@@ -285,7 +300,7 @@ const TimelineView = forwardRef(({
                     const sourceTask = flatTasks.find(t => t.id === depId);
                     if (sourceTask) {
                         // 좌표 계산
-                        const sourceDays = dateUtils.getDaysBetween(dateRange.start, sourceTask.endDate);
+                        const sourceDays = dateUtils.getDuration(dateRange.start, sourceTask.endDate);
                         const targetDays = dateUtils.getDaysBetween(dateRange.start, task.startDate);
 
                         const startX = (sourceDays / totalDays) * contentWidth;
@@ -449,7 +464,10 @@ const TimelineView = forwardRef(({
                     />
 
                     {/* 타임라인 바들 */}
-                    <div className={`timeline-content ${isLinkingMode ? 'linking-mode' : ''}`}>
+                    <div
+                        className={`timeline-content ${isLinkingMode ? 'linking-mode' : ''}`}
+                        style={{ width: `${contentWidth}px` }}
+                    >
                         {/* 의존성 라인 레이어 */}
                         {renderDependencies()}
 
@@ -472,6 +490,7 @@ const TimelineView = forwardRef(({
                                     onContextMenu={(e, date) => handleContextMenu(e, task, date)}
                                     onMilestoneContextMenu={(e, milestone) => handleMilestoneContextMenu(e, task, milestone)}
                                     showLabel={!showTaskNames}
+                                    timeScale={timeScale}
                                 />
                             ))
                         )}

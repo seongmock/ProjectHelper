@@ -27,10 +27,29 @@ function App() {
     // 선택된 작업
     const [selectedTaskId, setSelectedTaskId] = useState(null);
 
+    // 타임라인 뷰 상태
+    const [zoomLevel, setZoomLevel] = useState(1.0);
+    const [showToday, setShowToday] = useState(true);
+    const [isCompact, setIsCompact] = useState(false);
+    const [showTaskNames, setShowTaskNames] = useState(true);
+    const timelineRef = useRef(null);
+
     // 초기 데이터 로드
     const getInitialData = () => {
         const saved = storage.loadData();
-        return saved || getSampleData();
+        if (!saved) return getSampleData();
+
+        // 신버전 데이터 구조 (meta, data) 지원
+        if (saved.data && Array.isArray(saved.data)) {
+            return saved.data;
+        }
+
+        // 구버전 데이터 구조 (배열)
+        if (Array.isArray(saved)) {
+            return saved;
+        }
+
+        return getSampleData();
     };
 
     // 프로젝트 데이터 (실행 취소/다시 실행 지원)
@@ -163,14 +182,51 @@ function App() {
     // 내보내기
     const handleExport = useCallback(() => {
         const timestamp = new Date().toISOString().split('T')[0];
-        storage.exportData(tasks, `project-timeline-${timestamp}.json`);
-    }, [tasks]);
+
+        const exportData = {
+            meta: {
+                viewSettings: {
+                    viewMode,
+                    timeScale,
+                    zoomLevel,
+                    showToday,
+                    isCompact,
+                    showTaskNames,
+                    darkMode
+                },
+                version: '1.0'
+            },
+            data: tasks
+        };
+
+        storage.exportData(exportData, `project-timeline-${timestamp}.json`);
+    }, [tasks, viewMode, timeScale, zoomLevel, showToday, isCompact, showTaskNames, darkMode]);
 
     // 가져오기
     const handleImport = useCallback((file) => {
         storage.importData(file)
-            .then(data => {
-                setTasks(data);
+            .then(importedData => {
+                if (Array.isArray(importedData)) {
+                    // 구버전 호환 (배열인 경우)
+                    setTasks(importedData);
+                } else if (importedData.data && Array.isArray(importedData.data)) {
+                    // 신버전 (메타데이터 포함)
+                    setTasks(importedData.data);
+
+                    // 뷰 설정 복원
+                    if (importedData.meta && importedData.meta.viewSettings) {
+                        const settings = importedData.meta.viewSettings;
+                        if (settings.viewMode) setViewMode(settings.viewMode);
+                        if (settings.timeScale) setTimeScale(settings.timeScale);
+                        if (settings.zoomLevel) setZoomLevel(settings.zoomLevel);
+                        if (settings.showToday !== undefined) setShowToday(settings.showToday);
+                        if (settings.isCompact !== undefined) setIsCompact(settings.isCompact);
+                        if (settings.showTaskNames !== undefined) setShowTaskNames(settings.showTaskNames);
+                        if (settings.darkMode !== undefined) setDarkMode(settings.darkMode);
+                    }
+                } else {
+                    throw new Error('Invalid data format');
+                }
                 alert('데이터를 성공적으로 가져왔습니다.');
             })
             .catch(error => {
@@ -201,12 +257,7 @@ function App() {
         return filterTasks(tasks);
     }, [tasks, searchQuery]);
 
-    // 타임라인 뷰 상태 (Toolbar로 이동)
-    const [zoomLevel, setZoomLevel] = useState(1.0);
-    const [showToday, setShowToday] = useState(true);
-    const [isCompact, setIsCompact] = useState(false);
-    const [showTaskNames, setShowTaskNames] = useState(true);
-    const timelineRef = useRef(null);
+
 
     // 줌 핸들러
     const handleZoomIn = () => setZoomLevel(prev => prev + 0.1);

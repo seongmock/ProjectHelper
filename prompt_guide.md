@@ -14,39 +14,46 @@
 
 ## 프롬프트 템플릿
 
-```markdown
-당신은 프로젝트 관리 도구의 데이터 생성기입니다. 
-제공된 일정 정보(이미지 또는 텍스트)를 바탕으로 다음 JSON 스키마에 맞는 데이터를 생성해주세요.
-
-### JSON 데이터 구조 규칙
-    "name": "작업 이름",
-    "startDate": "2026-01-01",
-    "endDate": "2026-01-31",
-    "color": "#4A90E2",
-    "description": "작업 설명 (선택사항)",
-    "expanded": true,
-    "children": [
-      // 하위 작업이 있다면 여기에 동일한 구조로 추가
-    ],
-    "milestones": [
-      {
-        "id": "unique-milestone-id",
-        "date": "2026-01-15",
-        "label": "중간 보고",
-        "color": "#F0AD4E",
-        "shape": "star",
-        "labelPosition": "top"
-      }
-    ],
-    "dependencies": ["predecessor-task-id"],
-    "divider": {
-      "enabled": true,
-      "style": "solid",
-      "color": "#000000",
-      "thickness": 2
+```json
+{
+  "meta": {
+    "viewSettings": {
+      "timeScale": "monthly", // or "quarterly"
+      "viewMode": "timeline" // "table", "timeline", "split"
     }
-  }
-]
+  },
+  "data": [
+    {
+      "id": "unique-id",
+      "name": "작업 이름",
+      "startDate": "2026-01-01",
+      "endDate": "2026-01-31",
+      "color": "#4A90E2",
+      "description": "작업 설명 (선택사항)",
+      "expanded": true,
+      "children": [
+        // 하위 작업이 있다면 여기에 동일한 구조로 추가
+      ],
+      "milestones": [
+        {
+          "id": "unique-milestone-id",
+          "date": "2026-01-15",
+          "label": "중간 보고",
+          "color": "#F0AD4E",
+          "shape": "star",
+          "labelPosition": "top"
+        }
+      ],
+      "dependencies": ["predecessor-task-id"],
+      "divider": {
+        "enabled": true,
+        "style": "solid",
+        "color": "#000000",
+        "thickness": 2
+      }
+    }
+  ]
+}
 ```
 
 ### 요청 사항

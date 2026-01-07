@@ -24,6 +24,15 @@ export const dateUtils = {
         return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     },
 
+    // 두 날짜 사이의 기간(일수) 계산 (시작일, 종료일 포함)
+    getDuration: (startDate, endDate) => {
+        const start = new Date(startDate);
+        const end = new Date(endDate);
+        const diffTime = end - start;
+        const days = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        return days >= 0 ? days + 1 : 0;
+    },
+
     // 날짜 범위 생성 (월별)
     generateMonthRange: (startDate, endDate) => {
         const months = [];
@@ -94,10 +103,10 @@ export const dateUtils = {
 
     // 날짜 범위의 전체 폭 계산 (픽셀)
     calculateWidth: (startDate, endDate, viewStartDate, viewEndDate, totalWidth) => {
-        const viewDays = dateUtils.getDaysBetween(viewStartDate, viewEndDate);
+        const viewDays = dateUtils.getDuration(viewStartDate, viewEndDate);
         const taskStart = new Date(startDate) < new Date(viewStartDate) ? viewStartDate : startDate;
         const taskEnd = new Date(endDate) > new Date(viewEndDate) ? viewEndDate : endDate;
-        const taskDays = dateUtils.getDaysBetween(taskStart, taskEnd);
+        const taskDays = dateUtils.getDuration(taskStart, taskEnd);
         const offsetDays = dateUtils.getDaysBetween(viewStartDate, taskStart);
 
         return {
@@ -125,4 +134,49 @@ export const dateUtils = {
     getQuarterEnd: (year, quarter) => {
         return new Date(year, quarter * 3, 0);
     },
+
+    // 월 단위 스냅
+    snapToMonth: (date, type) => { // type: 'start' | 'end' | 'closest'
+        const d = new Date(date);
+        const year = d.getFullYear();
+        const month = d.getMonth();
+
+        if (type === 'start') {
+            // 해당 월의 1일
+            return new Date(year, month, 1);
+        } else if (type === 'end') {
+            // 해당 월의 마지막 날
+            return new Date(year, month + 1, 0);
+        } else {
+            // 가장 가까운 경계 (1일 또는 말일)
+            const start = new Date(year, month, 1);
+            const end = new Date(year, month + 1, 0);
+            const nextStart = new Date(year, month + 1, 1);
+
+            const distStart = Math.abs(d - start);
+            const distEnd = Math.abs(d - end);
+            const distNextStart = Math.abs(d - nextStart);
+
+            if (distStart < distEnd && distStart < distNextStart) return start;
+            if (distEnd < distNextStart) return end;
+            return nextStart;
+        }
+    },
+
+    // 분기 단위 스냅
+    snapToQuarter: (date, type) => { // type: 'start' | 'end'
+        const d = new Date(date);
+        const year = d.getFullYear();
+        const month = d.getMonth();
+        const quarter = Math.floor(month / 3) + 1;
+
+        if (type === 'start') {
+            // 해당 분기 시작일 (1, 4, 7, 10월 1일)
+            return dateUtils.getQuarterStart(year, quarter);
+        } else if (type === 'end') {
+            // 해당 분기 종료일 (3, 6, 9, 12월 말일)
+            return dateUtils.getQuarterEnd(year, quarter);
+        }
+        return d;
+    }
 };
