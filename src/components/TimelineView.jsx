@@ -845,6 +845,25 @@ const TimelineView = forwardRef(({
                                 }
                             }
                         }}
+                        onContextMenu={(e) => {
+                            // 빈 영역 우클릭 시 마일스톤 추가
+                            if (e.target.classList.contains('timeline-content') || e.target.classList.contains('empty-timeline')) {
+                                e.preventDefault();
+                                if (isLinkingMode) return;
+
+                                const rect = e.currentTarget.getBoundingClientRect();
+                                const x = e.clientX - rect.left;
+                                const totalDays = dateUtils.getDaysBetween(dateRange.start, dateRange.end);
+                                const daysFromStart = Math.round((x / contentWidth) * totalDays);
+                                const clickedDate = dateUtils.addDays(dateRange.start, daysFromStart);
+
+                                const targetTask = flatTasks.find(t => t.id === selectedTaskId) || flatTasks[0];
+
+                                if (targetTask) {
+                                    setMilestoneModalInfo({ task: targetTask, date: clickedDate });
+                                }
+                            }
+                        }}
                     >
                         {/* 의존성 라인 레이어 */}
                         {renderDependencies()}
