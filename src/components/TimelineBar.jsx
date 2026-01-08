@@ -62,6 +62,13 @@ function TimelineBar({
             taskStart: new Date(task.startDate),
             taskEnd: new Date(task.endDate),
         });
+
+        // 드래그 시작 시 초기 상태 저장 (여기서 한 번만 수행)
+        finalDragState.current = {
+            start: new Date(task.startDate),
+            end: new Date(task.endDate)
+        };
+
         onSelect(task.id);
     };
 
@@ -71,12 +78,6 @@ function TimelineBar({
     // 드래그 중
     useEffect(() => {
         if (!isDragging) return;
-
-        // 드래그 시작 시 초기 상태 저장
-        finalDragState.current = {
-            start: new Date(task.startDate),
-            end: new Date(task.endDate)
-        };
 
         const handleMouseMove = (e) => {
             // 가이드라인 업데이트
@@ -120,7 +121,7 @@ function TimelineBar({
                     // 로컬 상태 업데이트 (시각적 피드백)
                     setDraggedDates({
                         startDate: dateUtils.formatDate(snappedStart),
-                        endDate: task.endDate
+                        endDate: dateUtils.formatDate(dragStart.taskEnd) // task.endDate 대신 사용
                     });
                     onDragUpdate(task.id, snappedStart, dragStart.taskEnd);
                 }
@@ -134,7 +135,7 @@ function TimelineBar({
 
                     // 로컬 상태 업데이트 (시각적 피드백)
                     setDraggedDates({
-                        startDate: task.startDate,
+                        startDate: dateUtils.formatDate(dragStart.taskStart), // task.startDate 대신 사용
                         endDate: dateUtils.formatDate(snappedEnd)
                     });
                     onDragUpdate(task.id, dragStart.taskStart, snappedEnd);
@@ -424,27 +425,6 @@ function TimelineBar({
                             onMouseDown={(e) => handleMouseDown(e, 'resize-end')}
                             title="종료일 조정"
                         />
-
-                        {/* 드래그 시 날짜 라벨 표시 */}
-                        {isDragging && draggedDates && (
-                            <>
-                                {dragType === 'move' && (
-                                    <div className="task-drag-label center">
-                                        {dateUtils.formatDate(new Date(draggedDates.startDate), 'MM.DD')} ~ {dateUtils.formatDate(new Date(draggedDates.endDate), 'MM.DD')}
-                                    </div>
-                                )}
-                                {dragType === 'resize-start' && (
-                                    <div className="task-drag-label start">
-                                        {dateUtils.formatDate(new Date(draggedDates.startDate), 'MM.DD')}
-                                    </div>
-                                )}
-                                {dragType === 'resize-end' && (
-                                    <div className="task-drag-label end">
-                                        {dateUtils.formatDate(new Date(draggedDates.endDate), 'MM.DD')}
-                                    </div>
-                                )}
-                            </>
-                        )}
                     </div>
                 </Tooltip>
             )}
