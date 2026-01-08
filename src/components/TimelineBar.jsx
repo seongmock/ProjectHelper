@@ -16,6 +16,7 @@ function TimelineBar({
     onDragEnd, // 드래그 완료 콜백
     onMilestoneDragEnd, // 마일스톤 드래그 완료 콜백
     onMilestoneDragMove,
+    onGuideMove, // 가이드라인 이동 콜백
     onContextMenu,
     onMilestoneContextMenu,
     onMilestoneClick,
@@ -78,6 +79,9 @@ function TimelineBar({
         };
 
         const handleMouseMove = (e) => {
+            // 가이드라인 업데이트
+            if (onGuideMove) onGuideMove(e.clientX);
+
             const deltaX = e.clientX - dragStart.x;
             const deltaDays = Math.round((deltaX / containerWidth) * totalDays);
 
@@ -139,6 +143,9 @@ function TimelineBar({
         };
 
         const handleMouseUp = () => {
+            // 가이드라인 제거
+            if (onGuideMove) onGuideMove(null);
+
             // 드래그 완료 시 최종 상태를 히스토리에 기록
             if (onDragEnd && finalDragState.current.start && finalDragState.current.end) {
                 onDragEnd(task.id, finalDragState.current.start, finalDragState.current.end);
@@ -157,13 +164,16 @@ function TimelineBar({
             document.removeEventListener('mousemove', handleMouseMove);
             document.removeEventListener('mouseup', handleMouseUp);
         };
-    }, [isDragging, dragType, dragStart, containerWidth, totalDays, task.id, task.startDate, task.endDate, onDragUpdate, onDragEnd]);
+    }, [isDragging, dragType, dragStart, containerWidth, totalDays, task.id, task.startDate, task.endDate, onDragUpdate, onDragEnd, onGuideMove]);
 
     // 마일스톤 드래그 처리
     useEffect(() => {
         if (!draggingMilestone) return;
 
         const handleMouseMove = (e) => {
+            // 가이드라인 업데이트
+            if (onGuideMove) onGuideMove(e.clientX);
+
             const deltaX = e.clientX - milestoneDragStart.x;
             const deltaDays = Math.round((deltaX / containerWidth) * totalDays);
 
@@ -180,6 +190,9 @@ function TimelineBar({
         };
 
         const handleMouseUp = () => {
+            // 가이드라인 제거
+            if (onGuideMove) onGuideMove(null);
+
             // 드래그 완료 시 최종 날짜를 히스토리에 기록
             if (onMilestoneDragEnd && draggedMilestoneDate) {
                 onMilestoneDragEnd(task.id, draggingMilestone, draggedMilestoneDate);
@@ -197,7 +210,7 @@ function TimelineBar({
             document.removeEventListener('mousemove', handleMouseMove);
             document.removeEventListener('mouseup', handleMouseUp);
         };
-    }, [draggingMilestone, milestoneDragStart, containerWidth, totalDays, task.id, onMilestoneDragEnd, onMilestoneDragMove, draggedMilestoneDate]);
+    }, [draggingMilestone, milestoneDragStart, containerWidth, totalDays, task.id, onMilestoneDragEnd, onMilestoneDragMove, draggedMilestoneDate, onGuideMove]);
 
     // 마일스톤 렌더링
     const renderMilestones = () => {
@@ -335,6 +348,13 @@ function TimelineBar({
                         }}
                     >
                         {shapeElement}
+
+                        {/* 드래그 중 날짜 표시 라벨 */}
+                        {draggingMilestone === milestone.id && draggedMilestoneDate && (
+                            <div className="milestone-date-label">
+                                {draggedMilestoneDate}
+                            </div>
+                        )}
                     </div>
                     <span className="milestone-label" style={labelStyle}>{milestone.label}</span>
                 </div>

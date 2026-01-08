@@ -339,6 +339,27 @@ const TimelineView = forwardRef(({
         }, true); // 히스토리에 추가
     };
 
+    // 가이드라인 상태
+    const [guideLineX, setGuideLineX] = useState(null);
+
+    // 가이드라인 이동 핸들러
+    const handleGuideMove = (clientX) => {
+        if (clientX === null) {
+            setGuideLineX(null);
+            return;
+        }
+
+        // timeline-content 요소 찾기 (헤더 포함 위치 계산을 위해)
+        const contentEl = document.querySelector('.timeline-content');
+        if (contentEl) {
+            const rect = contentEl.getBoundingClientRect();
+            // 스크롤된 위치 고려
+            const scrollLeft = contentEl.scrollLeft;
+            const relativeX = clientX - rect.left + scrollLeft;
+            setGuideLineX(relativeX);
+        }
+    };
+
     // 마일스톤 드래그 완료 시 날짜 업데이트
     const [dragTargetTaskId, setDragTargetTaskId] = useState(null);
 
@@ -943,6 +964,13 @@ const TimelineView = forwardRef(({
                             }
                         }}
                     >
+                        {/* 가이드라인 (드래그 시에만 표시) */}
+                        {guideLineX !== null && (
+                            <div
+                                className="timeline-guide-line"
+                                style={{ left: guideLineX }}
+                            />
+                        )}
                         {/* 의존성 라인 레이어 */}
                         {renderDependencies()}
 
@@ -966,6 +994,7 @@ const TimelineView = forwardRef(({
                                     onDragEnd={handleTimelineBarDragEnd}
                                     onMilestoneDragEnd={handleMilestoneDragEnd}
                                     onMilestoneDragMove={handleMilestoneDragMove}
+                                    onGuideMove={handleGuideMove}
                                     onContextMenu={(e, date) => handleContextMenu(e, task, date)}
                                     onMilestoneContextMenu={(e, milestone) => handleMilestoneContextMenu(e, task, milestone)}
                                     onMilestoneClick={handleMilestoneClick}
