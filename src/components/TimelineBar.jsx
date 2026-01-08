@@ -12,6 +12,7 @@ function TimelineBar({
     isSelected,
     onSelect,
     onDragUpdate,
+    onDragEnd, // 드래그 완료 콜백 추가
     onContextMenu,
     onMilestoneContextMenu,
     onMilestoneClick,
@@ -45,13 +46,6 @@ function TimelineBar({
             taskEnd: new Date(task.endDate),
         });
         onSelect(task.id);
-    };
-
-    // 드래그 완료 시 최종 상태 저장 (히스토리 기록)
-    const finalizeDrag = (finalStart, finalEnd) => {
-        if (task.onDragEnd) {
-            task.onDragEnd(task.id, finalStart, finalEnd);
-        }
     };
 
     // 드래그 중
@@ -109,7 +103,9 @@ function TimelineBar({
 
         const handleMouseUp = () => {
             // 드래그 완료 시 최종 상태를 히스토리에 기록
-            finalizeDrag(finalStart, finalEnd);
+            if (onDragEnd) {
+                onDragEnd(task.id, finalStart, finalEnd);
+            }
             setIsDragging(false);
             setDragType(null);
         };
@@ -121,7 +117,7 @@ function TimelineBar({
             document.removeEventListener('mousemove', handleMouseMove);
             document.removeEventListener('mouseup', handleMouseUp);
         };
-    }, [isDragging, dragType, dragStart, containerWidth, totalDays, task.id, task.startDate, task.endDate, onDragUpdate]);
+    }, [isDragging, dragType, dragStart, containerWidth, totalDays, task.id, task.startDate, task.endDate, onDragUpdate, onDragEnd]);
 
     // 마일스톤 렌더링
     const renderMilestones = () => {

@@ -884,7 +884,7 @@ const TimelineView = forwardRef(({
                             flatTasks.map((task) => (
                                 <TimelineBar
                                     key={task.id}
-                                    task={{ ...task, onDragEnd: handleTimelineBarDragEnd }}
+                                    task={task}
                                     level={task.level}
                                     startDate={dateRange.start}
                                     endDate={dateRange.end}
@@ -892,6 +892,7 @@ const TimelineView = forwardRef(({
                                     isSelected={task.id === selectedTaskId}
                                     onSelect={() => handleTaskClick(task.id)}
                                     onDragUpdate={handleDragUpdate}
+                                    onDragEnd={handleTimelineBarDragEnd}
                                     onContextMenu={(e, date) => handleContextMenu(e, task, date)}
                                     onMilestoneContextMenu={(e, milestone) => handleMilestoneContextMenu(e, task, milestone)}
                                     onMilestoneClick={handleMilestoneClick}
