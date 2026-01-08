@@ -25,7 +25,12 @@ if [ -n "$COMPOSE_CMD" ] && command -v docker &> /dev/null; then
         echo "Falling back to local Node.js..."
         COMPOSE_CMD=""
     else
-        $COMPOSE_CMD -f docker-compose.dev.yml up
+        echo "Starting Docker containers..."
+        if ! $COMPOSE_CMD -f docker-compose.dev.yml up; then
+            echo -e "${RED}Docker start failed. Attempting to clean up stale resources and retry...${NC}"
+            $COMPOSE_CMD -f docker-compose.dev.yml down --remove-orphans
+            $COMPOSE_CMD -f docker-compose.dev.yml up
+        fi
     fi
 fi
 
