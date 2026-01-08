@@ -117,6 +117,7 @@ const TimelineView = forwardRef(({
 }, ref) => {
     const containerRef = useRef(null);
     const timelineScrollRef = useRef(null);
+    const taskNamesScrollRef = useRef(null); // 작업명 스크롤 컨테이너
     const captureRef = useRef(null);
     const [containerWidth, setContainerWidth] = useState(0);
 
@@ -203,6 +204,23 @@ const TimelineView = forwardRef(({
         resizeObserver.observe(timelineScrollRef.current);
         return () => resizeObserver.disconnect();
     }, [showTaskNames]);
+
+    // 스크롤 동기화: 타임라인 스크롤 -> 작업명 스크롤
+    useEffect(() => {
+        const timelineScroll = timelineScrollRef.current;
+        const taskNamesScroll = taskNamesScrollRef.current;
+
+        if (!timelineScroll || !taskNamesScroll) return;
+
+        const handleTimelineScroll = () => {
+            // 타임라인의 수직 스크롤을 작업명으로 동기화
+            taskNamesScroll.scrollTop = timelineScroll.scrollTop;
+        };
+
+        timelineScroll.addEventListener('scroll', handleTimelineScroll);
+        return () => timelineScroll.removeEventListener('scroll', handleTimelineScroll);
+    }, [showTaskNames]);
+
 
     // ESC 키로 연결 모드 취소
     useEffect(() => {
@@ -736,7 +754,7 @@ const TimelineView = forwardRef(({
                 {showTaskNames && (
                     <div className="task-names-column">
                         <div className="task-names-header" onClick={() => onSelectTask(null)}>작업명</div>
-                        <div className="task-names-list">
+                        <div className="task-names-list" ref={taskNamesScrollRef}>
                             {tasks.length === 0 ? (
                                 <div className="empty-names">작업 없음</div>
                             ) : (

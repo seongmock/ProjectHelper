@@ -35,7 +35,18 @@
 
 .task-names-list {
     flex: 1;
-    overflow-y: auto;
+    overflow-y: scroll;
+    /* 스크롤 가능하지만 */
+    overflow-x: hidden;
+    scrollbar-width: none;
+    /* Firefox */
+    -ms-overflow-style: none;
+    /* IE/Edge */
+}
+
+/* 웹킷 브라우저용 스크롤바 숨김 */
+.task-names-list::-webkit-scrollbar {
+    display: none;
 }
 
 .task-name-item {
