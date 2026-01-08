@@ -349,8 +349,10 @@ function TimelineBar({
                     className={`milestone-marker ${draggingMilestone === milestone.id ? 'dragging' : ''}`}
                     style={{
                         left: `${position}px`,
-                        transform: draggingMilestone === milestone.id ? `translateY(${draggedMilestoneY}px)` : 'none',
-                        zIndex: draggingMilestone === milestone.id ? 1000 : 1, // 드래그 중인 것 최상위로
+                        ...(draggingMilestone === milestone.id ? {
+                            transform: `translate(-50%, -50%) translateY(${draggedMilestoneY}px)`,
+                            zIndex: 1000
+                        } : {})
                     }}
                     title={`${milestone.label} (${currentDate})`}
                     onContextMenu={(e) => {
