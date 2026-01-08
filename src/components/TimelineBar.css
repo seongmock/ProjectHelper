@@ -29,6 +29,11 @@
     z-index: 10;
 }
 
+.timeline-bar.dragging {
+    z-index: 999 !important;
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3);
+}
+
 .timeline-bar.selected {
     box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.3);
     z-index: 20;

@@ -391,7 +391,7 @@ function TimelineBar({
             data-task-id={task.id}
         >
             {hasValidDates && (
-                <Tooltip content={task.description} position="top">
+                <Tooltip content={isDragging ? null : task.description} position="top">
                     <div
                         ref={barRef}
                         className={`timeline-bar ${isSelected ? 'selected' : ''} ${isDragging ? 'dragging' : ''}`}
