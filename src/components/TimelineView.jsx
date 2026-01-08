@@ -588,16 +588,70 @@ const TimelineView = forwardRef(({
 
         try {
             // 캡처 시작: 클래스 추가
+            // 캡처 시작: 클래스 추가
             if (containerRef.current) {
                 containerRef.current.classList.add('capturing');
             }
+
+            // 전체 스크롤 영역 확보를 위한 임시 스타일 적용
+            const scrollContainer = timelineScrollRef.current;
+            const taskNamesContainer = taskNamesScrollRef.current;
+
+            const originalScrollOverflow = scrollContainer.style.overflow;
+            const originalScrollWidth = scrollContainer.style.width;
+
+            // 작업명 컬럼 스타일 백업
+            let originalTaskNamesOverflow = '';
+            let originalTaskNamesHeight = '';
+
+            // 타임라인 컨테이너 확장 (스크롤 내용이 다 보이도록)
+            scrollContainer.style.overflow = 'visible';
+            // scrollContainer.style.width = 'max-content'; // 또는 contentWidth + px
+
+            // 작업명 컬럼 확장
+            if (taskNamesContainer) {
+                originalTaskNamesOverflow = taskNamesContainer.style.overflowY;
+                originalTaskNamesHeight = taskNamesContainer.style.height;
+                taskNamesContainer.style.overflowY = 'visible';
+                taskNamesContainer.style.height = 'auto';
+            }
+
+            // 캡처 대상(captureRef)도 확장 필요할 수 있음 (flex container)
+            const captureContainer = captureRef.current;
+            const originalCaptureWidth = captureContainer.style.width;
+            const originalCaptureHeight = captureContainer.style.height;
+            captureContainer.style.width = 'max-content';
+            captureContainer.style.height = 'max-content';
 
             const canvas = await html2canvas(captureRef.current, {
                 scale: 2, // 고해상도
                 useCORS: true,
                 logging: false,
-                backgroundColor: '#ffffff'
+                backgroundColor: '#ffffff',
+                width: captureContainer.scrollWidth,
+                height: captureContainer.scrollHeight,
+                windowWidth: captureContainer.scrollWidth,
+                windowHeight: captureContainer.scrollHeight,
+                x: 0,
+                y: 0
             });
+
+            // 스타일 복구
+            scrollContainer.style.overflow = originalScrollOverflow;
+            scrollContainer.style.width = originalScrollWidth;
+
+            if (taskNamesContainer) {
+                taskNamesContainer.style.overflowY = originalTaskNamesOverflow;
+                taskNamesContainer.style.height = originalTaskNamesHeight;
+            }
+
+            captureContainer.style.width = originalCaptureWidth;
+            captureContainer.style.height = originalCaptureHeight;
+
+            // 캡처 종료: 클래스 제거
+            if (containerRef.current) {
+                containerRef.current.classList.remove('capturing');
+            }
 
             // 캡처 종료: 클래스 제거
             if (containerRef.current) {

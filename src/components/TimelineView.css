@@ -260,9 +260,22 @@
     transition: none !important;
 }
 
-.capturing .timeline-bar {
-    border: 1px solid rgba(0, 0, 0, 0.1);
-    /* 그림자 대신 테두리 추가 */
+border: 1px solid rgba(0, 0, 0, 0.1);
+/* 그림자 대신 테두리 추가 */
+}
+
+/* 캡처 시 선택 하이라이트 숨김 */
+.capturing .task-name-item.selected {
+    background-color: transparent !important;
+    font-weight: normal !important;
+    border-left: none !important;
+}
+
+.capturing .timeline-bar.selected {
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15) !important;
+    z-index: 10 !important;
+    border: none !important;
+    /* 위에서 추가한 테두리와 충돌 방지 */
 }
 
 /* 수직 가이드 라인 */
