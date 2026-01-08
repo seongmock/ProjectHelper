@@ -352,7 +352,7 @@ function TimelineBar({
                         {/* 드래그 중 날짜 표시 라벨 */}
                         {draggingMilestone === milestone.id && draggedMilestoneDate && (
                             <div className="milestone-date-label">
-                                {draggedMilestoneDate}
+                                {dateUtils.formatDate(new Date(draggedMilestoneDate), 'MM.DD')}
                             </div>
                         )}
                     </div>
