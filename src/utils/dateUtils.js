@@ -163,6 +163,50 @@ export const dateUtils = {
         }
     },
 
+    // 주 단위 스냅 (월요일 기준)
+    snapToWeek: (date, type) => {
+        const d = new Date(date);
+        const day = d.getDay(); // 0(일) ~ 6(토)
+        const diff = day === 0 ? -6 : 1 - day; // 월요일까지의 차이
+
+        if (type === 'start') {
+            // 해당 주의 월요일
+            const result = new Date(d);
+            result.setDate(d.getDate() + diff);
+            return result;
+        } else if (type === 'end') {
+            // 해당 주의 일요일
+            const result = new Date(d);
+            result.setDate(d.getDate() + diff + 6);
+            return result;
+        }
+        return d;
+    },
+
+    // 일 단위 스냅
+    snapToDay: (date, type) => {
+        const d = new Date(date);
+        return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    },
+
+    // 타임라인 범위에 따른 적응형 스냅
+    snapAdaptive: (date, type, totalDays) => {
+        // totalDays: 전체 타임라인의 일수
+        if (totalDays < 60) {
+            // 2개월 미만: 일 단위
+            return dateUtils.snapToDay(date, type);
+        } else if (totalDays < 180) {
+            // 6개월 미만: 주 단위
+            return dateUtils.snapToWeek(date, type);
+        } else if (totalDays < 730) {
+            // 2년 미만: 월 단위
+            return dateUtils.snapToMonth(date, type);
+        } else {
+            // 2년 이상: 분기 단위
+            return dateUtils.snapToQuarter(date, type);
+        }
+    },
+
     // 분기 단위 스냅
     snapToQuarter: (date, type) => { // type: 'start' | 'end'
         const d = new Date(date);

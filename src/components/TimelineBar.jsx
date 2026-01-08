@@ -55,13 +55,9 @@ function TimelineBar({
             const deltaX = e.clientX - dragStart.x;
             const deltaDays = Math.round((deltaX / containerWidth) * totalDays);
 
-            // 스냅 로직 적용
+            // 적응형 스냅 로직: 전체 타임라인 범위에 따라 스냅 단위 자동 조정
             const applySnapping = (date, type) => {
-                if (timeScale === 'quarterly') {
-                    return dateUtils.snapToQuarter(date, type);
-                } else {
-                    return dateUtils.snapToMonth(date, type);
-                }
+                return dateUtils.snapAdaptive(date, type, totalDays);
             };
 
             if (dragType === 'move') {
