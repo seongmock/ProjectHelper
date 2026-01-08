@@ -26,6 +26,11 @@ function TimelineBar({
     // 드래그 중 시각적 피드백을 위한 로컬 상태
     const [draggedDates, setDraggedDates] = useState(null);
 
+    // 마일스톤 드래그 상태
+    const [draggingMilestone, setDraggingMilestone] = useState(null); // milestone.id
+    const [milestoneDragStart, setMilestoneDragStart] = useState({ x: 0, originalDate: null });
+    const [draggedMilestoneDate, setDraggedMilestoneDate] = useState(null);
+
     const barRef = useRef(null);
 
     const totalDays = dateUtils.getDaysBetween(startDate, endDate);
@@ -163,17 +168,57 @@ function TimelineBar({
         };
     }, [isDragging, dragType, dragStart, containerWidth, totalDays, task.id, task.startDate, task.endDate, onDragUpdate, onDragEnd]);
 
+    // 마일스톤 드래그 처리
+    useEffect(() => {
+        if (!draggingMilestone) return;
+
+        const handleMouseMove = (e) => {
+            const deltaX = e.clientX - milestoneDragStart.x;
+            const deltaDays = Math.round((deltaX / containerWidth) * totalDays);
+
+            const rawNewDate = dateUtils.addDays(milestoneDragStart.originalDate, deltaDays);
+            const snappedDate = dateUtils.snapAdaptive(rawNewDate, 'closest', totalDays);
+
+            // 로컬 상태 업데이트 (시각적 피드백)
+            setDraggedMilestoneDate(dateUtils.formatDate(snappedDate));
+        };
+
+        const handleMouseUp = () => {
+            // 드래그 완료 시 최종 날짜를 히스토리에 기록
+            if (onMilestoneDragEnd && draggedMilestoneDate) {
+                onMilestoneDragEnd(task.id, draggingMilestone, draggedMilestoneDate);
+            }
+
+            // 로컬 드래그 상태 클리어
+            setDraggingMilestone(null);
+            setDraggedMilestoneDate(null);
+        };
+
+        document.addEventListener('mousemove', handleMouseMove);
+        document.addEventListener('mouseup', handleMouseUp);
+
+        return () => {
+            document.removeEventListener('mousemove', handleMouseMove);
+            document.removeEventListener('mouseup', handleMouseUp);
+        };
+    }, [draggingMilestone, milestoneDragStart, containerWidth, totalDays, task.id, onMilestoneDragEnd, draggedMilestoneDate]);
+
     // 마일스톤 렌더링
     const renderMilestones = () => {
         if (!task.milestones || task.milestones.length === 0) return null;
 
         return task.milestones.map((milestone) => {
-            const milestoneDate = new Date(milestone.date);
+            // 드래그 중이면 draggedMilestoneDate 사용, 아니면 milestone.date
+            const currentDate = (draggingMilestone === milestone.id && draggedMilestoneDate)
+                ? draggedMilestoneDate
+                : milestone.date;
+
+            const milestoneDate = new Date(currentDate);
             if (milestoneDate < new Date(startDate) || milestoneDate > new Date(endDate)) {
                 return null;
             }
 
-            const daysFromStart = dateUtils.getDaysBetween(startDate, milestone.date);
+            const daysFromStart = dateUtils.getDaysBetween(startDate, currentDate);
             const position = (daysFromStart / totalDays) * containerWidth;
 
             const shape = milestone.shape || 'diamond';
@@ -265,11 +310,11 @@ function TimelineBar({
             return (
                 <div
                     key={milestone.id}
-                    className="milestone-marker"
+                    className={`milestone-marker ${draggingMilestone === milestone.id ? 'dragging' : ''}`}
                     style={{
                         left: `${position}px`,
                     }}
-                    title={`${milestone.label} (${milestone.date})`}
+                    title={`${milestone.label} (${currentDate})`}
                     onContextMenu={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
@@ -281,7 +326,18 @@ function TimelineBar({
                         }
                     }}
                 >
-                    <div className="milestone-shape">
+                    <div
+                        className="milestone-shape"
+                        onMouseDown={(e) => {
+                            e.stopPropagation();
+                            setDraggingMilestone(milestone.id);
+                            setMilestoneDragStart({
+                                x: e.clientX,
+                                originalDate: new Date(milestone.date)
+                            });
+                            setDraggedMilestoneDate(milestone.date);
+                        }}
+                    >
                         {shapeElement}
                     </div>
                     <span className="milestone-label" style={labelStyle}>{milestone.label}</span>

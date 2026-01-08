@@ -343,6 +343,25 @@ const TimelineView = forwardRef(({
         }, true); // 히스토리에 추가
     };
 
+    // 마일스톤 드래그 완료 시 날짜 업데이트
+    const handleMilestoneDragEnd = (taskId, milestoneId, newDate) => {
+        console.log('[TimelineView] handleMilestoneDragEnd', { taskId, milestoneId, newDate });
+
+        // 해당 작업의 마일스톤 업데이트
+        const targetTask = flatTasks.find(t => t.id === taskId);
+        if (!targetTask || !targetTask.milestones) return;
+
+        const updatedMilestones = targetTask.milestones.map(m =>
+            m.id === milestoneId
+                ? { ...m, date: newDate }
+                : m
+        );
+
+        onUpdateTask(taskId, {
+            milestones: updatedMilestones
+        }, true); // 히스토리에 추가
+    };
+
     // 작업 클릭 핸들러 (연결 모드 처리)
     const handleTaskClick = (taskId) => {
         if (isLinkingMode) {
@@ -896,6 +915,7 @@ const TimelineView = forwardRef(({
                                     onSelect={() => handleTaskClick(task.id)}
                                     onDragUpdate={handleDragUpdate}
                                     onDragEnd={handleTimelineBarDragEnd}
+                                    onMilestoneDragEnd={handleMilestoneDragEnd}
                                     onContextMenu={(e, date) => handleContextMenu(e, task, date)}
                                     onMilestoneContextMenu={(e, milestone) => handleMilestoneContextMenu(e, task, milestone)}
                                     onMilestoneClick={handleMilestoneClick}

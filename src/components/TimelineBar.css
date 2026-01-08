@@ -89,11 +89,22 @@
     align-items: center;
 }
 
+.milestone-marker.dragging {
+    cursor: grabbing;
+    z-index: 200;
+    opacity: 0.8;
+}
+
 .milestone-shape {
     display: flex;
     align-items: center;
     justify-content: center;
     pointer-events: auto;
+    cursor: grab;
+}
+
+.milestone-marker.dragging .milestone-shape {
+    cursor: grabbing;
 }
 
 .milestone-shape>div {
