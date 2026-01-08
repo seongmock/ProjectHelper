@@ -18,7 +18,10 @@ function Toolbar({
     onToggleCompact,
     showTaskNames,
     onToggleTaskNames,
-    onCopyImage
+    onToggleTaskNames,
+    onCopyImage,
+    snapEnabled,
+    onToggleSnap
 }) {
     return (
         <div className="toolbar">
@@ -118,41 +121,49 @@ function Toolbar({
                                     </button>
                                 </div>
 
-                                <button
-                                    className="icon-btn"
-                                    onClick={onCopyImage}
-                                    title="이미지로 복사"
-                                    style={{ marginLeft: '4px' }}
+                                className="icon-btn"
+                                onClick={onCopyImage}
+                                title="이미지로 저장"
+                                style={{ marginLeft: '4px' }}
                                 >
-                                    📷 캡처
-                                </button>
-                            </div>
-                        </>
+                                📷
+                            </button>
+
+                            <button
+                                className={`icon-btn ${snapEnabled ? 'active' : ''}`}
+                                onClick={onToggleSnap}
+                                title={snapEnabled ? '스냅 켜짐' : '스냅 꺼짐'}
+                                style={{ marginLeft: '4px' }}
+                            >
+                                🧲
+                            </button>
+                        </div>
+                </>
                     )}
+            </div>
+
+            <div className="toolbar-right flex items-center gap-md">
+                {/* 검색 */}
+                <div className="search-box">
+                    <input
+                        type="text"
+                        placeholder="🔍 작업 검색..."
+                        value={searchQuery}
+                        onChange={(e) => onSearchChange(e.target.value)}
+                    />
                 </div>
 
-                <div className="toolbar-right flex items-center gap-md">
-                    {/* 검색 */}
-                    <div className="search-box">
-                        <input
-                            type="text"
-                            placeholder="🔍 작업 검색..."
-                            value={searchQuery}
-                            onChange={(e) => onSearchChange(e.target.value)}
-                        />
-                    </div>
-
-                    {/* 새 작업 추가 */}
-                    <button
-                        className="primary"
-                        onClick={onAddTask}
-                        title="새 작업 추가 (Ctrl+N)"
-                    >
-                        ➕ 새 작업
-                    </button>
-                </div>
+                {/* 새 작업 추가 */}
+                <button
+                    className="primary"
+                    onClick={onAddTask}
+                    title="새 작업 추가 (Ctrl+N)"
+                >
+                    ➕ 새 작업
+                </button>
             </div>
         </div>
+        </div >
     );
 }
 

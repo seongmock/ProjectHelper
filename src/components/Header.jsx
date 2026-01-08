@@ -1,6 +1,6 @@
 import './Header.css';
 
-function Header({ darkMode, onToggleDarkMode, onExport, onImport, canUndo, canRedo, onUndo, onRedo, onOpenPromptGuide, snapEnabled, onToggleSnap }) {
+function Header({ darkMode, onToggleDarkMode, onExport, onImport, canUndo, canRedo, onUndo, onRedo, onOpenPromptGuide }) {
     return (
         <header className="header">
             <div className="header-content">
@@ -59,20 +59,6 @@ function Header({ darkMode, onToggleDarkMode, onExport, onImport, canUndo, canRe
                             📤 내보내기
                         </button>
                     </div>
-
-                    {/* 스냅 토글 */}
-                    <button
-                        className="icon tooltip"
-                        onClick={onToggleSnap}
-                        data-tooltip={snapEnabled ? '스냅 켜짐' : '스냅 꺼짐'}
-                        title="스냅 설정"
-                        style={{
-                            color: snapEnabled ? 'var(--color-primary)' : 'var(--color-text-tertiary)',
-                            fontWeight: snapEnabled ? 'bold' : 'normal'
-                        }}
-                    >
-                        🧲
-                    </button>
 
                     {/* 다크모드 토글 */}
                     <button
