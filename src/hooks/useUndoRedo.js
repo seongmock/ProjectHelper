@@ -26,7 +26,17 @@ export const useUndoRedo = (initialState) => {
                 currentIndex: index,
                 historyLength: history.length,
                 currentStateTaskCount: currentState?.length,
-                newStateTaskCount: resolvedState?.length
+                newStateTaskCount: resolvedState?.length,
+                currentStateFirstTask: currentState?.[0] ? {
+                    id: currentState[0].id,
+                    startDate: currentState[0].startDate,
+                    endDate: currentState[0].endDate
+                } : null,
+                newStateFirstTask: resolvedState?.[0] ? {
+                    id: resolvedState[0].id,
+                    startDate: resolvedState[0].startDate,
+                    endDate: resolvedState[0].endDate
+                } : null
             });
 
             // 현재 인덱스 이후의 히스토리 제거 후 새 상태 추가
@@ -40,7 +50,15 @@ export const useUndoRedo = (initialState) => {
 
             console.log('[useUndoRedo] History updated', {
                 newIndex,
-                newHistoryLength: slicedHistory.length
+                newHistoryLength: slicedHistory.length,
+                historySnapshot: slicedHistory.map((state, idx) => ({
+                    index: idx,
+                    taskCount: state?.length,
+                    firstTask: state?.[0] ? {
+                        id: state[0].id,
+                        dates: `${state[0].startDate} ~ ${state[0].endDate}`
+                    } : null
+                }))
             });
 
             return {
