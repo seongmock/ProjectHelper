@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { dateUtils } from '../utils/dateUtils';
+import Tooltip from './Tooltip';
 import './TimelineBar.css';
 
 function TimelineBar({
@@ -241,59 +242,61 @@ function TimelineBar({
     return (
         <div className={`timeline-row level-${level}`}>
             {hasValidDates && (
-                <div
-                    ref={barRef}
-                    className={`timeline-bar ${isSelected ? 'selected' : ''} ${isDragging ? 'dragging' : ''}`}
-                    style={{
-                        left: `${offset}px`,
-                        width: `${width}px`,
-                        backgroundColor: task.color,
-                    }}
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        onSelect(task.id);
-                    }}
-                    onContextMenu={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-
-                        // 클릭 위치에 따른 날짜 계산
-                        const rect = barRef.current.getBoundingClientRect();
-                        const offsetX = e.clientX - rect.left;
-                        const width = rect.width;
-                        const totalDays = dateUtils.getDaysBetween(task.startDate, task.endDate);
-                        const daysToAdd = Math.round((offsetX / width) * totalDays);
-                        const clickDate = dateUtils.addDays(task.startDate, daysToAdd);
-
-                        onContextMenu(e, clickDate);
-                    }}
-                >
-                    {/* 시작 핸들 */}
+                <Tooltip content={task.description} position="top">
                     <div
-                        className="resize-handle resize-start"
-                        onMouseDown={(e) => handleMouseDown(e, 'resize-start')}
-                        title="시작일 조정"
-                    />
+                        ref={barRef}
+                        className={`timeline-bar ${isSelected ? 'selected' : ''} ${isDragging ? 'dragging' : ''}`}
+                        style={{
+                            left: `${offset}px`,
+                            width: `${width}px`,
+                            backgroundColor: task.color,
+                        }}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onSelect(task.id);
+                        }}
+                        onContextMenu={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
 
-                    {/* 바 내용 */}
-                    <div
-                        className="bar-content"
-                        onMouseDown={(e) => handleMouseDown(e, 'move')}
+                            // 클릭 위치에 따른 날짜 계산
+                            const rect = barRef.current.getBoundingClientRect();
+                            const offsetX = e.clientX - rect.left;
+                            const width = rect.width;
+                            const totalDays = dateUtils.getDaysBetween(task.startDate, task.endDate);
+                            const daysToAdd = Math.round((offsetX / width) * totalDays);
+                            const clickDate = dateUtils.addDays(task.startDate, daysToAdd);
+
+                            onContextMenu(e, clickDate);
+                        }}
                     >
-                        {showLabel && (
-                            <span className="bar-label">
-                                {task.name}
-                            </span>
-                        )}
-                    </div>
+                        {/* 시작 핸들 */}
+                        <div
+                            className="resize-handle resize-start"
+                            onMouseDown={(e) => handleMouseDown(e, 'resize-start')}
+                            title="시작일 조정"
+                        />
 
-                    {/* 종료 핸들 */}
-                    <div
-                        className="resize-handle resize-end"
-                        onMouseDown={(e) => handleMouseDown(e, 'resize-end')}
-                        title="종료일 조정"
-                    />
-                </div>
+                        {/* 바 내용 */}
+                        <div
+                            className="bar-content"
+                            onMouseDown={(e) => handleMouseDown(e, 'move')}
+                        >
+                            {showLabel && (
+                                <span className="bar-label">
+                                    {task.name}
+                                </span>
+                            )}
+                        </div>
+
+                        {/* 종료 핸들 */}
+                        <div
+                            className="resize-handle resize-end"
+                            onMouseDown={(e) => handleMouseDown(e, 'resize-end')}
+                            title="종료일 조정"
+                        />
+                    </div>
+                </Tooltip>
             )}
 
             {/* 마일스톤 마커들 */}
