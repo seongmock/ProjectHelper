@@ -418,12 +418,29 @@ function TimelineBar({
                             )}
                         </div>
 
-                        {/* 종료 핸들 */}
-                        <div
-                            className="resize-handle resize-end"
-                            onMouseDown={(e) => handleMouseDown(e, 'resize-end')}
-                            title="종료일 조정"
+                        title="종료일 조정"
                         />
+
+                        {/* 드래그 시 날짜 라벨 표시 */}
+                        {isDragging && draggedDates && (
+                            <>
+                                {dragType === 'move' && (
+                                    <div className="task-drag-label center">
+                                        {dateUtils.formatDate(new Date(draggedDates.startDate), 'MM.DD')} ~ {dateUtils.formatDate(new Date(draggedDates.endDate), 'MM.DD')}
+                                    </div>
+                                )}
+                                {dragType === 'resize-start' && (
+                                    <div className="task-drag-label start">
+                                        {dateUtils.formatDate(new Date(draggedDates.startDate), 'MM.DD')}
+                                    </div>
+                                )}
+                                {dragType === 'resize-end' && (
+                                    <div className="task-drag-label end">
+                                        {dateUtils.formatDate(new Date(draggedDates.endDate), 'MM.DD')}
+                                    </div>
+                                )}
+                            </>
+                        )}
                     </div>
                 </Tooltip>
             )}
