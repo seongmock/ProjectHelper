@@ -231,10 +231,6 @@ function App() {
 
         // 드래그 중이든 완료든 항상 setTasks 사용
         // 드래그 완료 시에만 실제 히스토리에 기록됨
-        console.log('[App] handleUpdateTask: always using setTasks', { taskId, updates, addToHistory });
-        if (addToHistory) {
-            console.log('[App] This will create a new history entry');
-        }
         setTasks(updateFunc);
     }, [setTasks]);
 

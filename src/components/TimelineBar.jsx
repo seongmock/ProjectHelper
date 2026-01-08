@@ -137,21 +137,9 @@ function TimelineBar({
         };
 
         const handleMouseUp = () => {
-            console.log('[TimelineBar] handleMouseUp called', {
-                dragType,
-                finalState: finalDragState.current,
-                taskId: task.id
-            });
             // 드래그 완료 시 최종 상태를 히스토리에 기록
             if (onDragEnd && finalDragState.current.start && finalDragState.current.end) {
-                console.log('[TimelineBar] Calling onDragEnd');
                 onDragEnd(task.id, finalDragState.current.start, finalDragState.current.end);
-            } else {
-                console.log('[TimelineBar] onDragEnd NOT called', {
-                    onDragEnd: !!onDragEnd,
-                    hasStart: !!finalDragState.current.start,
-                    hasEnd: !!finalDragState.current.end
-                });
             }
 
             // 로컬 드래그 상태 클리어

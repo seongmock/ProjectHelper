@@ -332,11 +332,6 @@ const TimelineView = forwardRef(({
 
     // 타임라인 바 드래그 완료 시 최종 상태를 히스토리에 기록
     const handleTimelineBarDragEnd = (taskId, finalStart, finalEnd) => {
-        console.log('[TimelineView] handleTimelineBarDragEnd: saving to history', {
-            taskId,
-            finalStart,
-            finalEnd
-        });
         onUpdateTask(taskId, {
             startDate: dateUtils.formatDate(finalStart),
             endDate: dateUtils.formatDate(finalEnd),
@@ -345,8 +340,6 @@ const TimelineView = forwardRef(({
 
     // 마일스톤 드래그 완료 시 날짜 업데이트
     const handleMilestoneDragEnd = (taskId, milestoneId, newDate) => {
-        console.log('[TimelineView] handleMilestoneDragEnd', { taskId, milestoneId, newDate });
-
         // 해당 작업의 마일스톤 업데이트
         const targetTask = flatTasks.find(t => t.id === taskId);
         if (!targetTask || !targetTask.milestones) return;
