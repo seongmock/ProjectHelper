@@ -52,26 +52,53 @@ export const useUndoRedo = (initialState) => {
 
     // 실행 취소
     const undo = useCallback(() => {
+        console.log('[useUndoRedo] undo called');
         setHookState((prev) => {
+            console.log('[useUndoRedo] undo - before', {
+                currentIndex: prev.index,
+                historyLength: prev.history.length,
+                canUndo: prev.index > 0
+            });
+
             if (prev.index > 0) {
-                return { ...prev, index: prev.index - 1 };
+                const newIndex = prev.index - 1;
+                console.log('[useUndoRedo] undo - moving to index', newIndex);
+                return { ...prev, index: newIndex };
             }
+            console.log('[useUndoRedo] undo - cannot undo (already at start)');
             return prev;
         });
     }, []);
 
     // 다시 실행
     const redo = useCallback(() => {
+        console.log('[useUndoRedo] redo called');
         setHookState((prev) => {
+            console.log('[useUndoRedo] redo - before', {
+                currentIndex: prev.index,
+                historyLength: prev.history.length,
+                canRedo: prev.index < prev.history.length - 1
+            });
+
             if (prev.index < prev.history.length - 1) {
-                return { ...prev, index: prev.index + 1 };
+                const newIndex = prev.index + 1;
+                console.log('[useUndoRedo] redo - moving to index', newIndex);
+                return { ...prev, index: newIndex };
             }
+            console.log('[useUndoRedo] redo - cannot redo (already at end)');
             return prev;
         });
     }, []);
 
     const canUndo = hookState.index > 0;
     const canRedo = hookState.index < hookState.history.length - 1;
+
+    console.log('[useUndoRedo] Current state', {
+        currentIndex: hookState.index,
+        historyLength: hookState.history.length,
+        canUndo,
+        canRedo
+    });
 
     // 히스토리에 추가하지 않고 현재 상태만 업데이트 (드래그 중간 상태용)
     const setStateSilent = useCallback((newState) => {
