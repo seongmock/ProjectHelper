@@ -24,6 +24,9 @@
     display: flex;
     flex-direction: column;
     animation: slideIn var(--transition-normal);
+    position: relative;
+    z-index: 10000;
+    /* overlay보다 높게 설정 */
 }
 
 .modal-header {
