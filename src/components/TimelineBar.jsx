@@ -408,6 +408,7 @@ function TimelineBar({
                             e.preventDefault();
                             e.stopPropagation();
 
+
                             // 클릭 위치에 따른 날짜 계산
                             const rect = barRef.current.getBoundingClientRect();
                             const offsetX = e.clientX - rect.left;
@@ -419,6 +420,30 @@ function TimelineBar({
                             onContextMenu(e, clickDate);
                         }}
                     >
+                        {/* 드래그 중 날짜 라벨 */}
+                        {isDragging && draggedDates && (
+                            <>
+                                {/* 이동 시: 중앙 표시 */}
+                                {dragType === 'move' && (
+                                    <div className="timeline-date-label label-center">
+                                        {dateUtils.formatDate(new Date(draggedDates.startDate), 'MM.DD')} ~ {dateUtils.formatDate(new Date(draggedDates.endDate), 'MM.DD')}
+                                    </div>
+                                )}
+                                {/* 시작 사이즈 조절: 왼쪽 표시 */}
+                                {dragType === 'resize-start' && (
+                                    <div className="timeline-date-label label-left">
+                                        {dateUtils.formatDate(new Date(draggedDates.startDate), 'MM.DD')}
+                                    </div>
+                                )}
+                                {/* 종료 사이즈 조절: 오른쪽 표시 */}
+                                {dragType === 'resize-end' && (
+                                    <div className="timeline-date-label label-right">
+                                        {dateUtils.formatDate(new Date(draggedDates.endDate), 'MM.DD')}
+                                    </div>
+                                )}
+                            </>
+                        )}
+
                         {/* 시작 핸들 */}
                         <div
                             className="resize-handle resize-start"
@@ -437,6 +462,8 @@ function TimelineBar({
                                 </span>
                             )}
                         </div>
+
+                        {/* 종료 핸들 */}
 
                         {/* 종료 핸들 */}
                         <div
