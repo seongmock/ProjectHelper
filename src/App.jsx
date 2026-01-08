@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { getSampleData, createNewTask, generateId } from './utils/dataModel';
+import { getSampleData, createNewTask, generateId, flattenTasks } from './utils/dataModel';
 import { storage } from './utils/storage';
 import { useUndoRedo } from './hooks/useUndoRedo';
 import Header from './components/Header';
 import Toolbar from './components/Toolbar';
 import TableView from './components/TableView';
 import TimelineView from './components/TimelineView';
+import PromptGuideModal from './components/PromptGuideModal';
 import './App.css';
 
 function App() {
@@ -16,9 +17,13 @@ function App() {
     const [timeScale, setTimeScale] = useState('monthly');
 
     // 다크모드
+    // 다크모드
     const [darkMode, setDarkMode] = useState(() => {
         const saved = storage.loadSettings();
-        return saved?.darkMode || false;
+        if (saved && saved.darkMode !== undefined) {
+            return saved.darkMode;
+        }
+        return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
     });
 
     // 검색 쿼리
@@ -33,6 +38,9 @@ function App() {
     const [isCompact, setIsCompact] = useState(false);
     const [showTaskNames, setShowTaskNames] = useState(true);
     const timelineRef = useRef(null);
+
+    // AI 프롬프트 가이드 모달 상태
+    const [isPromptGuideOpen, setIsPromptGuideOpen] = useState(false);
 
     // 초기 데이터 로드
     const getInitialData = () => {
@@ -68,10 +76,35 @@ function App() {
     }, [tasks]);
 
     // 다크모드 설정 저장
+    // 다크모드 변경 시 DOM 적용
     useEffect(() => {
-        storage.saveSettings({ darkMode });
         document.documentElement.setAttribute('data-theme', darkMode ? 'dark' : 'light');
     }, [darkMode]);
+
+    // 시스템 다크모드 설정 감지
+    useEffect(() => {
+        const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+
+        const handleChange = (e) => {
+            const saved = storage.loadSettings();
+            // 사용자 설정이 없을 때만 시스템 설정 따름
+            if (!saved || saved.darkMode === undefined) {
+                setDarkMode(e.matches);
+            }
+        };
+
+        mediaQuery.addEventListener('change', handleChange);
+        return () => mediaQuery.removeEventListener('change', handleChange);
+    }, []);
+
+    // 다크모드 토글 핸들러 (저장 포함)
+    const handleToggleDarkMode = useCallback(() => {
+        setDarkMode(prev => {
+            const newMode = !prev;
+            storage.saveSettings({ darkMode: newMode });
+            return newMode;
+        });
+    }, []);
 
     // 키보드 단축키
     useEffect(() => {
@@ -216,6 +249,148 @@ function App() {
         };
 
         setTasks(prevTasks => indentTask(prevTasks));
+    }, [setTasks]);
+
+    // 작업/트리 검색을 위한 헬퍼 함수
+    const findTaskAndParent = (items, taskId, parent = null) => {
+        for (let i = 0; i < items.length; i++) {
+            if (items[i].id === taskId) {
+                return { task: items[i], parent, index: i, list: items };
+            }
+            if (items[i].children.length > 0) {
+                const result = findTaskAndParent(items[i].children, taskId, items[i]);
+                if (result) return result;
+            }
+        }
+        return null;
+    };
+
+    // 작업 이동 핸들러 (DnD)
+    const handleMoveTask = useCallback((activeId, overId) => {
+        setTasks((prevTasks) => {
+            const activeInfo = findTaskAndParent(prevTasks, activeId);
+            const overInfo = findTaskAndParent(prevTasks, overId);
+
+            if (!activeInfo || !overInfo) return prevTasks;
+
+            // 같은 항목이면 무시
+            if (activeId === overId) return prevTasks;
+
+            const newTasks = [...prevTasks];
+
+            // 1. 기존 위치에서 제거 (주의: 불변성 유지를 위해 깊은 복사 필요)
+            // 간단하게 하기 위해 전체 트리를 다시 빌드하는 대신,
+            // findTaskAndParent가 반환한 list를 수정하면 원본 참조를 수정하게 됨 (안됨).
+            // 따라서 재귀적으로 새로운 트리를 만들어야 함.
+
+            // 하지만 복잡성을 줄이기 위해 deep clone 후 처리
+            const clonedTasks = JSON.parse(JSON.stringify(prevTasks));
+
+            // 클론된 데이터에서 다시 찾기
+            const activeNode = findTaskAndParent(clonedTasks, activeId);
+            const overNode = findTaskAndParent(clonedTasks, overId);
+
+            if (!activeNode || !overNode) return prevTasks;
+
+            // 순환 참조 방지: overNode가 activeNode의 자손인지 확인
+            const isDescendant = (parent, targetId) => {
+                if (!parent.children) return false;
+                for (const child of parent.children) {
+                    if (child.id === targetId) return true;
+                    if (isDescendant(child, targetId)) return true;
+                }
+                return false;
+            };
+
+            if (isDescendant(activeNode.task, overId)) {
+                return prevTasks; // 자손으로 이동 불가
+            }
+
+            // 글로벌 인덱스로 이동 방향 판별 (평탄화된 리스트 기준)
+            const flatList = flattenTasks(prevTasks);
+            const activeFlatItem = flatList.find(t => t.id === activeId);
+            const overFlatItem = flatList.find(t => t.id === overId);
+
+            // 안전장치
+            if (!activeFlatItem || !overFlatItem) return prevTasks;
+
+            const activeGlobalIndex = flatList.findIndex(t => t.id === activeId);
+            let overGlobalIndex = flatList.findIndex(t => t.id === overId);
+
+            // [Fix] 최상위(Root) 태스크를 하위(Child) 태스크 위로 드래그했을 때,
+            // 하위 태스크의 자식으로 들어가는 것을 방지하고, 해당 하위 태스크의 최상위 조상 위치로 매핑
+            let effectiveOverId = overId;
+            let targetNode = overNode; // 기본값: overNode가 타겟
+
+            if (activeFlatItem.level === 0 && overFlatItem.level > 0) {
+                // overId의 최상위 조상 찾기 (위쪽으로 탐색하여 레벨 0 찾기)
+                // 평탄화된 리스트에서 overIndex 위쪽으로 탐색
+                for (let i = overGlobalIndex; i >= 0; i--) {
+                    if (flatList[i].level === 0) {
+                        effectiveOverId = flatList[i].id;
+                        overGlobalIndex = i; // 인덱스도 업데이트
+                        break;
+                    }
+                }
+
+                // 타겟 변경 감지 시 노드 정보 재검색 (activeNode는 이미 메모리상 트리에서 삭제된 상태여야 함?
+                // 아니, 여기는 아직 삭제 전 로직임. activeNode.list.splice는 아래에서 함.)
+                // 순서 주의: activeNode 제거 전에 targetNode를 찾으면 참조 오류 가능성?
+                // 아니, findTaskAndParent는 clonedTasks에서 찾음. activeNode 제거 전임.
+            }
+
+            const isMovingDown = activeGlobalIndex < overGlobalIndex;
+
+            // 제거
+            activeNode.list.splice(activeNode.index, 1);
+
+            // 타겟이 변경되었다면 다시 찾기 (activeNode 제거 후에도 유효한지? effectiveOverId는 Root이므로 유효)
+            if (effectiveOverId !== overId) {
+                // activeNode가 Root였고 제거되었음.
+                // effectiveOverId가 overId(Child)의 Root Ancestor임.
+                // 만약 activeId === effectiveOverId 였다면? (자신 자식으로 드래그?)
+                // isDescendant 체크에서 걸러졌으므로 괜찮음.
+
+                // clonedTasks에서 다시 찾기
+                // activeNode가 제거된 상태의 clonedTasks에서.
+                const found = findTaskAndParent(clonedTasks, effectiveOverId);
+                if (found) {
+                    targetNode = found;
+                }
+            }
+
+            // 추가
+            let targetList = targetNode.list;
+            let targetIndex = targetList.findIndex(t => t.id === effectiveOverId);
+
+            // [Fix 2] '열려있는(Expanded) 그룹'의 제목 위로 드래그(하방 이동)한 경우,
+            // 해당 그룹의 '첫 번째 자식'으로 넣으려는 의도로 해석.
+            // 단, 이미 자식이 있는 경우에만 적용 (빈 태스크는 Leaf로 취급하여 순서 변경만 허용)
+            // 빈 태스크에 넣으려면 '들여쓰기' 제스처를 사용해야 함.
+            const isDroppingOnExpandedParent =
+                isMovingDown &&
+                overNode.task.expanded &&
+                overNode.task.children && overNode.task.children.length > 0 &&
+                overNode.task.id === effectiveOverId;
+
+            if (isDroppingOnExpandedParent) {
+                // 부모의 자식 리스트로 타겟 변경
+                // 주의: overNode는 clone된 트리의 node이므로 task.children 참조 유효
+                if (!overNode.task.children) overNode.task.children = [];
+
+                targetList = overNode.task.children;
+                targetIndex = 0; // 첫 번째 위치
+            } else {
+                // 일반적인 경우: 아래로 이동 시 타겟의 뒤로 이동 (Insert After)
+                if (isMovingDown) {
+                    targetIndex += 1;
+                }
+            }
+
+            targetList.splice(targetIndex, 0, activeNode.task);
+
+            return clonedTasks;
+        });
     }, [setTasks]);
 
     // 작업 내어쓰기 (Outdent)
@@ -363,7 +538,10 @@ function App() {
                         if (settings.showToday !== undefined) setShowToday(settings.showToday);
                         if (settings.isCompact !== undefined) setIsCompact(settings.isCompact);
                         if (settings.showTaskNames !== undefined) setShowTaskNames(settings.showTaskNames);
-                        if (settings.darkMode !== undefined) setDarkMode(settings.darkMode);
+                        if (settings.darkMode !== undefined) {
+                            setDarkMode(settings.darkMode);
+                            storage.saveSettings({ darkMode: settings.darkMode });
+                        }
                     }
                 } else {
                     throw new Error('Invalid data format');
@@ -450,13 +628,14 @@ function App() {
         <div className="app">
             <Header
                 darkMode={darkMode}
-                onToggleDarkMode={() => setDarkMode(!darkMode)}
+                onToggleDarkMode={handleToggleDarkMode}
                 onExport={handleExport}
                 onImport={handleImport}
                 canUndo={canUndo}
                 canRedo={canRedo}
                 onUndo={undo}
                 onRedo={redo}
+                onOpenPromptGuide={() => setIsPromptGuideOpen(true)}
             />
 
             <Toolbar
@@ -492,6 +671,7 @@ function App() {
                         onReorderTasks={handleReorderTasks}
                         onIndentTask={handleIndentTask}
                         onOutdentTask={handleOutdentTask}
+                        onMoveTask={handleMoveTask}
                         viewMode={viewMode}
                     />
                 )}
@@ -503,6 +683,9 @@ function App() {
                         selectedTaskId={selectedTaskId}
                         onSelectTask={setSelectedTaskId}
                         onUpdateTask={handleUpdateTask}
+                        onMoveTask={handleMoveTask}
+                        onIndentTask={handleIndentTask}
+                        onOutdentTask={handleOutdentTask}
                         timeScale={timeScale}
                         viewMode={viewMode}
                         // 상태 전달
@@ -513,6 +696,10 @@ function App() {
                     />
                 )}
             </div>
+            <PromptGuideModal
+                isOpen={isPromptGuideOpen}
+                onClose={() => setIsPromptGuideOpen(false)}
+            />
         </div>
     );
 }

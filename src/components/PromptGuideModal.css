@@ -1,0 +1,104 @@
+.prompt-guide-modal {
+    width: 800px;
+    max-width: 90vw;
+    display: flex;
+    flex-direction: column;
+    max-height: 85vh;
+}
+
+.guide-description {
+    color: var(--color-text-secondary);
+    margin-bottom: 20px;
+    font-size: 14px;
+}
+
+.prompt-categories {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    overflow-y: auto;
+    padding-right: 8px;
+    /* 스크롤바 공간 */
+}
+
+.prompt-category h3 {
+    color: var(--color-primary);
+    font-size: 16px;
+    margin-bottom: 12px;
+    border-bottom: 1px solid var(--color-border);
+    padding-bottom: 8px;
+}
+
+.prompt-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+    gap: 12px;
+}
+
+.prompt-item {
+    background-color: var(--color-bg-secondary);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    transition: transform 0.2s, border-color 0.2s;
+}
+
+.prompt-item:hover {
+    transform: translateY(-2px);
+    border-color: var(--color-primary);
+}
+
+.prompt-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.prompt-title {
+    font-weight: 600;
+    color: var(--color-text-primary);
+    font-size: 14px;
+}
+
+.copy-button {
+    background-color: transparent;
+    border: 1px solid var(--color-border);
+    color: var(--color-text-secondary);
+    font-size: 12px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.copy-button:hover {
+    background-color: var(--color-primary);
+    color: white;
+    border-color: var(--color-primary);
+}
+
+.prompt-preview {
+    font-size: 12px;
+    color: var(--color-text-secondary);
+    line-height: 1.5;
+    background-color: var(--color-bg-primary);
+    padding: 8px;
+    border-radius: 4px;
+    flex-grow: 1;
+    /* 높이 맞춤 */
+    white-space: pre-wrap;
+    /* 줄바꿈 유지 */
+}
+
+/* 다크 모드 스크롤바 스타일링 (옵션) */
+.prompt-categories::-webkit-scrollbar {
+    width: 8px;
+}
+
+.prompt-categories::-webkit-scrollbar-thumb {
+    background-color: var(--color-border);
+    border-radius: 4px;
+}

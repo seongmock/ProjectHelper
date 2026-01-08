@@ -1,6 +1,6 @@
 import './Header.css';
 
-function Header({ darkMode, onToggleDarkMode, onExport, onImport, canUndo, canRedo, onUndo, onRedo }) {
+function Header({ darkMode, onToggleDarkMode, onExport, onImport, canUndo, canRedo, onUndo, onRedo, onOpenPromptGuide }) {
     const handleImportClick = (isMerge = false) => {
         const input = document.createElement('input');
         input.type = 'file';
@@ -22,8 +22,17 @@ function Header({ darkMode, onToggleDarkMode, onExport, onImport, canUndo, canRe
                 </div>
 
                 <div className="header-right flex items-center gap-sm">
-                    {/* 실행 취소/다시 실행 */}
+                    {/* 실행 취소/다시 실행 및 프롬프트 가이드 */}
                     <div className="undo-redo-buttons flex gap-sm">
+                        <button
+                            className="icon tooltip"
+                            onClick={onOpenPromptGuide}
+                            data-tooltip="AI 프롬프트 가이드"
+                            title="프롬프트 도우미"
+                        >
+                            🤖
+                        </button>
+                        <div className="divider-vertical" style={{ width: '1px', height: '16px', background: 'var(--color-border)', margin: 'auto 4px' }}></div>
                         <button
                             className="icon tooltip"
                             onClick={onUndo}

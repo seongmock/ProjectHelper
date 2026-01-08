@@ -12,7 +12,8 @@ function TaskRow({
     onDeleteTask,
     onAddTask,
     onIndentTask,
-    onOutdentTask
+    onOutdentTask,
+    renderChildren = true
 }) {
     const [isEditing, setIsEditing] = useState(false);
     const [editedName, setEditedName] = useState(task.name);
@@ -260,9 +261,8 @@ function TaskRow({
                         />
                         {showColorPicker && (
                             <ColorPicker
-                                currentColor={task.color}
-                                onColorChange={handleColorChange}
-                                onClose={() => setShowColorPicker(false)}
+                                color={task.color}
+                                onChange={handleColorChange}
                             />
                         )}
                     </div>
@@ -354,9 +354,8 @@ function TaskRow({
                                         {editingMilestoneColor === milestone.id && (
                                             <div style={{ position: 'absolute', zIndex: 100 }}>
                                                 <ColorPicker
-                                                    currentColor={milestone.color}
-                                                    onColorChange={(color) => handleMilestoneColorChange(milestone.id, color)}
-                                                    onClose={() => setEditingMilestoneColor(null)}
+                                                    color={milestone.color}
+                                                    onChange={(color) => handleMilestoneColorChange(milestone.id, color)}
                                                 />
                                             </div>
                                         )}
@@ -396,7 +395,7 @@ function TaskRow({
             </Modal>
 
             {/* 하위 작업들 */}
-            {hasChildren && task.expanded && (
+            {renderChildren && hasChildren && task.expanded && (
                 <>
                     {task.children.map((child) => (
                         <TaskRow

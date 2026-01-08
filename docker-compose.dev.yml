@@ -1,0 +1,13 @@
+version: '3'
+
+services:
+  project-management-app-dev:
+    image: node:18-alpine
+    working_dir: /app
+    volumes:
+      - ./:/app
+    ports:
+      - "8080:5173"
+    command: sh -c "if [ ! -d 'node_modules' ]; then npm install; fi && npm run dev -- --host"
+    environment:
+      - CHOKIDAR_USEPOLLING=true

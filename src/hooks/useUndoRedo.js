@@ -3,41 +3,58 @@
 import { useState, useCallback } from 'react';
 
 export const useUndoRedo = (initialState) => {
-    const [history, setHistory] = useState([initialState]);
-    const [currentIndex, setCurrentIndex] = useState(0);
+    const [hookState, setHookState] = useState({
+        history: [initialState],
+        index: 0
+    });
 
-    const currentState = history[currentIndex];
+    const currentState = hookState.history[hookState.index];
 
     // 새 상태 추가 (실행 취소 히스토리 업데이트)
     const setState = useCallback((newState) => {
-        setHistory((prev) => {
-            const currentState = prev[currentIndex];
+        setHookState((prev) => {
+            const { history, index } = prev;
+            const currentState = history[index];
             const resolvedState = typeof newState === 'function' ? newState(currentState) : newState;
 
             // 현재 인덱스 이후의 히스토리 제거 후 새 상태 추가
-            const newHistory = [...prev.slice(0, currentIndex + 1), resolvedState];
+            const newHistory = [...history.slice(0, index + 1), resolvedState];
+
             // 최대 20개 히스토리 유지
-            return newHistory.slice(-20);
+            const slicedHistory = newHistory.slice(-20);
+
+            // 새 인덱스는 마지막 항목 (length - 1)
+            const newIndex = slicedHistory.length - 1;
+
+            return {
+                history: slicedHistory,
+                index: newIndex
+            };
         });
-        setCurrentIndex((prev) => Math.min(prev + 1, 19));
-    }, [currentIndex]);
+    }, []);
 
     // 실행 취소
     const undo = useCallback(() => {
-        if (currentIndex > 0) {
-            setCurrentIndex((prev) => prev - 1);
-        }
-    }, [currentIndex]);
+        setHookState((prev) => {
+            if (prev.index > 0) {
+                return { ...prev, index: prev.index - 1 };
+            }
+            return prev;
+        });
+    }, []);
 
     // 다시 실행
     const redo = useCallback(() => {
-        if (currentIndex < history.length - 1) {
-            setCurrentIndex((prev) => prev + 1);
-        }
-    }, [currentIndex, history.length]);
+        setHookState((prev) => {
+            if (prev.index < prev.history.length - 1) {
+                return { ...prev, index: prev.index + 1 };
+            }
+            return prev;
+        });
+    }, []);
 
-    const canUndo = currentIndex > 0;
-    const canRedo = currentIndex < history.length - 1;
+    const canUndo = hookState.index > 0;
+    const canRedo = hookState.index < hookState.history.length - 1;
 
     return {
         state: currentState,

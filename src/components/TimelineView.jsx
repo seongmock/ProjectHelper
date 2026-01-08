@@ -1,19 +1,107 @@
-import { useMemo, useRef, useEffect, useState, forwardRef, useImperativeHandle } from 'react';
+import React, { useMemo, useRef, useEffect, useState, forwardRef, useImperativeHandle } from 'react';
+import {
+    DndContext,
+    closestCenter,
+    KeyboardSensor,
+    PointerSensor,
+    useSensor,
+    useSensors,
+} from '@dnd-kit/core';
+import {
+    SortableContext,
+    sortableKeyboardCoordinates,
+    verticalListSortingStrategy,
+    useSortable,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { dateUtils } from '../utils/dateUtils';
 import TimelineHeader from './TimelineHeader';
 import TimelineBar from './TimelineBar';
 import TimelineBarPopover from './TimelineBarPopover';
 import MilestoneQuickAdd from './MilestoneQuickAdd';
 import MilestoneEditPopover from './MilestoneEditPopover';
-import { generateId } from '../utils/dataModel';
+import { generateId, flattenTasks } from '../utils/dataModel';
 import html2canvas from 'html2canvas';
 import './TimelineView.css';
 
+// Sortable Wrapper for Task Name
+function SortableTaskNameItem({ task, selectedTaskId, editingTaskId, editingName, onSelect, onDoubleClick, onContextMenu, onEditChange, onEditBlur, onEditKeyDown }) {
+    const {
+        attributes,
+        listeners,
+        setNodeRef,
+        transform,
+        transition,
+        isDragging,
+    } = useSortable({ id: task.id });
+
+    const style = {
+        transform: CSS.Transform.toString(transform),
+        transition,
+        zIndex: isDragging ? 20 : 1,
+        position: 'relative',
+        opacity: isDragging ? 0.5 : 1,
+        paddingLeft: `${task.level * 24 + 12}px`,
+        cursor: 'grab' // 커서 변경
+    };
+
+    // 드래그 중이 아닐 때만 클릭/더블클릭 허용 (dnd-kit이 알아서 처리하지만 명시적 제어 가능)
+
+    return (
+        <div
+            ref={setNodeRef}
+            style={style}
+            {...attributes}
+            {...listeners}
+            className={`task-name-item level-${task.level} ${task.id === selectedTaskId ? 'selected' : ''}`}
+            onClick={() => onSelect(task.id)}
+            onDoubleClick={onDoubleClick}
+            onContextMenu={onContextMenu}
+        >
+            {editingTaskId === task.id ? (
+                <input
+                    type="text"
+                    className="task-name-edit-input"
+                    value={editingName}
+                    onChange={onEditChange}
+                    onBlur={onEditBlur}
+                    onKeyDown={onEditKeyDown}
+                    autoFocus
+                    onClick={(e) => e.stopPropagation()}
+                    onMouseDown={(e) => e.stopPropagation()} // 드래그 방지
+                />
+            ) : (
+                task.name
+            )}
+            {/* 구분선 (Divider) */}
+            {task.divider && task.divider.enabled && (
+                <div
+                    className="task-divider"
+                    style={{
+                        position: 'absolute',
+                        bottom: 0,
+                        left: 0,
+                        width: '100%',
+                        borderBottom: `${task.divider.thickness}px ${task.divider.style} ${task.divider.color}`,
+                        pointerEvents: 'none',
+                        zIndex: 10
+                    }}
+                />
+            )}
+        </div>
+    );
+}
+
+
+
 const TimelineView = forwardRef(({
-    tasks,
+    tasks = [], // Default value to prevent crash
     selectedTaskId,
     onSelectTask,
     onUpdateTask,
+    onMoveTask,
+    onIndentTask, // Add prop
+    onOutdentTask, // Add prop
     timeScale,
     viewMode,
     // Props from App
@@ -32,6 +120,61 @@ const TimelineView = forwardRef(({
     const [popoverInfo, setPopoverInfo] = useState(null); // { x, y, taskId, date }
     const [milestoneModalInfo, setMilestoneModalInfo] = useState(null); // { task, date }
     const [milestoneEditInfo, setMilestoneEditInfo] = useState(null); // { x, y, task, milestone }
+
+    const sensors = useSensors(
+        useSensor(PointerSensor, {
+            activationConstraint: {
+                distance: 8,
+            },
+        }),
+        useSensor(KeyboardSensor, {
+            coordinateGetter: sortableKeyboardCoordinates,
+        })
+    );
+
+    // 타임라인 데이터 준비 (핸들러보다 먼저 선언)
+    const flatTasks = useMemo(() => flattenTasks(tasks), [tasks]);
+    const items = useMemo(() => flatTasks.map(t => t.id), [flatTasks]);
+
+    // 드래그 시작 시 확장된 작업 접기
+    const [draggedTaskExpanded, setDraggedTaskExpanded] = useState(false);
+
+    const handleDragStart = (event) => {
+        const { active } = event;
+        const task = flatTasks.find(t => t.id === active.id);
+
+        if (task && task.children && task.children.length > 0 && task.expanded) {
+            setDraggedTaskExpanded(true);
+            onUpdateTask(task.id, { expanded: false });
+        } else {
+            setDraggedTaskExpanded(false);
+        }
+    };
+
+    const handleDragEnd = (event) => {
+        const { active, over, delta } = event;
+
+        // 원래 상태 복구
+        if (draggedTaskExpanded) {
+            onUpdateTask(active.id, { expanded: true });
+            setDraggedTaskExpanded(false);
+        }
+
+        // X축 이동에 따른 계층 변경
+        const HORIZONTAL_THRESHOLD = 40;
+
+        if (delta.x > HORIZONTAL_THRESHOLD) {
+            onIndentTask && onIndentTask(active.id);
+            return;
+        } else if (delta.x < -HORIZONTAL_THRESHOLD) {
+            onOutdentTask && onOutdentTask(active.id);
+            return;
+        }
+
+        if (over && active.id !== over.id) {
+            onMoveTask && onMoveTask(active.id, over.id);
+        }
+    };
 
     // 의존성 연결 모드 상태
     const [isLinkingMode, setIsLinkingMode] = useState(false);
@@ -124,19 +267,9 @@ const TimelineView = forwardRef(({
         return { start, end };
     }, [tasks, timeScale]);
 
-    // 타임라인 렌더링을 위한 플랫 리스트 생성
-    const flattenTasks = (items, level = 0) => {
-        const result = [];
-        items.forEach(item => {
-            result.push({ ...item, level });
-            if (item.children && item.children.length > 0 && item.expanded) {
-                result.push(...flattenTasks(item.children, level + 1));
-            }
-        });
-        return result;
-    };
 
-    const flatTasks = useMemo(() => flattenTasks(tasks), [tasks]);
+
+
 
     // 1. 모든 항목(작업 + 마일스톤)을 ID로 매핑하여 위치 정보 미리 계산
     const itemMap = useMemo(() => {
@@ -588,32 +721,38 @@ const TimelineView = forwardRef(({
                             {tasks.length === 0 ? (
                                 <div className="empty-names">작업 없음</div>
                             ) : (
-                                flatTasks.map((task) => (
-                                    <div
-                                        key={task.id}
-                                        className={`task-name-item level-${task.level} ${task.id === selectedTaskId ? 'selected' : ''}`}
-                                        onClick={() => handleTaskClick(task.id)}
-                                        onDoubleClick={(e) => {
-                                            e.stopPropagation();
-                                            setEditingTaskId(task.id);
-                                            setEditingName(task.name);
-                                        }}
-                                        onContextMenu={(e) => handleContextMenu(e, task, dateRange.start)}
-                                        style={{ paddingLeft: `${task.level * 24 + 12}px` }}
+                                <DndContext
+                                    sensors={sensors}
+                                    collisionDetection={closestCenter}
+                                    onDragStart={handleDragStart}
+                                    onDragEnd={handleDragEnd}
+                                >
+                                    <SortableContext
+                                        items={items}
+                                        strategy={verticalListSortingStrategy}
                                     >
-                                        {editingTaskId === task.id ? (
-                                            <input
-                                                type="text"
-                                                className="task-name-edit-input"
-                                                value={editingName}
-                                                onChange={(e) => setEditingName(e.target.value)}
-                                                onBlur={() => {
+                                        {flatTasks.map((task) => (
+                                            <SortableTaskNameItem
+                                                key={task.id}
+                                                task={task}
+                                                selectedTaskId={selectedTaskId}
+                                                editingTaskId={editingTaskId}
+                                                editingName={editingName}
+                                                onSelect={handleTaskClick}
+                                                onDoubleClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setEditingTaskId(task.id);
+                                                    setEditingName(task.name);
+                                                }}
+                                                onContextMenu={(e) => handleContextMenu(e, task, dateRange.start)}
+                                                onEditChange={(e) => setEditingName(e.target.value)}
+                                                onEditBlur={() => {
                                                     if (editingName.trim() !== task.name) {
                                                         onUpdateTask(task.id, { name: editingName });
                                                     }
                                                     setEditingTaskId(null);
                                                 }}
-                                                onKeyDown={(e) => {
+                                                onEditKeyDown={(e) => {
                                                     if (e.key === 'Enter') {
                                                         if (editingName.trim() !== task.name) {
                                                             onUpdateTask(task.id, { name: editingName });
@@ -623,29 +762,10 @@ const TimelineView = forwardRef(({
                                                         setEditingTaskId(null);
                                                     }
                                                 }}
-                                                autoFocus
-                                                onClick={(e) => e.stopPropagation()}
                                             />
-                                        ) : (
-                                            task.name
-                                        )}
-                                        {/* 구분선 (Divider) */}
-                                        {task.divider && task.divider.enabled && (
-                                            <div
-                                                className="task-divider"
-                                                style={{
-                                                    position: 'absolute',
-                                                    bottom: 0,
-                                                    left: 0,
-                                                    width: '100%',
-                                                    borderBottom: `${task.divider.thickness}px ${task.divider.style} ${task.divider.color}`,
-                                                    pointerEvents: 'none',
-                                                    zIndex: 10
-                                                }}
-                                            />
-                                        )}
-                                    </div>
-                                ))
+                                        ))}
+                                    </SortableContext>
+                                </DndContext>
                             )}
                         </div>
                     </div>

@@ -14,6 +14,7 @@ export const createNewTask = (name = '새 작업', parentId = null) => {
         parentId,
         milestones: [], // 마일스톤 배열: { id, date, label, color, shape: 'diamond'|'circle'|'triangle'|'square' }
         dependencies: [], // 선행 작업 ID 배열
+        divider: { enabled: false, thickness: 2, style: 'solid', color: '#000000' }
     };
 };
 
@@ -28,6 +29,21 @@ export const formatDate = (date) => {
     const month = String(d.getMonth() + 1).padStart(2, '0');
     const day = String(d.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
+};
+
+// 재귀적으로 작업을 평탄화하는 함수 (level 포함)
+export const flattenTasks = (items, level = 0) => {
+    const result = [];
+    items.forEach(item => {
+        result.push({ ...item, level });
+        // expanded 상태일 때만 자식 포함 (DnD를 위해서는 전체가 필요할 수 있으나, 보통 보이는 것만 드래그함)
+        // 하지만 전체 리스트 재정렬을 위해서는 expanded 여부와 상관없이 모든 노드를 알아야 할 수도 있음.
+        // 현재 UI에서는 expanded 된 것만 보이니까 expanded 체크.
+        if (item.children && item.children.length > 0 && item.expanded) {
+            result.push(...flattenTasks(item.children, level + 1));
+        }
+    });
+    return result;
 };
 
 // 샘플 데이터
