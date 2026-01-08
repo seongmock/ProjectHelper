@@ -1,19 +1,40 @@
 #!/bin/bash
 
 GREEN='\033[0;32m'
+RED='\033[0;31m'
 NC='\033[0m' # No Color
 
 echo -e "${GREEN}=== Starting Development Server ===${NC}"
 echo "This mode allows hot-reloading. Changes will be reflected immediately."
 
-if command -v docker &> /dev/null && command -v docker-compose &> /dev/null; then
-    echo "Running with Docker..."
+# Check for Docker Compose (v1 or v2)
+COMPOSE_CMD=""
+if command -v docker-compose &> /dev/null; then
+    COMPOSE_CMD="docker-compose"
+elif docker compose version &> /dev/null; then
+    COMPOSE_CMD="docker compose"
+fi
+
+if [ -n "$COMPOSE_CMD" ] && command -v docker &> /dev/null; then
+    echo "Docker detected. Running with $COMPOSE_CMD..."
     echo -e "${GREEN}App will be available at: http://localhost:8080${NC}"
-    docker-compose -f docker-compose.dev.yml up
-else
-    echo "Docker not found. Running locally with npm..."
+    
+    # Check if docker daemon is running
+    if ! docker info &> /dev/null; then
+        echo -e "${RED}Error: Docker daemon is not running.${NC}"
+        echo "Falling back to local Node.js..."
+        COMPOSE_CMD=""
+    else
+        $COMPOSE_CMD -f docker-compose.dev.yml up
+    fi
+fi
+
+# Fallback to local Node.js if Docker is not available or failed
+if [ -z "$COMPOSE_CMD" ]; then
+    echo "Running locally with npm..."
+    
     if ! command -v node &> /dev/null; then
-        echo "Error: Node.js is not installed."
+        echo -e "${RED}Error: Node.js is not installed.${NC}"
         exit 1
     fi
     
@@ -23,5 +44,6 @@ else
     fi
     
     echo "Starting Vite dev server..."
+    # Note: If port 8080 is irrelevant for you locally, remove --port 8080
     npm run dev -- --host --port 8080
 fi
