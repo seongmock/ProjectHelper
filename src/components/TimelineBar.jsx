@@ -172,6 +172,11 @@ function TimelineBar({
 
             // 로컬 상태 업데이트 (시각적 피드백)
             setDraggedMilestoneDate(dateUtils.formatDate(snappedDate));
+
+            // Y 위치를 부모로 전달 (세로 이동 감지용)
+            if (onMilestoneDragMove) {
+                onMilestoneDragMove(e.clientY);
+            }
         };
 
         const handleMouseUp = () => {
@@ -192,7 +197,7 @@ function TimelineBar({
             document.removeEventListener('mousemove', handleMouseMove);
             document.removeEventListener('mouseup', handleMouseUp);
         };
-    }, [draggingMilestone, milestoneDragStart, containerWidth, totalDays, task.id, onMilestoneDragEnd, draggedMilestoneDate]);
+    }, [draggingMilestone, milestoneDragStart, containerWidth, totalDays, task.id, onMilestoneDragEnd, onMilestoneDragMove, draggedMilestoneDate]);
 
     // 마일스톤 렌더링
     const renderMilestones = () => {
