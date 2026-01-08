@@ -499,27 +499,7 @@ function TimelineBar({
                 />
             )}
 
-            {/* 드래그 툴팁 */}
-            {isDragging && (
-                <div className="drag-tooltip" style={{
-                    position: 'absolute',
-                    top: '-30px',
-                    left: '50%',
-                    transform: 'translateX(-50%)',
-                    backgroundColor: 'rgba(0, 0, 0, 0.8)',
-                    color: 'white',
-                    padding: '4px 8px',
-                    borderRadius: '4px',
-                    fontSize: '12px',
-                    whiteSpace: 'nowrap',
-                    zIndex: 100,
-                    pointerEvents: 'none'
-                }}>
-                    {dragType === 'move' && `${dateUtils.formatDate(task.startDate)} ~ ${dateUtils.formatDate(task.endDate)}`}
-                    {dragType === 'resize-start' && dateUtils.formatDate(task.startDate)}
-                    {dragType === 'resize-end' && dateUtils.formatDate(task.endDate)}
-                </div>
-            )}
+
         </div>
     );
 }
