@@ -12,7 +12,8 @@ function TimelineBar({
     isSelected,
     onSelect,
     onDragUpdate,
-    onDragEnd, // 드래그 완료 콜백 추가
+    onDragEnd, // 드래그 완료 콜백
+    onMilestoneDragEnd, // 마일스톤 드래그 완료 콜백
     onContextMenu,
     onMilestoneContextMenu,
     onMilestoneClick,
