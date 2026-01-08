@@ -87,7 +87,10 @@ function TimelineBar({
 
             // 적응형 스냅 로직: 전체 타임라인 범위에 따라 스냅 단위 자동 조정
             const applySnapping = (date, type) => {
-                return dateUtils.snapAdaptive(date, type, totalDays);
+                if (snapEnabled) {
+                    return dateUtils.snapAdaptive(date, type, totalDays);
+                }
+                return dateUtils.snapToDay(date, type);
             };
 
             let guideDate = null;
