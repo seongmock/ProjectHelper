@@ -48,6 +48,9 @@ function TaskRow({
     };
 
     const handleNameKeyDown = (e) => {
+        // DnD 라이브러리가 스페이스바 등을 가로채지 않도록 이벤트 전파 중단
+        e.stopPropagation();
+
         if (e.key === 'Enter') {
             handleNameBlur();
         } else if (e.key === 'Escape') {
@@ -190,6 +193,7 @@ function TaskRow({
                             autoFocus
                             className="name-input"
                             onClick={(e) => e.stopPropagation()}
+                            onPointerDown={(e) => e.stopPropagation()}
                         />
                     ) : (
                         <span
