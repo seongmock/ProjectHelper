@@ -200,23 +200,42 @@ function App() {
     }, [tasks, setTasks]);
 
     // 작업 업데이트
-    const handleUpdateTask = useCallback((taskId, updates) => {
-        const updateTask = (items) => {
-            return items.map(item => {
-                if (item.id === taskId) {
-                    return { ...item, ...updates };
+    const handleUpdateTask = useCallback((taskId, updates, addToHistory = false) => {
+        const updateFunc = (prevTasks) => {
+            return prevTasks.map(task => {
+                if (task.id === taskId) {
+                    return { ...task, ...updates };
                 }
-                if (item.children.length > 0) {
+                if (task.children) {
                     return {
-                        ...item,
-                        children: updateTask(item.children),
+                        ...task,
+                        children: task.children.map(child => {
+                            if (child.id === taskId) {
+                                return { ...child, ...updates };
+                            }
+                            if (child.children) {
+                                return {
+                                    ...child,
+                                    children: child.children.map(grandchild =>
+                                        grandchild.id === taskId ? { ...grandchild, ...updates } : grandchild
+                                    ),
+                                };
+                            }
+                            return child;
+                        }),
                     };
                 }
-                return item;
+                return task;
             });
         };
-        setTasks(updateTask(tasks));
-    }, [tasks, setTasks]);
+
+        // addToHistory가 true면 히스토리에 추가, false면 현재 상태만 업데이트
+        if (addToHistory) {
+            setTasks(updateFunc);
+        } else {
+            setTasksSilent(updateFunc);
+        }
+    }, [setTasks, setTasksSilent]);
 
     // 작업 삭제
     const handleDeleteTask = useCallback((taskId) => {

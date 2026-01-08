@@ -324,12 +324,20 @@ const TimelineView = forwardRef(({
         return map;
     }, [flatTasks]);
 
-    // 드래그로 날짜 변경
+    // 드래그로 날짜 변경 (중간 상태, 히스토리 추가 안함)
     const handleDragUpdate = (taskId, newStartDate, newEndDate) => {
         onUpdateTask(taskId, {
             startDate: dateUtils.formatDate(newStartDate),
             endDate: dateUtils.formatDate(newEndDate),
-        });
+        }, false); // 히스토리에 추가하지 않음
+    };
+
+    // 타임라인 바 드래그 완료 시 최종 상태를 히스토리에 기록
+    const handleTimelineBarDragEnd = (taskId, finalStart, finalEnd) => {
+        onUpdateTask(taskId, {
+            startDate: dateUtils.formatDate(finalStart),
+            endDate: dateUtils.formatDate(finalEnd),
+        }, true); // 히스토리에 추가
     };
 
     // 작업 클릭 핸들러 (연결 모드 처리)
@@ -876,7 +884,7 @@ const TimelineView = forwardRef(({
                             flatTasks.map((task) => (
                                 <TimelineBar
                                     key={task.id}
-                                    task={task}
+                                    task={{ ...task, onDragEnd: handleTimelineBarDragEnd }}
                                     level={task.level}
                                     startDate={dateRange.start}
                                     endDate={dateRange.end}
