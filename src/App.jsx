@@ -14,10 +14,28 @@ function App() {
     // 뷰 모드: 'table', 'timeline', 'split'
     const [viewMode, setViewMode] = useState('timeline');
 
-    // 타임스케일: 'monthly', 'quarterly'
-    const [timeScale, setTimeScale] = useState('monthly');
+    // 타임스케일 및 타임라인 설정: localStorage에서 초기화
+    const [timeScale, setTimeScale] = useState(() => {
+        const saved = storage.loadSettings();
+        return saved?.timeScale || 'monthly';
+    });
+    const [zoomLevel, setZoomLevel] = useState(() => {
+        const saved = storage.loadSettings();
+        return saved?.zoomLevel || 1.0;
+    });
+    const [showToday, setShowToday] = useState(() => {
+        const saved = storage.loadSettings();
+        return saved?.showToday !== undefined ? saved.showToday : true;
+    });
+    const [isCompact, setIsCompact] = useState(() => {
+        const saved = storage.loadSettings();
+        return saved?.isCompact || false;
+    });
+    const [showTaskNames, setShowTaskNames] = useState(() => {
+        const saved = storage.loadSettings();
+        return saved?.showTaskNames !== undefined ? saved.showTaskNames : true;
+    });
 
-    // 다크모드
     // 다크모드
     const [darkMode, setDarkMode] = useState(() => {
         const saved = storage.loadSettings();
@@ -32,12 +50,6 @@ function App() {
 
     // 선택된 작업
     const [selectedTaskId, setSelectedTaskId] = useState(null);
-
-    // 타임라인 뷰 상태
-    const [zoomLevel, setZoomLevel] = useState(1.0);
-    const [showToday, setShowToday] = useState(true);
-    const [isCompact, setIsCompact] = useState(false);
-    const [showTaskNames, setShowTaskNames] = useState(true);
     const timelineRef = useRef(null);
 
     // AI 프롬프트 가이드 모달 상태
@@ -109,6 +121,19 @@ function App() {
             return newMode;
         });
     }, []);
+
+    // 타임라인 설정 저장
+    useEffect(() => {
+        const settings = storage.loadSettings() || {};
+        storage.saveSettings({
+            ...settings,
+            timeScale,
+            zoomLevel,
+            showToday,
+            isCompact,
+            showTaskNames
+        });
+    }, [timeScale, zoomLevel, showToday, isCompact, showTaskNames]);
 
     // 키보드 단축키
     useEffect(() => {
