@@ -118,96 +118,96 @@
 }
 
 .milestone-marker:hover .milestone-shape>div {
-    transform:
+    transform: scale(1.15);
+}
 
-    /* 마일스톤 드래그 날짜 라벨 - 작업 스타일로 변경 (심플하게) */
-    .milestone-date-label {
-        position: absolute;
-        top: -20px;
-        /* 위치 조정 */
-        left: 50%;
-        transform: translateX(-50%);
-        color: var(--color-text-primary);
-        /* 기본 텍스트 색상 */
-        font-size: 11px;
-        font-weight: 600;
-        white-space: nowrap;
-        z-index: 101;
-        pointer-events: none;
-        text-shadow: 0 1px 2px rgba(255, 255, 255, 0.8);
-        /* 가독성 확보 */
-        /* 불필요한 배경/테두리 제거 */
-    }
+/* 마일스톤 드래그 날짜 라벨 - 작업 스타일로 변경 (심플하게) */
+.milestone-date-label {
+    position: absolute;
+    top: -20px;
+    /* 위치 조정 */
+    left: 50%;
+    transform: translateX(-50%);
+    color: #333;
+    /* Fallback or specific color if var not reliable */
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+    z-index: 101;
+    pointer-events: none;
+    text-shadow: 0 1px 2px rgba(255, 255, 255, 0.8);
+    /* 가독성 확보 */
+}
 
-    .milestone-date-label::after {
-        display: none;
-        /* 화살표 제거 */
-    }
+/* 화살표 제거를 위해 display: none */
+.milestone-date-label::after {
+    display: none;
+}
 
-    /* 레벨별 여백 */
-    .timeline-row.level-0 .timeline-bar {
-        height: 32px;
-    }
+/* 레벨별 여백 */
+.timeline-row.level-0 .timeline-bar {
+    height: 32px;
+}
 
-    .timeline-row.level-1 .timeline-bar {
+.timeline-row.level-1 .timeline-bar {
+    height: 28px;
+    opacity: 0.95;
+}
+
+.timeline-row.level-2 .timeline-bar {
+    height: 24px;
+    opacity: 0.9;
+}
+
+@media (max-width: 768px) {
+    .timeline-bar {
         height: 28px;
-        opacity: 0.95;
     }
 
-    .timeline-row.level-2 .timeline-bar {
-        height: 24px;
-        opacity: 0.9;
+    .timeline-bar-label {
+        font-size: 10px;
     }
 
-    @media (max-width: 768px) {
-        .timeline-bar {
-            height: 28px;
-        }
-
-        .timeline-bar-label {
-            font-size: 10px;
-        }
-
-        .bar-label {
-            font-size: var(--font-size-xs);
-        }
-
-        .milestone-shape {
-            transform: scale(0.8);
-        }
+    .bar-label {
+        font-size: var(--font-size-xs);
     }
 
-    /* 컴팩트 모드 바 높이 조정 */
-    .compact-mode .timeline-row.level-0 .timeline-bar {
-        height: 20px;
+    .milestone-shape {
+        transform: scale(0.8);
     }
+}
 
-    .compact-mode .timeline-row.level-1 .timeline-bar {
-        height: 18px;
-    }
+/* 컴팩트 모드 바 높이 조정 */
+.compact-mode .timeline-row.level-0 .timeline-bar {
+    height: 20px;
+}
 
-    .compact-mode .timeline-row.level-2 .timeline-bar {
-        height: 16px;
-    }
+.compact-mode .timeline-row.level-1 .timeline-bar {
+    height: 18px;
+}
 
-    /* 3레벨 이상 (4뎁스 포함)에 대한 일반 규칙 추가 */
-    .compact-mode .timeline-row .timeline-bar {
-        height: 16px;
-        /* 기본적으로 3레벨 이상은 16px로 통일 */
-    }
+.compact-mode .timeline-row.level-2 .timeline-bar {
+    height: 16px;
+}
 
-    /* 우선순위 문제 해결을 위해 구체적인 레벨 규칙이 일반 규칙보다 뒤에 오거나 명시도 조정 필요하지만,
+/* 3레벨 이상 (4뎁스 포함)에 대한 일반 규칙 추가 */
+.compact-mode .timeline-row .timeline-bar {
+    height: 16px;
+    /* 기본적으로 3레벨 이상은 16px로 통일 */
+}
+
+/* 우선순위 문제 해결을 위해 구체적인 레벨 규칙이 일반 규칙보다 뒤에 오거나 명시도 조정 필요하지만,
    여기서는 일반 규칙을 먼저 선언하고 구체적인 것을 뒤에 두거나, 
    또는 :not()을 사용할 수 있음. 
    하지만 간단히 3레벨 이상을 위한 포괄적 선택자를 추가함. */
-    .compact-mode .timeline-row:not(.level-0):not(.level-1):not(.level-2) .timeline-bar {
-        height: 16px;
-    }
+.compact-mode .timeline-row:not(.level-0):not(.level-1):not(.level-2) .timeline-bar {
+    height: 16px;
+}
 
-    .compact-mode .bar-label {
-        font-size: 11px;
-    }
+.compact-mode .bar-label {
+    font-size: 11px;
+}
 
-    .compact-mode .milestone-marker {
-        transform: translate(-50%, -50%) scale(0.8);
-    }
+.compact-mode .milestone-marker {
+    transform: translate(-50%, -50%) scale(0.8);
+}
