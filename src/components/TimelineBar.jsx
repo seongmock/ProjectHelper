@@ -37,13 +37,18 @@ function TimelineBar({
     const [draggedMilestoneDate, setDraggedMilestoneDate] = useState(null);
     const [draggedMilestoneY, setDraggedMilestoneY] = useState(0);
 
+    // 스냅 OFF 시 부드러운 드래그를 위한 픽셀 델타 상태
+    const [dragDelta, setDragDelta] = useState({ x: 0, w: 0 });
+
     const barRef = useRef(null);
 
     const totalDays = dateUtils.getDaysBetween(startDate, endDate);
 
-    // 렌더링에 사용할 날짜 (드래그 중이면 draggedDates, 아니면 task의 날짜)
-    const displayStartDate = draggedDates?.startDate || task.startDate;
-    const displayEndDate = draggedDates?.endDate || task.endDate;
+    // 렌더링에 사용할 날짜
+    // 스냅 ON: 드래그 중인 날짜(스냅됨)를 사용하여 위치 계산 (기존 방식)
+    // 스냅 OFF: 원래 날짜를 유지하고, CSS transform/width로 시각적 이동 처리 (부드러움)
+    const displayStartDate = (isDragging && snapEnabled && draggedDates) ? draggedDates.startDate : task.startDate;
+    const displayEndDate = (isDragging && snapEnabled && draggedDates) ? draggedDates.endDate : task.endDate;
 
     // 타임라인 바의 위치 및 너비 계산
     const { width, offset } = dateUtils.calculateWidth(
@@ -60,10 +65,10 @@ function TimelineBar({
         setIsDragging(true);
         setDragType(type);
         setDragStart({
-            x: e.clientX,
             taskStart: new Date(task.startDate),
             taskEnd: new Date(task.endDate),
         });
+        setDragDelta({ x: 0, w: 0 });
 
         // 드래그 시작 시 초기 상태 저장 (여기서 한 번만 수행)
         finalDragState.current = {
@@ -117,6 +122,11 @@ function TimelineBar({
 
                 // 가이드라인은 시작점에 맞춤
                 guideDate = snappedStart;
+
+                // 스냅 OFF일 때 시각적 업데이트
+                if (!snapEnabled) {
+                    setDragDelta({ x: deltaX, w: 0 });
+                }
             } else if (dragType === 'resize-start') {
                 // 시작일 변경
                 const rawNewStart = dateUtils.addDays(dragStart.taskStart, deltaDays);
@@ -134,6 +144,11 @@ function TimelineBar({
 
                     // 가이드라인은 시작점에 맞춤
                     guideDate = snappedStart;
+
+                    // 스냅 OFF일 때 시각적 업데이트
+                    if (!snapEnabled) {
+                        setDragDelta({ x: deltaX, w: -deltaX });
+                    }
                 }
             } else if (dragType === 'resize-end') {
                 // 종료일 변경
@@ -152,6 +167,11 @@ function TimelineBar({
 
                     // 가이드라인은 종료점에 맞춤
                     guideDate = snappedEnd;
+
+                    // 스냅 OFF일 때 시각적 업데이트
+                    if (!snapEnabled) {
+                        setDragDelta({ x: 0, w: deltaX });
+                    }
                 }
             }
 
@@ -174,6 +194,7 @@ function TimelineBar({
 
             // 로컬 드래그 상태 클리어
             setDraggedDates(null);
+            setDragDelta({ x: 0, w: 0 });
             setIsDragging(false);
             setDragType(null);
         };
@@ -515,11 +536,13 @@ function TimelineBar({
                     style={{
                         position: 'absolute',
                         bottom: 0,
-                        left: 0,
-                        width: '100%',
+                        left: `${offset}px`,
+                        width: `${Math.max(width + (isDragging && !snapEnabled ? dragDelta.w : 0), 24)}px`, // 최소 24px 유지
+                        transform: (isDragging && !snapEnabled && dragType !== 'resize-end') ? `translateX(${dragDelta.x}px)` : undefined,
+                        opacity: isDragging ? 0.9 : 1,
+                        zIndex: isDragging ? 100 : 1,
                         borderBottom: `${task.divider.thickness}px ${task.divider.style} ${task.divider.color}`,
                         pointerEvents: 'none',
-                        zIndex: 10
                     }}
                 />
             )}
