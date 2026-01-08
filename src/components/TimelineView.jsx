@@ -975,6 +975,7 @@ const TimelineView = forwardRef(({
                                     onMilestoneClick={handleMilestoneClick}
                                     showLabel={!showTaskNames}
                                     timeScale={timeScale}
+                                    snapEnabled={snapEnabled}
                                 />
                             ))
                         )}
