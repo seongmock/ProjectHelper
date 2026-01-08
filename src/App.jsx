@@ -229,15 +229,14 @@ function App() {
             });
         };
 
-        // addToHistory가 true면 히스토리에 추가, false면 현재 상태만 업데이트
+        // 드래그 중이든 완료든 항상 setTasks 사용
+        // 드래그 완료 시에만 실제 히스토리에 기록됨
+        console.log('[App] handleUpdateTask: always using setTasks', { taskId, updates, addToHistory });
         if (addToHistory) {
-            console.log('[App] handleUpdateTask: adding to history', { taskId, updates });
-            setTasks(updateFunc);
-        } else {
-            console.log('[App] handleUpdateTask: silent update (no history)', { taskId, updates });
-            setTasksSilent(updateFunc);
+            console.log('[App] This will create a new history entry');
         }
-    }, [setTasks, setTasksSilent]);
+        setTasks(updateFunc);
+    }, [setTasks]);
 
     // 작업 삭제
     const handleDeleteTask = useCallback((taskId) => {

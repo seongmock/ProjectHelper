@@ -324,28 +324,23 @@ const TimelineView = forwardRef(({
         return map;
     }, [flatTasks]);
 
-    // 드래그로 날짜 변경 (중간 상태, 히스토리 추가 안함)
+    // 드래그로 날짜 변경 - 드래그 중에는 호출하지 않음 (시각적 피드백은 로컬 상태로)
     const handleDragUpdate = (taskId, newStartDate, newEndDate) => {
-        onUpdateTask(taskId, {
-            startDate: dateUtils.formatDate(newStartDate),
-            endDate: dateUtils.formatDate(newEndDate),
-        }, false); // 히스토리에 추가하지 않음
+        // 드래그 중에는 아무것도 하지 않음 - 로컬 DOM만 업데이트됨
+        // onUpdateTask는 호출하지 않아서 히스토리 오염 방지
     };
 
     // 타임라인 바 드래그 완료 시 최종 상태를 히스토리에 기록
     const handleTimelineBarDragEnd = (taskId, finalStart, finalEnd) => {
-        console.log('[TimelineView] handleTimelineBarDragEnd called', {
+        console.log('[TimelineView] handleTimelineBarDragEnd: saving to history', {
             taskId,
             finalStart,
-            finalEnd,
-            formattedStart: dateUtils.formatDate(finalStart),
-            formattedEnd: dateUtils.formatDate(finalEnd)
+            finalEnd
         });
         onUpdateTask(taskId, {
             startDate: dateUtils.formatDate(finalStart),
             endDate: dateUtils.formatDate(finalEnd),
         }, true); // 히스토리에 추가
-        console.log('[TimelineView] onUpdateTask called with addToHistory=true');
     };
 
     // 작업 클릭 핸들러 (연결 모드 처리)
