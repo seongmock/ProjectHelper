@@ -221,18 +221,20 @@
     top: -38px;
     left: 50%;
     transform: translateX(-50%);
-    background-color: var(--color-primary);
+    background-color: rgba(33, 37, 41, 0.95);
+    /* 차분한 다크 그레이 */
     color: white;
-    padding: 4px 10px;
-    border-radius: 12px;
+    padding: 6px 12px;
+    border-radius: 8px;
     font-size: 12px;
-    font-weight: 700;
-    font-family: 'Consolas', 'Monaco', monospace;
+    font-weight: 600;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     white-space: nowrap;
     z-index: 1000;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
     pointer-events: none;
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(4px);
     /* 애니메이션 효과 */
     animation: popIn 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
@@ -243,14 +245,14 @@
     bottom: -5px;
     left: 50%;
     transform: translateX(-50%);
-    border-width: 6px 6px 0;
+    border-width: 5px 5px 0;
     border-style: solid;
-    border-color: var(--color-primary) transparent transparent transparent;
+    border-color: rgba(33, 37, 41, 0.95) transparent transparent transparent;
 }
 
 @keyframes popIn {
     from {
-        transform: translateX(-50%) scale(0.5);
+        transform: translateX(-50%) scale(0.8);
         opacity: 0;
     }
 
@@ -263,31 +265,32 @@
 /* 작업 드래그 날짜 라벨 (통일된 스타일) */
 .timeline-date-label {
     position: absolute;
-    top: -45px;
-    background-color: var(--color-primary);
+    top: -42px;
+    background-color: rgba(33, 37, 41, 0.95);
     color: white;
-    padding: 4px 10px;
-    border-radius: 6px;
+    padding: 6px 12px;
+    border-radius: 8px;
     font-size: 12px;
-    font-weight: 700;
-    font-family: 'Consolas', 'Monaco', monospace;
+    font-weight: 600;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     white-space: nowrap;
     z-index: 1000;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
     pointer-events: none;
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(4px);
     animation: popIn 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 
 .timeline-date-label::after {
     content: '';
     position: absolute;
-    bottom: -6px;
+    bottom: -5px;
     left: 50%;
     transform: translateX(-50%);
-    border-width: 6px 6px 0;
+    border-width: 5px 5px 0;
     border-style: solid;
-    border-color: var(--color-primary) transparent transparent transparent;
+    border-color: rgba(33, 37, 41, 0.95) transparent transparent transparent;
 }
 
 .timeline-date-label.label-center {

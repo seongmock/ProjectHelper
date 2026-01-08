@@ -448,7 +448,6 @@ function TimelineBar({
                         <div
                             className="resize-handle resize-start"
                             onMouseDown={(e) => handleMouseDown(e, 'resize-start')}
-                            title="시작일 조정"
                         />
 
                         {/* 바 내용 */}
@@ -464,12 +463,9 @@ function TimelineBar({
                         </div>
 
                         {/* 종료 핸들 */}
-
-                        {/* 종료 핸들 */}
                         <div
                             className="resize-handle resize-end"
                             onMouseDown={(e) => handleMouseDown(e, 'resize-end')}
-                            title="종료일 조정"
                         />
                     </div>
                 </Tooltip>
