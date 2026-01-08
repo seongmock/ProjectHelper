@@ -17,7 +17,7 @@ fi
 
 if [ -n "$COMPOSE_CMD" ] && command -v docker &> /dev/null; then
     echo "Docker detected. Running with $COMPOSE_CMD..."
-    echo -e "${GREEN}App will be available at: http://localhost:8080${NC}"
+    echo -e "${GREEN}App will be available at: http://localhost:8090${NC}"
     
     # Check if docker daemon is running
     if ! docker info &> /dev/null; then
@@ -49,6 +49,6 @@ if [ -z "$COMPOSE_CMD" ]; then
     fi
     
     echo "Starting Vite dev server..."
-    # Note: If port 8080 is irrelevant for you locally, remove --port 8080
-    npm run dev -- --host --port 8080
+    # Note: If port 8090 is irrelevant for you locally, remove --port 8090
+    npm run dev -- --host --port 8090
 fi
