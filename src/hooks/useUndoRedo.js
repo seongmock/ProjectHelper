@@ -12,10 +12,22 @@ export const useUndoRedo = (initialState) => {
 
     // 새 상태 추가 (실행 취소 히스토리 업데이트)
     const setState = useCallback((newState) => {
+        console.log('[useUndoRedo] setState called', {
+            newStateType: typeof newState,
+            isFunction: typeof newState === 'function'
+        });
+
         setHookState((prev) => {
             const { history, index } = prev;
             const currentState = history[index];
             const resolvedState = typeof newState === 'function' ? newState(currentState) : newState;
+
+            console.log('[useUndoRedo] Adding to history', {
+                currentIndex: index,
+                historyLength: history.length,
+                currentStateTaskCount: currentState?.length,
+                newStateTaskCount: resolvedState?.length
+            });
 
             // 현재 인덱스 이후의 히스토리 제거 후 새 상태 추가
             const newHistory = [...history.slice(0, index + 1), resolvedState];
@@ -25,6 +37,11 @@ export const useUndoRedo = (initialState) => {
 
             // 새 인덱스는 마지막 항목 (length - 1)
             const newIndex = slicedHistory.length - 1;
+
+            console.log('[useUndoRedo] History updated', {
+                newIndex,
+                newHistoryLength: slicedHistory.length
+            });
 
             return {
                 history: slicedHistory,
