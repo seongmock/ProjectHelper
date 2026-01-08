@@ -21,7 +21,8 @@ function TimelineBar({
     onMilestoneContextMenu,
     onMilestoneClick,
     showLabel = true,
-    timeScale = 'monthly'
+    timeScale = 'monthly',
+    snapEnabled = true // 기본값
 }) {
     const [isDragging, setIsDragging] = useState(false);
     const [dragType, setDragType] = useState(null); // 'move', 'resize-start', 'resize-end'
@@ -192,7 +193,20 @@ function TimelineBar({
             const deltaDays = Math.round((deltaX / containerWidth) * totalDays);
 
             const rawNewDate = dateUtils.addDays(milestoneDragStart.originalDate, deltaDays);
-            const snappedDate = dateUtils.snapAdaptive(rawNewDate, 'closest', totalDays);
+            // 스냅 적용
+            let snappedDate;
+            if (snapEnabled) {
+                // 스냅 적용 여부 확인
+                let snappedStart, snappedEnd;
+
+                if (snapEnabled) {
+                    // 기존 적응형 스냅
+                    snappedDate = dateUtils.snapAdaptive(rawNewDate, 'closest', totalDays);
+                } else {
+                    // 스냅 끔: 일 단위로만 반올림 (부드러운 드래그)
+                    snappedDate = dateUtils.snapToDay(rawNewDate, 'closest');
+                }
+            }
 
             // Y축 이동 계산
             const deltaY = e.clientY - milestoneDragStart.y;
