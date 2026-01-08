@@ -65,10 +65,15 @@ function SortableTaskNameItem({ task, selectedTaskId, editingTaskId, editingName
                     value={editingName}
                     onChange={onEditChange}
                     onBlur={onEditBlur}
-                    onKeyDown={onEditKeyDown}
+                    onKeyDown={(e) => {
+                        e.stopPropagation();
+                        onEditKeyDown(e);
+                    }}
                     autoFocus
                     onClick={(e) => e.stopPropagation()}
-                    onMouseDown={(e) => e.stopPropagation()} // 드래그 방지
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onKeyUp={(e) => e.stopPropagation()}
                 />
             ) : (
                 task.name
