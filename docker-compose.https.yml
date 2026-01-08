@@ -1,0 +1,27 @@
+version: '3'
+
+services:
+  project-management-app:
+    build: .
+    container_name: project-management-app
+    restart: always
+    expose:
+      - "80"
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: caddy-https
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - project-management-app
+
+volumes:
+  caddy_data:
+  caddy_config:
