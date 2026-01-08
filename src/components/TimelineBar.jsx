@@ -10,10 +10,12 @@ function TimelineBar({
     endDate,
     containerWidth,
     isSelected,
+    isDragTarget,
     onSelect,
     onDragUpdate,
     onDragEnd, // 드래그 완료 콜백
     onMilestoneDragEnd, // 마일스톤 드래그 완료 콜백
+    onMilestoneDragMove,
     onContextMenu,
     onMilestoneContextMenu,
     onMilestoneClick,
@@ -339,7 +341,10 @@ function TimelineBar({
     const hasValidDates = startDate && endDate && task.startDate && task.endDate;
 
     return (
-        <div className={`timeline-row level-${level}`}>
+        <div
+            className={`timeline-row level-${level} ${isDragTarget ? 'drag-target' : ''}`}
+            data-task-id={task.id}
+        >
             {hasValidDates && (
                 <Tooltip content={task.description} position="top">
                     <div

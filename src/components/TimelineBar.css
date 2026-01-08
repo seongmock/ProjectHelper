@@ -4,6 +4,12 @@
     border-bottom: 1px solid var(--color-grid);
 }
 
+/* 마일스톤 드래그 중 대상 작업 하이라이트 */
+.timeline-row.drag-target {
+    background-color: rgba(76, 175, 80, 0.1);
+    box-shadow: inset 0 0 0 2px #4CAF50;
+}
+
 .timeline-bar {
     position: absolute;
     top: 50%;

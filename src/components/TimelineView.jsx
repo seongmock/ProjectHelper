@@ -339,20 +339,72 @@ const TimelineView = forwardRef(({
     };
 
     // 마일스톤 드래그 완료 시 날짜 업데이트
-    const handleMilestoneDragEnd = (taskId, milestoneId, newDate) => {
-        // 해당 작업의 마일스톤 업데이트
-        const targetTask = flatTasks.find(t => t.id === taskId);
-        if (!targetTask || !targetTask.milestones) return;
+    const [dragTargetTaskId, setDragTargetTaskId] = useState(null);
 
-        const updatedMilestones = targetTask.milestones.map(m =>
-            m.id === milestoneId
-                ? { ...m, date: newDate }
-                : m
-        );
+    const handleMilestoneDragMove = (mouseY) => {
+        // 마우스 Y 위치로 대상 작업 찾기
+        const timelineRows = document.querySelectorAll('.timeline-row[data-task-id]');
+        let targetTask = null;
 
-        onUpdateTask(taskId, {
-            milestones: updatedMilestones
-        }, true); // 히스토리에 추가
+        timelineRows.forEach((row) => {
+            const rect = row.getBoundingClientRect();
+            if (mouseY >= rect.top && mouseY <= rect.bottom) {
+                const taskId = row.getAttribute('data-task-id');
+                targetTask = taskId;
+            }
+        });
+
+        setDragTargetTaskId(targetTask);
+    };
+
+    const handleMilestoneDragEnd = (sourceTaskId, milestoneId, newDate) => {
+        // 대상 작업 결정 (세로 드래그 했으면 dragTargetTaskId, 아니면 원래 작업)
+        const targetTaskId = dragTargetTaskId || sourceTaskId;
+
+        // 원본 작업에서 마일스톤 찾기
+        const sourceTask = flatTasks.find(t => t.id === sourceTaskId);
+        if (!sourceTask || !sourceTask.milestones) return;
+
+        const milestone = sourceTask.milestones.find(m => m.id === milestoneId);
+        if (!milestone) return;
+
+        // 같은 작업이면 날짜만 업데이트
+        if (targetTaskId === sourceTaskId) {
+            const updatedMilestones = sourceTask.milestones.map(m =>
+                m.id === milestoneId
+                    ? { ...m, date: newDate }
+                    : m
+            );
+            onUpdateTask(sourceTaskId, {
+                milestones: updatedMilestones
+            }, true);
+        } else {
+            // 다른 작업으로 이동 - 두 작업을 동시에 업데이트
+            const targetTask = flatTasks.find(t => t.id === targetTaskId);
+            if (!targetTask) return;
+
+            // 원본에서 제거
+            const updatedSourceMilestones = sourceTask.milestones.filter(m => m.id !== milestoneId);
+
+            // 대상에 추가 (with new date)
+            const updatedTargetMilestones = [
+                ...(targetTask.milestones || []),
+                { ...milestone, date: newDate }
+            ];
+
+            // 원본 작업 업데이트 (히스토리에 추가 안함)
+            onUpdateTask(sourceTaskId, {
+                milestones: updatedSourceMilestones
+            }, false);
+
+            // 대상 작업 업데이트 (히스토리에 추가)
+            onUpdateTask(targetTaskId, {
+                milestones: updatedTargetMilestones
+            }, true);
+        }
+
+        // 대상 작업 클리어
+        setDragTargetTaskId(null);
     };
 
     // 작업 클릭 핸들러 (연결 모드 처리)
@@ -905,10 +957,12 @@ const TimelineView = forwardRef(({
                                     endDate={dateRange.end}
                                     containerWidth={contentWidth}
                                     isSelected={task.id === selectedTaskId}
+                                    isDragTarget={dragTargetTaskId === task.id}
                                     onSelect={() => handleTaskClick(task.id)}
                                     onDragUpdate={handleDragUpdate}
                                     onDragEnd={handleTimelineBarDragEnd}
                                     onMilestoneDragEnd={handleMilestoneDragEnd}
+                                    onMilestoneDragMove={handleMilestoneDragMove}
                                     onContextMenu={(e, date) => handleContextMenu(e, task, date)}
                                     onMilestoneContextMenu={(e, milestone) => handleMilestoneContextMenu(e, task, milestone)}
                                     onMilestoneClick={handleMilestoneClick}
