@@ -13,8 +13,7 @@ services:
     container_name: caddy-https
     restart: unless-stopped
     ports:
-      - "80:80"
-      - "443:443"
+      - "8080:443"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile
       - caddy_data:/data

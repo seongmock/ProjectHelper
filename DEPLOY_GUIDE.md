@@ -33,7 +33,7 @@ chmod +x start_server.sh
 ```
 
 이 스크립트는:
-1.  Docker가 설치되어 있으면 **Caddy** 웹 서버를 함께 실행하여 **HTTPS (https://localhost)** 환경을 자동 구축합니다.
+1.  Docker가 설치되어 있으면 **Caddy** 웹 서버를 함께 실행하여 **HTTPS (https://localhost:8080)** 환경을 자동 구축합니다.
     *   이를 통해 **클립보드 복사 기능**을 100% 활용할 수 있습니다.
 2.  Docker가 없으면 Node.js로 빌드하여 HTTP(8080)로 실행합니다.
 
