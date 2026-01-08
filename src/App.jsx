@@ -35,6 +35,10 @@ function App() {
         const saved = storage.loadSettings();
         return saved?.showTaskNames !== undefined ? saved.showTaskNames : true;
     });
+    const [snapEnabled, setSnapEnabled] = useState(() => {
+        const saved = storage.loadSettings();
+        return saved?.snapEnabled !== undefined ? saved.snapEnabled : true;
+    });
 
     // 다크모드
     const [darkMode, setDarkMode] = useState(() => {
@@ -132,9 +136,10 @@ function App() {
             zoomLevel,
             showToday,
             isCompact,
-            showTaskNames
+            showTaskNames,
+            snapEnabled
         });
-    }, [timeScale, zoomLevel, showToday, isCompact, showTaskNames]);
+    }, [timeScale, zoomLevel, showToday, isCompact, showTaskNames, snapEnabled]);
 
     // 키보드 단축키
     useEffect(() => {
@@ -584,7 +589,8 @@ function App() {
                     showToday,
                     isCompact,
                     showTaskNames,
-                    darkMode
+                    darkMode,
+                    snapEnabled
                 },
                 version: '1.0'
             },
@@ -621,6 +627,7 @@ function App() {
                         if (settings.showToday !== undefined) setShowToday(settings.showToday);
                         if (settings.isCompact !== undefined) setIsCompact(settings.isCompact);
                         if (settings.showTaskNames !== undefined) setShowTaskNames(settings.showTaskNames);
+                        if (settings.snapEnabled !== undefined) setSnapEnabled(settings.snapEnabled);
                         if (settings.darkMode !== undefined) {
                             setDarkMode(settings.darkMode);
                             storage.saveSettings({ darkMode: settings.darkMode });
@@ -718,7 +725,11 @@ function App() {
                 canRedo={canRedo}
                 onUndo={undo}
                 onRedo={redo}
+                onUndo={undo}
+                onRedo={redo}
                 onOpenPromptGuide={() => setIsPromptGuideOpen(true)}
+                snapEnabled={snapEnabled}
+                onToggleSnap={() => setSnapEnabled(!snapEnabled)}
             />
 
             <Toolbar
@@ -777,7 +788,9 @@ function App() {
                         zoomLevel={zoomLevel}
                         showToday={showToday}
                         isCompact={isCompact}
+                        isCompact={isCompact}
                         showTaskNames={showTaskNames}
+                        snapEnabled={snapEnabled}
                     />
                 )}
             </div>
