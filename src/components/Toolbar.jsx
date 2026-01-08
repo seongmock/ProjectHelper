@@ -18,6 +18,8 @@ function Toolbar({
     onToggleCompact,
     showTaskNames,
     onToggleTaskNames,
+    showTaskNames,
+    onToggleTaskNames,
     onCopyImage,
     snapEnabled,
     onToggleSnap
@@ -121,21 +123,19 @@ function Toolbar({
                                 </div>
 
                                 <button
+                                    className={`icon-btn ${snapEnabled ? 'active' : ''}`}
+                                    onClick={onToggleSnap}
+                                    title={snapEnabled ? '스냅 끄기' : '스냅 켜기'}
+                                >
+                                    🧲
+                                </button>
+                                <button
                                     className="icon-btn"
                                     onClick={onCopyImage}
-                                    title="이미지로 저장"
+                                    title="이미지로 복사"
                                     style={{ marginLeft: '4px' }}
                                 >
                                     📷
-                                </button>
-
-                                <button
-                                    className={`icon-btn ${snapEnabled ? 'active' : ''}`}
-                                    onClick={onToggleSnap}
-                                    title={snapEnabled ? '스냅 켜짐' : '스냅 꺼짐'}
-                                    style={{ marginLeft: '4px' }}
-                                >
-                                    🧲
                                 </button>
                             </div>
                         </>
@@ -163,7 +163,7 @@ function Toolbar({
                     </button>
                 </div>
             </div>
-        </div >
+        </div>
     );
 }
 

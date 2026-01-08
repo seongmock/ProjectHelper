@@ -1,6 +1,6 @@
 import './Header.css';
 
-function Header({ darkMode, onToggleDarkMode, onExport, onImport, canUndo, canRedo, onUndo, onRedo, onOpenPromptGuide }) {
+function Header({ darkMode, onToggleDarkMode, onExport, onImport, canUndo, canRedo, onUndo, onRedo, onOpenPromptGuide, snapEnabled, onToggleSnap }) {
     return (
         <header className="header">
             <div className="header-content">
@@ -59,6 +59,8 @@ function Header({ darkMode, onToggleDarkMode, onExport, onImport, canUndo, canRe
                             📤 내보내기
                         </button>
                     </div>
+
+
 
                     {/* 다크모드 토글 */}
                     <button
