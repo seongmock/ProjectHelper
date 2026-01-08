@@ -113,7 +113,12 @@ function MilestoneEditPopover({ position, milestone, predecessors = [], successo
                         value={labelText}
                         onChange={handleLabelChange}
                         onBlur={handleLabelBlur}
-                        onKeyDown={handleKeyDown}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter') handleKeyDown(e);
+                            e.stopPropagation();
+                        }}
+                        onKeyUp={(e) => e.stopPropagation()}
+                        onPointerDown={(e) => e.stopPropagation()}
                         placeholder="마일스톤 이름"
                         autoFocus
                     />
@@ -126,6 +131,9 @@ function MilestoneEditPopover({ position, milestone, predecessors = [], successo
                         type="date"
                         value={milestone.date}
                         onChange={(e) => onUpdate(milestone.id, { date: e.target.value })}
+                        onKeyDown={(e) => e.stopPropagation()}
+                        onKeyUp={(e) => e.stopPropagation()}
+                        onPointerDown={(e) => e.stopPropagation()}
                     />
                 </div>
 
@@ -136,6 +144,9 @@ function MilestoneEditPopover({ position, milestone, predecessors = [], successo
                         <select
                             value={milestone.shape}
                             onChange={(e) => onUpdate(milestone.id, { shape: e.target.value })}
+                            onKeyDown={(e) => e.stopPropagation()}
+                            onKeyUp={(e) => e.stopPropagation()}
+                            onPointerDown={(e) => e.stopPropagation()}
                             style={{ width: '100%', padding: '6px', border: '1px solid #ddd', borderRadius: '4px' }}
                         >
                             {shapes.map(shape => (
@@ -158,6 +169,9 @@ function MilestoneEditPopover({ position, milestone, predecessors = [], successo
                     <select
                         value={milestone.labelPosition || 'bottom'}
                         onChange={(e) => onUpdate(milestone.id, { labelPosition: e.target.value })}
+                        onKeyDown={(e) => e.stopPropagation()}
+                        onKeyUp={(e) => e.stopPropagation()}
+                        onPointerDown={(e) => e.stopPropagation()}
                         style={{ width: '100%', padding: '6px', border: '1px solid #ddd', borderRadius: '4px' }}
                     >
                         {positions.map(pos => (

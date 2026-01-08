@@ -122,6 +122,9 @@ function ImportExportModal({ isOpen, onClose, mode, onImport, onExport, currentD
                                             placeholder="여기에 JSON 코드를 붙여넣으세요..."
                                             value={jsonText}
                                             onChange={e => setJsonText(e.target.value)}
+                                            onKeyDown={(e) => e.stopPropagation()}
+                                            onKeyUp={(e) => e.stopPropagation()}
+                                            onPointerDown={(e) => e.stopPropagation()}
                                         />
                                         <button
                                             className="primary-button full-width"
@@ -153,6 +156,9 @@ function ImportExportModal({ isOpen, onClose, mode, onImport, onExport, currentD
                                         <textarea
                                             readOnly
                                             value={jsonText}
+                                            onKeyDown={(e) => e.stopPropagation()}
+                                            onKeyUp={(e) => e.stopPropagation()}
+                                            onPointerDown={(e) => e.stopPropagation()}
                                         />
                                         <button
                                             className="secondary-button full-width"

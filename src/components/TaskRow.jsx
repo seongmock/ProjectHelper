@@ -194,6 +194,7 @@ function TaskRow({
                             className="name-input"
                             onClick={(e) => e.stopPropagation()}
                             onPointerDown={(e) => e.stopPropagation()}
+                            onKeyUp={(e) => e.stopPropagation()}
                         />
                     ) : (
                         <span

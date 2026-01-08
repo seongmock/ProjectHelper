@@ -42,6 +42,9 @@ function MilestoneQuickAdd({ task, date, onClose, onAdd }) {
                             type="date"
                             value={milestoneDate}
                             onChange={(e) => setMilestoneDate(e.target.value)}
+                            onKeyDown={(e) => e.stopPropagation()}
+                            onKeyUp={(e) => e.stopPropagation()}
+                            onPointerDown={(e) => e.stopPropagation()}
                             required
                         />
                     </div>
@@ -52,6 +55,9 @@ function MilestoneQuickAdd({ task, date, onClose, onAdd }) {
                             type="text"
                             value={label}
                             onChange={(e) => setLabel(e.target.value)}
+                            onKeyDown={(e) => e.stopPropagation()}
+                            onKeyUp={(e) => e.stopPropagation()}
+                            onPointerDown={(e) => e.stopPropagation()}
                             placeholder="마일스톤 이름"
                             required
                         />
@@ -59,7 +65,13 @@ function MilestoneQuickAdd({ task, date, onClose, onAdd }) {
                     <div className="form-row">
                         <div className="form-group">
                             <label>모양</label>
-                            <select value={shape} onChange={(e) => setShape(e.target.value)}>
+                            <select
+                                value={shape}
+                                onChange={(e) => setShape(e.target.value)}
+                                onKeyDown={(e) => e.stopPropagation()}
+                                onKeyUp={(e) => e.stopPropagation()}
+                                onPointerDown={(e) => e.stopPropagation()}
+                            >
                                 <option value="diamond">◆</option>
                                 <option value="circle">●</option>
                                 <option value="triangle">▲</option>
