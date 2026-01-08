@@ -108,5 +108,30 @@ serve -s dist -l 8080
 
 4.  **상태 확인**:
     ```bash
-    sudo systemctl status project-management
+sudo systemctl status project-management
     ```
+
+## 7. HTTPS 설정 및 클립보드 기능 (Important)
+
+이 애플리케이션의 **"이미지 캡처 후 클립보드 복사"** 기능은 브라우저 보안 정책상 **HTTPS** 환경(또는 localhost)에서만 작동합니다.
+
+*   **HTTP 접속 시**: 클립보드 복사가 차단되며, 자동으로 **이미지 파일 다운로드**로 전환됩니다.
+*   **완벽한 기능 사용**: HTTPS를 적용하려면 Nginx 리버스 프록시와 Let's Encrypt 등을 사용하여 SSL 인증서를 설정해야 합니다.
+
+### (예시) Nginx 리버스 프록시 설정
+Nginx를 사용 중이라면 아래와 같이 프록시 설정을 추가할 수 있습니다.
+
+```nginx
+server {
+    listen 443 ssl;
+    server_name your-domain.com;
+    
+    # SSL 인증서 경로 설정...
+
+    location / {
+        proxy_pass http://localhost:8080;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+}
+```
