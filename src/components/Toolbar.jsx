@@ -18,7 +18,6 @@ function Toolbar({
     onToggleCompact,
     showTaskNames,
     onToggleTaskNames,
-    onToggleTaskNames,
     onCopyImage,
     snapEnabled,
     onToggleSnap
