@@ -417,6 +417,7 @@ const TimelineView = forwardRef(({
     // 우클릭 핸들러
     const handleContextMenu = (e, task, date) => {
         e.preventDefault();
+        setMilestoneEditInfo(null); // 마일스톤 팝오버 닫기
         setPopoverInfo({
             x: e.clientX,
             y: e.clientY,
@@ -428,6 +429,7 @@ const TimelineView = forwardRef(({
     // 마일스톤 우클릭 핸들러
     const handleMilestoneContextMenu = (e, task, milestone) => {
         e.preventDefault();
+        setPopoverInfo(null); // 작업 팝오버 닫기
         setMilestoneEditInfo({
             x: e.clientX,
             y: e.clientY,
