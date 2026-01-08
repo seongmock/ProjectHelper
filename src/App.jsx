@@ -7,6 +7,7 @@ import Toolbar from './components/Toolbar';
 import TableView from './components/TableView';
 import TimelineView from './components/TimelineView';
 import PromptGuideModal from './components/PromptGuideModal';
+import ImportExportModal from './components/ImportExportModal';
 import './App.css';
 
 function App() {
@@ -41,6 +42,9 @@ function App() {
 
     // AI 프롬프트 가이드 모달 상태
     const [isPromptGuideOpen, setIsPromptGuideOpen] = useState(false);
+
+    // 가져오기/내보내기 모달 상태
+    const [ieModalMode, setIeModalMode] = useState(null); // 'IMPORT' | 'EXPORT' | null
 
     // 초기 데이터 로드
     const getInitialData = () => {
@@ -493,11 +497,9 @@ function App() {
 
     }, [setTasks]);
 
-    // 내보내기
-    const handleExport = useCallback(() => {
-        const timestamp = new Date().toISOString().split('T')[0];
-
-        const exportData = {
+    // 내보내기 데이터 생성 (객체만 반환)
+    const getExportDataObject = useCallback(() => {
+        return {
             meta: {
                 viewSettings: {
                     viewMode,
@@ -512,9 +514,14 @@ function App() {
             },
             data: tasks
         };
-
-        storage.exportData(exportData, `project-timeline-${timestamp}.json`);
     }, [tasks, viewMode, timeScale, zoomLevel, showToday, isCompact, showTaskNames, darkMode]);
+
+    // 내보내기 (파일 저장)
+    const handleExport = useCallback(() => {
+        const exportData = getExportDataObject();
+        const timestamp = new Date().toISOString().slice(0, 10);
+        storage.exportData(exportData, `project-timeline-${timestamp}.json`);
+    }, [getExportDataObject]);
 
     // 가져오기
     const handleImport = useCallback((file, isMerge = false) => {
@@ -629,8 +636,8 @@ function App() {
             <Header
                 darkMode={darkMode}
                 onToggleDarkMode={handleToggleDarkMode}
-                onExport={handleExport}
-                onImport={handleImport}
+                onExport={() => setIeModalMode('EXPORT')}
+                onImport={() => setIeModalMode('IMPORT')}
                 canUndo={canUndo}
                 canRedo={canRedo}
                 onUndo={undo}
@@ -696,6 +703,14 @@ function App() {
                     />
                 )}
             </div>
+            <ImportExportModal
+                isOpen={!!ieModalMode}
+                onClose={() => setIeModalMode(null)}
+                mode={ieModalMode}
+                onImport={handleImport}
+                onExport={handleExport}
+                currentData={ieModalMode === 'EXPORT' ? getExportDataObject() : null}
+            />
             <PromptGuideModal
                 isOpen={isPromptGuideOpen}
                 onClose={() => setIsPromptGuideOpen(false)}
