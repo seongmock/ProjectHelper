@@ -725,8 +725,6 @@ function App() {
                 canRedo={canRedo}
                 onUndo={undo}
                 onRedo={redo}
-                onUndo={undo}
-                onRedo={redo}
                 onOpenPromptGuide={() => setIsPromptGuideOpen(true)}
                 snapEnabled={snapEnabled}
                 onToggleSnap={() => setSnapEnabled(!snapEnabled)}
@@ -787,7 +785,6 @@ function App() {
                         // 상태 전달
                         zoomLevel={zoomLevel}
                         showToday={showToday}
-                        isCompact={isCompact}
                         isCompact={isCompact}
                         showTaskNames={showTaskNames}
                         snapEnabled={snapEnabled}
