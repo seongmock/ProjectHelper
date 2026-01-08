@@ -133,11 +133,7 @@ function App() {
                 e.preventDefault();
                 handleAddTask();
             }
-            // Delete: 선택 항목 삭제
-            if (e.key === 'Delete' && selectedTaskId) {
-                e.preventDefault();
-                handleDeleteTask(selectedTaskId);
-            }
+
         };
 
         window.addEventListener('keydown', handleKeyDown);
