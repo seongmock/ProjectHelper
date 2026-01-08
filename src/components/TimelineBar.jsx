@@ -47,9 +47,19 @@ function TimelineBar({
         onSelect(task.id);
     };
 
+    // 드래그 완료 시 최종 상태 저장 (히스토리 기록)
+    const finalizeDrag = (finalStart, finalEnd) => {
+        if (task.onDragEnd) {
+            task.onDragEnd(task.id, finalStart, finalEnd);
+        }
+    };
+
     // 드래그 중
     useEffect(() => {
         if (!isDragging) return;
+
+        let finalStart = task.startDate;
+        let finalEnd = task.endDate;
 
         const handleMouseMove = (e) => {
             const deltaX = e.clientX - dragStart.x;
@@ -71,6 +81,8 @@ function TimelineBar({
                 const duration = dateUtils.getDaysBetween(dragStart.taskStart, dragStart.taskEnd);
                 const snappedEnd = dateUtils.addDays(snappedStart, duration);
 
+                finalStart = snappedStart;
+                finalEnd = snappedEnd;
                 onDragUpdate(task.id, snappedStart, snappedEnd);
             } else if (dragType === 'resize-start') {
                 // 시작일 변경
@@ -78,6 +90,8 @@ function TimelineBar({
                 const snappedStart = applySnapping(rawNewStart, 'start');
 
                 if (snappedStart < dragStart.taskEnd) {
+                    finalStart = snappedStart;
+                    finalEnd = dragStart.taskEnd;
                     onDragUpdate(task.id, snappedStart, dragStart.taskEnd);
                 }
             } else if (dragType === 'resize-end') {
@@ -86,12 +100,16 @@ function TimelineBar({
                 const snappedEnd = applySnapping(rawNewEnd, 'end');
 
                 if (snappedEnd > dragStart.taskStart) {
+                    finalStart = dragStart.taskStart;
+                    finalEnd = snappedEnd;
                     onDragUpdate(task.id, dragStart.taskStart, snappedEnd);
                 }
             }
         };
 
         const handleMouseUp = () => {
+            // 드래그 완료 시 최종 상태를 히스토리에 기록
+            finalizeDrag(finalStart, finalEnd);
             setIsDragging(false);
             setDragType(null);
         };
@@ -103,7 +121,7 @@ function TimelineBar({
             document.removeEventListener('mousemove', handleMouseMove);
             document.removeEventListener('mouseup', handleMouseUp);
         };
-    }, [isDragging, dragType, dragStart, containerWidth, totalDays, task.id, onDragUpdate]);
+    }, [isDragging, dragType, dragStart, containerWidth, totalDays, task.id, task.startDate, task.endDate, onDragUpdate]);
 
     // 마일스톤 렌더링
     const renderMilestones = () => {

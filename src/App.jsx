@@ -80,6 +80,7 @@ function App() {
     const {
         state: tasks,
         setState: setTasks,
+        setStateSilent: setTasksSilent, // 드래그 중 임시 업데이트용
         undo,
         redo,
         canUndo,

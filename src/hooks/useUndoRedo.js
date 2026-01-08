@@ -56,9 +56,28 @@ export const useUndoRedo = (initialState) => {
     const canUndo = hookState.index > 0;
     const canRedo = hookState.index < hookState.history.length - 1;
 
+    // 히스토리에 추가하지 않고 현재 상태만 업데이트 (드래그 중간 상태용)
+    const setStateSilent = useCallback((newState) => {
+        setHookState((prev) => {
+            const { history, index } = prev;
+            const currentState = history[index];
+            const resolvedState = typeof newState === 'function' ? newState(currentState) : newState;
+
+            // 현재 인덱스의 상태만 업데이트 (히스토리 추가 없음)
+            const newHistory = [...history];
+            newHistory[index] = resolvedState;
+
+            return {
+                history: newHistory,
+                index: index
+            };
+        });
+    }, []);
+
     return {
         state: currentState,
         setState,
+        setStateSilent, // 드래그 중 등 임시 상태 업데이트용
         undo,
         redo,
         canUndo,
