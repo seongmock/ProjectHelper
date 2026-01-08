@@ -80,9 +80,6 @@ function TimelineBar({
         if (!isDragging) return;
 
         const handleMouseMove = (e) => {
-            // 가이드라인 업데이트
-            if (onGuideMove) onGuideMove(e.clientX);
-
             const deltaX = e.clientX - dragStart.x;
             const deltaDays = Math.round((deltaX / containerWidth) * totalDays);
 
@@ -90,6 +87,8 @@ function TimelineBar({
             const applySnapping = (date, type) => {
                 return dateUtils.snapAdaptive(date, type, totalDays);
             };
+
+            let guideDate = null;
 
             if (dragType === 'move') {
                 // 바 전체 이동
@@ -110,6 +109,9 @@ function TimelineBar({
                     endDate: dateUtils.formatDate(snappedEnd)
                 });
                 onDragUpdate(task.id, snappedStart, snappedEnd);
+
+                // 가이드라인은 시작점에 맞춤
+                guideDate = snappedStart;
             } else if (dragType === 'resize-start') {
                 // 시작일 변경
                 const rawNewStart = dateUtils.addDays(dragStart.taskStart, deltaDays);
@@ -121,9 +123,12 @@ function TimelineBar({
                     // 로컬 상태 업데이트 (시각적 피드백)
                     setDraggedDates({
                         startDate: dateUtils.formatDate(snappedStart),
-                        endDate: dateUtils.formatDate(dragStart.taskEnd) // task.endDate 대신 사용
+                        endDate: dateUtils.formatDate(dragStart.taskEnd)
                     });
                     onDragUpdate(task.id, snappedStart, dragStart.taskEnd);
+
+                    // 가이드라인은 시작점에 맞춤
+                    guideDate = snappedStart;
                 }
             } else if (dragType === 'resize-end') {
                 // 종료일 변경
@@ -135,11 +140,21 @@ function TimelineBar({
 
                     // 로컬 상태 업데이트 (시각적 피드백)
                     setDraggedDates({
-                        startDate: dateUtils.formatDate(dragStart.taskStart), // task.startDate 대신 사용
+                        startDate: dateUtils.formatDate(dragStart.taskStart),
                         endDate: dateUtils.formatDate(snappedEnd)
                     });
                     onDragUpdate(task.id, dragStart.taskStart, snappedEnd);
+
+                    // 가이드라인은 종료점에 맞춤
+                    guideDate = snappedEnd;
                 }
+            }
+
+            // 가이드라인 업데이트 (스냅된 날짜 기준)
+            if (onGuideMove && guideDate) {
+                const guideDays = dateUtils.getDaysBetween(startDate, guideDate);
+                const guideOffset = (guideDays / totalDays) * containerWidth;
+                onGuideMove(guideOffset);
             }
         };
 
@@ -172,9 +187,6 @@ function TimelineBar({
         if (!draggingMilestone) return;
 
         const handleMouseMove = (e) => {
-            // 가이드라인 업데이트
-            if (onGuideMove) onGuideMove(e.clientX);
-
             const deltaX = e.clientX - milestoneDragStart.x;
             const deltaDays = Math.round((deltaX / containerWidth) * totalDays);
 
@@ -183,6 +195,13 @@ function TimelineBar({
 
             // 로컬 상태 업데이트 (시각적 피드백)
             setDraggedMilestoneDate(dateUtils.formatDate(snappedDate));
+
+            // 가이드라인 업데이트 (스냅된 날짜 기준)
+            if (onGuideMove) {
+                const guideDays = dateUtils.getDaysBetween(startDate, snappedDate);
+                const guideOffset = (guideDays / totalDays) * containerWidth;
+                onGuideMove(guideOffset);
+            }
 
             // Y 위치를 부모로 전달 (세로 이동 감지용)
             if (onMilestoneDragMove) {

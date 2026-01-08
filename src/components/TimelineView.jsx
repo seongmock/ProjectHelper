@@ -342,22 +342,9 @@ const TimelineView = forwardRef(({
     // 가이드라인 상태
     const [guideLineX, setGuideLineX] = useState(null);
 
-    // 가이드라인 이동 핸들러
-    const handleGuideMove = (clientX) => {
-        if (clientX === null) {
-            setGuideLineX(null);
-            return;
-        }
-
-        // timeline-content 요소 찾기 (헤더 포함 위치 계산을 위해)
-        const contentEl = document.querySelector('.timeline-content');
-        if (contentEl) {
-            const rect = contentEl.getBoundingClientRect();
-            // 스크롤된 위치 고려
-            const scrollLeft = contentEl.scrollLeft;
-            const relativeX = clientX - rect.left + scrollLeft;
-            setGuideLineX(relativeX);
-        }
+    // 가이드라인 이동 핸들러 (이제 clientX가 아닌 상대적 offset을 받음)
+    const handleGuideMove = (offset) => {
+        setGuideLineX(offset);
     };
 
     // 마일스톤 드래그 완료 시 날짜 업데이트
