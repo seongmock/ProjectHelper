@@ -194,18 +194,14 @@ function TimelineBar({
 
             const rawNewDate = dateUtils.addDays(milestoneDragStart.originalDate, deltaDays);
             // 스냅 적용
+            // 스냅 적용
             let snappedDate;
             if (snapEnabled) {
-                // 스냅 적용 여부 확인
-                let snappedStart, snappedEnd;
-
-                if (snapEnabled) {
-                    // 기존 적응형 스냅
-                    snappedDate = dateUtils.snapAdaptive(rawNewDate, 'closest', totalDays);
-                } else {
-                    // 스냅 끔: 일 단위로만 반올림 (부드러운 드래그)
-                    snappedDate = dateUtils.snapToDay(rawNewDate, 'closest');
-                }
+                // 기존 적응형 스냅
+                snappedDate = dateUtils.snapAdaptive(rawNewDate, 'closest', totalDays);
+            } else {
+                // 스냅 끔: 일 단위로만 반올림 (부드러운 드래그)
+                snappedDate = dateUtils.snapToDay(rawNewDate, 'closest');
             }
 
             // Y축 이동 계산
