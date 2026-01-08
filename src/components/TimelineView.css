@@ -139,23 +139,6 @@
     font-size: var(--font-size-lg);
 }
 
-/* 타임라인 가이드 라인 */
-.timeline-guide-line {
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    width: 0;
-    border-left: 1px dashed var(--color-primary);
-    /* 두께 1px, Primary Color */
-    z-index: 1000;
-    /* Z-index 대폭 상향 */
-    pointer-events: none;
-    opacity: 1;
-    /* 투명도 제거 */
-    box-shadow: 0 0 4px rgba(0, 0, 0, 0.1);
-    /* 약간의 그림자 */
-}
-
 /* 오늘 날짜 마커 */
 .today-marker {
     position: absolute;
@@ -280,4 +263,16 @@
 .capturing .timeline-bar {
     border: 1px solid rgba(0, 0, 0, 0.1);
     /* 그림자 대신 테두리 추가 */
+}
+
+/* 타임라인 가이드 라인 */
+.timeline-guide-line {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 0;
+    border-left: 2px dashed var(--color-primary);
+    z-index: 1000;
+    pointer-events: none;
+    opacity: 0.8;
 }
