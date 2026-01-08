@@ -370,661 +370,660 @@ const TimelineView = forwardRef(({
         if (!milestone) return;
 
         // 같은 작업이면 날짜만 업데이트
-        if (targetTaskId === sourceTaskId) {
-            const updatedMilestones = sourceTask.milestones.map(m =>
-                m.id === milestoneId
-                    ? { ...m, date: newDate }
-                    : m
-        } else {
-            // 다른 작업으로 이동 - 두 작업을 동시에 업데이트 (onUpdateTasks 사용)
-            const targetTask = flatTasks.find(t => t.id === targetTaskId);
-            if (!targetTask) return;
-
-            // 원본에서 제거
-            const updatedSourceMilestones = sourceTask.milestones.filter(m => m.id !== milestoneId);
-
-            // 대상에 추가 (with new date)
-            const updatedTargetMilestones = [
-                ...(targetTask.milestones || []),
-                { ...milestone, date: newDate }
-            ];
-
-            if (onUpdateTasks) {
-                // 원자적 업데이트 (하나의 히스토리 엔트리)
-                onUpdateTasks([
-                    { taskId: sourceTaskId, updates: { milestones: updatedSourceMilestones } },
-                    { taskId: targetTaskId, updates: { milestones: updatedTargetMilestones } }
-                ], true);
-            } else {
-                // Fallback (기존 방식 - 문제점: undo 시 마일스톤 증발 가능성)
-                onUpdateTask(sourceTaskId, { milestones: updatedSourceMilestones }, false);
-                onUpdateTask(targetTaskId, { milestones: updatedTargetMilestones }, true);
-            }
-        }
-
-        // 대상 작업 클리어
-        setDragTargetTaskId(null);
-    };
-
-    // 작업 클릭 핸들러 (연결 모드 처리)
-    const handleTaskClick = (taskId) => {
-        if (isLinkingMode) {
-            if (taskId === linkSourceTaskId) {
-                // 자기 자신 선택 시 취소
-                setIsLinkingMode(false);
-                setLinkSourceTaskId(null);
-                return;
-            }
-
-            // 의존성 추가 (Target: Task)
-            const targetTask = flatTasks.find(t => t.id === taskId);
-            if (targetTask) {
-                // 이미 존재하는지 확인
-                if (targetTask.dependencies && targetTask.dependencies.includes(linkSourceTaskId)) {
-                    alert('이미 연결된 작업입니다.');
-                    setIsLinkingMode(false);
-                    setLinkSourceTaskId(null);
-                    return;
-                }
-
-                // 순환 참조 방지 (간단한 체크 - 소스가 작업인 경우만)
-                const sourceTask = flatTasks.find(t => t.id === linkSourceTaskId);
-                if (sourceTask && sourceTask.dependencies && sourceTask.dependencies.includes(taskId)) {
-                    alert('순환 참조가 발생할 수 있어 연결할 수 없습니다.');
-                    setIsLinkingMode(false);
-                    setLinkSourceTaskId(null);
-                    return;
-                }
-
-                const newDependencies = [...(targetTask.dependencies || []), linkSourceTaskId];
-                onUpdateTask(taskId, { dependencies: newDependencies });
-                setIsLinkingMode(false);
-                setLinkSourceTaskId(null);
-            }
-        } else {
-            onSelectTask(taskId);
-        }
-    };
-
-    // 마일스톤 클릭 핸들러 (연결 모드 처리)
-    const handleMilestoneClick = (e, milestone) => {
-        e.stopPropagation();
-
-        if (isLinkingMode) {
-            if (milestone.id === linkSourceTaskId) {
-                setIsLinkingMode(false);
-                setLinkSourceTaskId(null);
-                return;
-            }
-
-            // 의존성 추가 (Target: Milestone)
-            // 마일스톤이 속한 작업을 찾아서 업데이트해야 함
-            const parentTask = flatTasks.find(t => t.milestones && t.milestones.some(m => m.id === milestone.id));
-
-            if (parentTask) {
-                const updatedMilestones = parentTask.milestones.map(m => {
-                    if (m.id === milestone.id) {
-                        const currentDeps = m.dependencies || [];
-                        if (currentDeps.includes(linkSourceTaskId)) {
-                            alert('이미 연결된 마일스톤입니다.');
-                            return m;
-                        }
-                        return { ...m, dependencies: [...currentDeps, linkSourceTaskId] };
-                    }
-                    return m;
-                });
-
-                // 변경사항이 있을 때만 업데이트
-                const targetMilestone = updatedMilestones.find(m => m.id === milestone.id);
-                if (targetMilestone.dependencies.length !== (milestone.dependencies || []).length) {
-                    onUpdateTask(parentTask.id, { milestones: updatedMilestones });
-                    setIsLinkingMode(false);
-                    setLinkSourceTaskId(null);
-                } else {
-                    setIsLinkingMode(false);
-                    setLinkSourceTaskId(null);
-                }
-            }
-        }
-    };
-
-    // 우클릭 핸들러
-    const handleContextMenu = (e, task, date) => {
-        e.preventDefault();
-        setMilestoneEditInfo(null); // 마일스톤 팝오버 닫기
-        setPopoverInfo({
-            x: e.clientX,
-            y: e.clientY,
-            taskId: task.id, // ID만 저장
-            date // 클릭한 날짜 정보 추가
-        });
-    };
-
-    // 마일스톤 우클릭 핸들러
-    const handleMilestoneContextMenu = (e, task, milestone) => {
-        e.preventDefault();
-        setPopoverInfo(null); // 작업 팝오버 닫기
-        setMilestoneEditInfo({
-            x: e.clientX,
-            y: e.clientY,
-            task,
-            milestone
-        });
-    };
-
-
-
-    const handleAddMilestone = (taskId, milestoneData) => {
-        const task = tasks.find(t => t.id === taskId);
-        const newMilestone = {
-            id: generateId(),
-            ...milestoneData
-        };
-
-        const currentTask = flatTasks.find(t => t.id === taskId);
-        if (currentTask) {
-            const updatedMilestones = [...(currentTask.milestones || []), newMilestone];
-            onUpdateTask(taskId, { milestones: updatedMilestones });
-        }
-    };
-
-    const handleUpdateMilestone = (milestoneId, updates) => {
-        if (!milestoneEditInfo) return;
-
-        const { task } = milestoneEditInfo;
-        const currentTask = flatTasks.find(t => t.id === task.id);
-
-        if (currentTask && currentTask.milestones) {
-            const updatedMilestones = currentTask.milestones.map(m =>
-                m.id === milestoneId ? { ...m, ...updates } : m
             );
-            onUpdateTask(task.id, { milestones: updatedMilestones });
-
-            // 업데이트 후 팝오버 정보도 갱신 (즉시 반영을 위해)
-            const updatedMilestone = updatedMilestones.find(m => m.id === milestoneId);
-            setMilestoneEditInfo(prev => ({
-                ...prev,
-                milestone: updatedMilestone
-            }));
-        }
-    };
-
-    const handleDeleteMilestone = (milestoneId) => {
-        if (!milestoneEditInfo) return;
-
-        const { task } = milestoneEditInfo;
-        const currentTask = flatTasks.find(t => t.id === task.id);
-
-        if (currentTask && currentTask.milestones) {
-            const updatedMilestones = currentTask.milestones.filter(m => m.id !== milestoneId);
-            onUpdateTask(task.id, { milestones: updatedMilestones });
-            setMilestoneEditInfo(null);
-        }
-    };
-
-    // 연결 모드 시작
-    const startLinking = (taskId) => {
-        setIsLinkingMode(true);
-        setLinkSourceTaskId(taskId);
-        setPopoverInfo(null); // 팝오버 닫기
-    };
-
-    // 이미지 복사 핸들러
-    const handleCopyToClipboard = async () => {
-        if (!captureRef.current) return;
-
-        try {
-            // 캡처 시작: 클래스 추가
-            if (containerRef.current) {
-                containerRef.current.classList.add('capturing');
-            }
-
-            const canvas = await html2canvas(captureRef.current, {
-                scale: 2, // 고해상도
-                useCORS: true,
-                logging: false,
-                backgroundColor: '#ffffff'
-            });
-
-            // 캡처 종료: 클래스 제거
-            if (containerRef.current) {
-                containerRef.current.classList.remove('capturing');
-            }
-
-            canvas.toBlob(async (blob) => {
-                if (!blob) {
-                    alert('이미지 생성 실패');
-                    return;
-                }
-                try {
-                    await navigator.clipboard.write([
-                        new ClipboardItem({ 'image/png': blob })
-                    ]);
-                    alert('타임라인 이미지가 클립보드에 복사되었습니다.');
-                } catch (err) {
-                    console.error('클립보드 복사 실패:', err);
-                    // 클립보드 복사 실패 시 (보안 정책 등) 이미지 다운로드로 대체
-                    try {
-                        const url = URL.createObjectURL(blob);
-                        const link = document.createElement('a');
-                        link.href = url;
-                        link.download = `timeline-capture-${new Date().toISOString().slice(0, 10)}.png`;
-                        document.body.appendChild(link);
-                        link.click();
-                        document.body.removeChild(link);
-                        URL.revokeObjectURL(url);
-                        alert('클립보드 접근 권한 문제로 이미지를 다운로드했습니다.');
-                    } catch (downloadErr) {
-                        console.error('다운로드 실패:', downloadErr);
-                        alert('이미지 저장에 실패했습니다.');
-                    }
-                }
-            });
-        } catch (err) {
-            console.error('이미지 캡처 실패:', err);
-            alert('이미지 캡처 중 오류가 발생했습니다.');
-        }
-    };
-
-    // 줌 레벨에 따른 컨텐츠 너비
-    const contentWidth = containerWidth * zoomLevel;
-
-    // 의존성 선 렌더링
-    const renderDependencies = () => {
-        const lines = [];
-        const totalDays = dateUtils.getDuration(dateRange.start, dateRange.end);
-        const rowHeight = isCompact ? 28 : 40;
-
-        // 2. 의존성 선 그리기
-        flatTasks.forEach((task) => {
-            // 작업의 의존성 처리
-            if (task.dependencies) {
-                task.dependencies.forEach(depId => {
-                    const source = itemMap.get(depId);
-                    const target = itemMap.get(task.id);
-
-                    if (source && target) {
-                        lines.push(drawDependencyLine(source, target, totalDays, contentWidth, rowHeight));
-                    }
-                });
-            }
-
-            // 마일스톤의 의존성 처리 (데이터 모델에 milestones 내 dependencies가 있다고 가정하거나, 
-            // 현재 구조상 마일스톤 객체에 dependencies 필드가 없으면 추가해야 함.
-            // 일단 기존 데이터 구조를 유지하면서, 마일스톤 객체에 dependencies가 추가될 수 있다고 가정)
-            if (task.milestones) {
-                task.milestones.forEach(ms => {
-                    if (ms.dependencies) {
-                        ms.dependencies.forEach(depId => {
-                            const source = itemMap.get(depId);
-                            const target = itemMap.get(ms.id);
-
-                            if (source && target) {
-                                lines.push(drawDependencyLine(source, target, totalDays, contentWidth, rowHeight));
-                            }
-                        });
-                    }
-                });
-            }
-        });
-
-        return (
-            <svg className="dependency-layer" style={{ width: contentWidth, height: flatTasks.length * (isCompact ? 28 : 40) }}>
-                <defs>
-                    <marker
-                        id="arrowhead"
-                        markerWidth="10"
-                        markerHeight="7"
-                        refX="9"
-                        refY="3.5"
-                        orient="auto"
-                    >
-                        <polygon points="0 0, 10 3.5, 0 7" fill="#999" />
-                    </marker>
-                </defs>
-                {lines}
-            </svg>
-        );
-    };
-
-    // 의존성 선 그리기 헬퍼 함수
-    const drawDependencyLine = (source, target, totalDays, contentWidth, rowHeight) => {
-        let startX, startY, endX, endY;
-
-        // 시작점 계산 (Source)
-        if (source.type === 'task') {
-            // 작업인 경우: 종료일 기준
-            const sourceDays = dateUtils.getDuration(dateRange.start, source.endDate);
-            startX = (sourceDays / totalDays) * contentWidth;
-            startY = source.index * rowHeight + rowHeight / 2;
+onUpdateTask(sourceTaskId, {
+    milestones: updatedMilestones
+}, true);
         } else {
-            // 마일스톤인 경우: 해당 날짜 기준
-            const sourceDays = dateUtils.getDuration(dateRange.start, source.date);
-            startX = (sourceDays / totalDays) * contentWidth;
-            startY = source.parentIndex * rowHeight + rowHeight / 2;
-        }
+    // 다른 작업으로 이동 - 두 작업을 동시에 업데이트 (onUpdateTasks 사용)
+    const targetTask = flatTasks.find(t => t.id === targetTaskId);
+    if (!targetTask) return;
 
-        // 끝점 계산 (Target)
-        if (target.type === 'task') {
-            // 작업인 경우: 시작일 기준
-            const targetDays = dateUtils.getDaysBetween(dateRange.start, target.startDate);
-            endX = (targetDays / totalDays) * contentWidth;
-            endY = target.index * rowHeight + rowHeight / 2;
-        } else {
-            // 마일스톤인 경우: 해당 날짜 기준
-            const targetDays = dateUtils.getDaysBetween(dateRange.start, target.date);
-            endX = (targetDays / totalDays) * contentWidth;
-            endY = target.parentIndex * rowHeight + rowHeight / 2;
-        }
+    // 원본에서 제거
+    const updatedSourceMilestones = sourceTask.milestones.filter(m => m.id !== milestoneId);
 
-        // 경로 생성 로직
-        const midX = startX + 20;
-        let path = '';
+    // 대상에 추가 (with new date)
+    const updatedTargetMilestones = [
+        ...(targetTask.milestones || []),
+        { ...milestone, date: newDate }
+    ];
 
-        if (startX < endX - 40) {
-            path = `M ${startX} ${startY} L ${midX} ${startY} L ${midX} ${endY} L ${endX} ${endY}`;
-        } else {
-            const backX = startX + 10;
-            const forwardX = endX - 30;
-            const midY = (startY + endY) / 2;
-            path = `M ${startX} ${startY} L ${backX} ${startY} L ${backX} ${midY} L ${forwardX} ${midY} L ${forwardX} ${endY} L ${endX} ${endY}`;
-        }
+    if (onUpdateTasks) {
+        // 원자적 업데이트 (하나의 히스토리 엔트리)
+        onUpdateTasks([
+            { taskId: sourceTaskId, updates: { milestones: updatedSourceMilestones } },
+            { taskId: targetTaskId, updates: { milestones: updatedTargetMilestones } }
+        ], true);
+    } else {
+        // Fallback (기존 방식 - 문제점: undo 시 마일스톤 증발 가능성)
+        onUpdateTask(sourceTaskId, { milestones: updatedSourceMilestones }, false);
+        onUpdateTask(targetTaskId, { milestones: updatedTargetMilestones }, true);
+    }
+}
 
-        return (
-            <path
-                key={`${source.data.id}-${target.data.id}`}
-                d={path}
-                fill="none"
-                stroke="#999"
-                strokeWidth="2"
-                strokeDasharray="4 2"
-                markerEnd="url(#arrowhead)"
-            />
-        );
+// 대상 작업 클리어
+setDragTargetTaskId(null);
     };
 
-    // 팝오버를 위한 현재 작업 찾기
-    const popoverTask = popoverInfo ? flatTasks.find(t => t.id === popoverInfo.taskId) : null;
-
-    // 후행 작업(Successors) 찾기 (작업용)
-    const successors = popoverTask ? flatTasks.filter(t => t.dependencies && t.dependencies.includes(popoverTask.id)) : [];
-
-    // 선행 작업(Predecessors) 찾기 (작업용)
-    const predecessors = popoverTask ? flatTasks.filter(t => popoverTask.dependencies && popoverTask.dependencies.includes(t.id)) : [];
-
-    // 마일스톤용 선행/후행 찾기
-    const milestonePredecessors = useMemo(() => {
-        if (!milestoneEditInfo) return [];
-        const { milestone } = milestoneEditInfo;
-        const preds = [];
-        if (milestone.dependencies) {
-            milestone.dependencies.forEach(depId => {
-                const item = itemMap.get(depId);
-                if (item) preds.push({ id: item.data.id, name: item.name });
-            });
-        }
-        return preds;
-    }, [milestoneEditInfo, itemMap]);
-
-    const milestoneSuccessors = useMemo(() => {
-        if (!milestoneEditInfo) return [];
-        const { milestone } = milestoneEditInfo;
-        const succs = [];
-
-        // 1. 작업이 마일스톤을 의존하는 경우
-        flatTasks.forEach(t => {
-            if (t.dependencies && t.dependencies.includes(milestone.id)) {
-                succs.push({ id: t.id, name: t.name });
-            }
-        });
-
-        // 2. 다른 마일스톤이 이 마일스톤을 의존하는 경우
-        flatTasks.forEach(t => {
-            if (t.milestones) {
-                t.milestones.forEach(ms => {
-                    if (ms.dependencies && ms.dependencies.includes(milestone.id)) {
-                        succs.push({ id: ms.id, name: ms.label || '마일스톤' });
-                    }
-                });
-            }
-        });
-
-        return succs;
-    }, [milestoneEditInfo, flatTasks, itemMap]);
-
-    // 의존성 제거 핸들러
-    const handleRemoveDependency = (targetId, dependencyId) => {
-        // 1. Target이 작업인 경우
-        const targetTask = flatTasks.find(t => t.id === targetId);
-        if (targetTask) {
-            const newDeps = targetTask.dependencies.filter(id => id !== dependencyId);
-            onUpdateTask(targetId, { dependencies: newDeps });
+// 작업 클릭 핸들러 (연결 모드 처리)
+const handleTaskClick = (taskId) => {
+    if (isLinkingMode) {
+        if (taskId === linkSourceTaskId) {
+            // 자기 자신 선택 시 취소
+            setIsLinkingMode(false);
+            setLinkSourceTaskId(null);
             return;
         }
 
-        // 2. Target이 마일스톤인 경우
-        const parentTask = flatTasks.find(t => t.milestones && t.milestones.some(m => m.id === targetId));
+        // 의존성 추가 (Target: Task)
+        const targetTask = flatTasks.find(t => t.id === taskId);
+        if (targetTask) {
+            // 이미 존재하는지 확인
+            if (targetTask.dependencies && targetTask.dependencies.includes(linkSourceTaskId)) {
+                alert('이미 연결된 작업입니다.');
+                setIsLinkingMode(false);
+                setLinkSourceTaskId(null);
+                return;
+            }
+
+            // 순환 참조 방지 (간단한 체크 - 소스가 작업인 경우만)
+            const sourceTask = flatTasks.find(t => t.id === linkSourceTaskId);
+            if (sourceTask && sourceTask.dependencies && sourceTask.dependencies.includes(taskId)) {
+                alert('순환 참조가 발생할 수 있어 연결할 수 없습니다.');
+                setIsLinkingMode(false);
+                setLinkSourceTaskId(null);
+                return;
+            }
+
+            const newDependencies = [...(targetTask.dependencies || []), linkSourceTaskId];
+            onUpdateTask(taskId, { dependencies: newDependencies });
+            setIsLinkingMode(false);
+            setLinkSourceTaskId(null);
+        }
+    } else {
+        onSelectTask(taskId);
+    }
+};
+
+// 마일스톤 클릭 핸들러 (연결 모드 처리)
+const handleMilestoneClick = (e, milestone) => {
+    e.stopPropagation();
+
+    if (isLinkingMode) {
+        if (milestone.id === linkSourceTaskId) {
+            setIsLinkingMode(false);
+            setLinkSourceTaskId(null);
+            return;
+        }
+
+        // 의존성 추가 (Target: Milestone)
+        // 마일스톤이 속한 작업을 찾아서 업데이트해야 함
+        const parentTask = flatTasks.find(t => t.milestones && t.milestones.some(m => m.id === milestone.id));
+
         if (parentTask) {
             const updatedMilestones = parentTask.milestones.map(m => {
-                if (m.id === targetId) {
-                    const newDeps = (m.dependencies || []).filter(id => id !== dependencyId);
-                    return { ...m, dependencies: newDeps };
+                if (m.id === milestone.id) {
+                    const currentDeps = m.dependencies || [];
+                    if (currentDeps.includes(linkSourceTaskId)) {
+                        alert('이미 연결된 마일스톤입니다.');
+                        return m;
+                    }
+                    return { ...m, dependencies: [...currentDeps, linkSourceTaskId] };
                 }
                 return m;
             });
-            onUpdateTask(parentTask.id, { milestones: updatedMilestones });
 
-            // 팝오버 정보 갱신
-            if (milestoneEditInfo && milestoneEditInfo.milestone.id === targetId) {
-                const updatedMilestone = updatedMilestones.find(m => m.id === targetId);
-                setMilestoneEditInfo(prev => ({ ...prev, milestone: updatedMilestone }));
+            // 변경사항이 있을 때만 업데이트
+            const targetMilestone = updatedMilestones.find(m => m.id === milestone.id);
+            if (targetMilestone.dependencies.length !== (milestone.dependencies || []).length) {
+                onUpdateTask(parentTask.id, { milestones: updatedMilestones });
+                setIsLinkingMode(false);
+                setLinkSourceTaskId(null);
+            } else {
+                setIsLinkingMode(false);
+                setLinkSourceTaskId(null);
             }
         }
+    }
+};
+
+// 우클릭 핸들러
+const handleContextMenu = (e, task, date) => {
+    e.preventDefault();
+    setMilestoneEditInfo(null); // 마일스톤 팝오버 닫기
+    setPopoverInfo({
+        x: e.clientX,
+        y: e.clientY,
+        taskId: task.id, // ID만 저장
+        date // 클릭한 날짜 정보 추가
+    });
+};
+
+// 마일스톤 우클릭 핸들러
+const handleMilestoneContextMenu = (e, task, milestone) => {
+    e.preventDefault();
+    setPopoverInfo(null); // 작업 팝오버 닫기
+    setMilestoneEditInfo({
+        x: e.clientX,
+        y: e.clientY,
+        task,
+        milestone
+    });
+};
+
+
+
+const handleAddMilestone = (taskId, milestoneData) => {
+    const task = tasks.find(t => t.id === taskId);
+    const newMilestone = {
+        id: generateId(),
+        ...milestoneData
     };
 
+    const currentTask = flatTasks.find(t => t.id === taskId);
+    if (currentTask) {
+        const updatedMilestones = [...(currentTask.milestones || []), newMilestone];
+        onUpdateTask(taskId, { milestones: updatedMilestones });
+    }
+};
+
+const handleUpdateMilestone = (milestoneId, updates) => {
+    if (!milestoneEditInfo) return;
+
+    const { task } = milestoneEditInfo;
+    const currentTask = flatTasks.find(t => t.id === task.id);
+
+    if (currentTask && currentTask.milestones) {
+        const updatedMilestones = currentTask.milestones.map(m =>
+            m.id === milestoneId ? { ...m, ...updates } : m
+        );
+        onUpdateTask(task.id, { milestones: updatedMilestones });
+
+        // 업데이트 후 팝오버 정보도 갱신 (즉시 반영을 위해)
+        const updatedMilestone = updatedMilestones.find(m => m.id === milestoneId);
+        setMilestoneEditInfo(prev => ({
+            ...prev,
+            milestone: updatedMilestone
+        }));
+    }
+};
+
+const handleDeleteMilestone = (milestoneId) => {
+    if (!milestoneEditInfo) return;
+
+    const { task } = milestoneEditInfo;
+    const currentTask = flatTasks.find(t => t.id === task.id);
+
+    if (currentTask && currentTask.milestones) {
+        const updatedMilestones = currentTask.milestones.filter(m => m.id !== milestoneId);
+        onUpdateTask(task.id, { milestones: updatedMilestones });
+        setMilestoneEditInfo(null);
+    }
+};
+
+// 연결 모드 시작
+const startLinking = (taskId) => {
+    setIsLinkingMode(true);
+    setLinkSourceTaskId(taskId);
+    setPopoverInfo(null); // 팝오버 닫기
+};
+
+// 이미지 복사 핸들러
+const handleCopyToClipboard = async () => {
+    if (!captureRef.current) return;
+
+    try {
+        // 캡처 시작: 클래스 추가
+        if (containerRef.current) {
+            containerRef.current.classList.add('capturing');
+        }
+
+        const canvas = await html2canvas(captureRef.current, {
+            scale: 2, // 고해상도
+            useCORS: true,
+            logging: false,
+            backgroundColor: '#ffffff'
+        });
+
+        // 캡처 종료: 클래스 제거
+        if (containerRef.current) {
+            containerRef.current.classList.remove('capturing');
+        }
+
+        canvas.toBlob(async (blob) => {
+            if (!blob) {
+                alert('이미지 생성 실패');
+                return;
+            }
+            try {
+                await navigator.clipboard.write([
+                    new ClipboardItem({ 'image/png': blob })
+                ]);
+                alert('타임라인 이미지가 클립보드에 복사되었습니다.');
+            } catch (err) {
+                console.error('클립보드 복사 실패:', err);
+                // 클립보드 복사 실패 시 (보안 정책 등) 이미지 다운로드로 대체
+                try {
+                    const url = URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+                    link.href = url;
+                    link.download = `timeline-capture-${new Date().toISOString().slice(0, 10)}.png`;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    URL.revokeObjectURL(url);
+                    alert('클립보드 접근 권한 문제로 이미지를 다운로드했습니다.');
+                } catch (downloadErr) {
+                    console.error('다운로드 실패:', downloadErr);
+                    alert('이미지 저장에 실패했습니다.');
+                }
+            }
+        });
+    } catch (err) {
+        console.error('이미지 캡처 실패:', err);
+        alert('이미지 캡처 중 오류가 발생했습니다.');
+    }
+};
+
+// 줌 레벨에 따른 컨텐츠 너비
+const contentWidth = containerWidth * zoomLevel;
+
+// 의존성 선 렌더링
+const renderDependencies = () => {
+    const lines = [];
+    const totalDays = dateUtils.getDuration(dateRange.start, dateRange.end);
+    const rowHeight = isCompact ? 28 : 40;
+
+    // 2. 의존성 선 그리기
+    flatTasks.forEach((task) => {
+        // 작업의 의존성 처리
+        if (task.dependencies) {
+            task.dependencies.forEach(depId => {
+                const source = itemMap.get(depId);
+                const target = itemMap.get(task.id);
+
+                if (source && target) {
+                    lines.push(drawDependencyLine(source, target, totalDays, contentWidth, rowHeight));
+                }
+            });
+        }
+
+        // 마일스톤의 의존성 처리 (데이터 모델에 milestones 내 dependencies가 있다고 가정하거나, 
+        // 현재 구조상 마일스톤 객체에 dependencies 필드가 없으면 추가해야 함.
+        // 일단 기존 데이터 구조를 유지하면서, 마일스톤 객체에 dependencies가 추가될 수 있다고 가정)
+        if (task.milestones) {
+            task.milestones.forEach(ms => {
+                if (ms.dependencies) {
+                    ms.dependencies.forEach(depId => {
+                        const source = itemMap.get(depId);
+                        const target = itemMap.get(ms.id);
+
+                        if (source && target) {
+                            lines.push(drawDependencyLine(source, target, totalDays, contentWidth, rowHeight));
+                        }
+                    });
+                }
+            });
+        }
+    });
+
     return (
-        <div className={`timeline-view ${viewMode === 'split' ? 'split-mode' : ''} ${isCompact ? 'compact-mode' : ''}`} ref={containerRef}>
-            <div className={`timeline-container ${showTaskNames ? 'with-names' : ''}`} ref={captureRef}>
-                {/* ... (Existing JSX) ... */}
-                {/* 왼쪽 작업명 컬럼 */}
-                {showTaskNames && (
-                    <div className="task-names-column">
-                        <div className="task-names-header" onClick={() => onSelectTask(null)}>작업명</div>
-                        <div className="task-names-list" ref={taskNamesScrollRef}>
-                            {tasks.length === 0 ? (
-                                <div className="empty-names">작업 없음</div>
-                            ) : (
-                                <DndContext
-                                    sensors={sensors}
-                                    collisionDetection={closestCenter}
-                                    onDragStart={handleDragStart}
-                                    onDragEnd={handleDragEnd}
+        <svg className="dependency-layer" style={{ width: contentWidth, height: flatTasks.length * (isCompact ? 28 : 40) }}>
+            <defs>
+                <marker
+                    id="arrowhead"
+                    markerWidth="10"
+                    markerHeight="7"
+                    refX="9"
+                    refY="3.5"
+                    orient="auto"
+                >
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#999" />
+                </marker>
+            </defs>
+            {lines}
+        </svg>
+    );
+};
+
+// 의존성 선 그리기 헬퍼 함수
+const drawDependencyLine = (source, target, totalDays, contentWidth, rowHeight) => {
+    let startX, startY, endX, endY;
+
+    // 시작점 계산 (Source)
+    if (source.type === 'task') {
+        // 작업인 경우: 종료일 기준
+        const sourceDays = dateUtils.getDuration(dateRange.start, source.endDate);
+        startX = (sourceDays / totalDays) * contentWidth;
+        startY = source.index * rowHeight + rowHeight / 2;
+    } else {
+        // 마일스톤인 경우: 해당 날짜 기준
+        const sourceDays = dateUtils.getDuration(dateRange.start, source.date);
+        startX = (sourceDays / totalDays) * contentWidth;
+        startY = source.parentIndex * rowHeight + rowHeight / 2;
+    }
+
+    // 끝점 계산 (Target)
+    if (target.type === 'task') {
+        // 작업인 경우: 시작일 기준
+        const targetDays = dateUtils.getDaysBetween(dateRange.start, target.startDate);
+        endX = (targetDays / totalDays) * contentWidth;
+        endY = target.index * rowHeight + rowHeight / 2;
+    } else {
+        // 마일스톤인 경우: 해당 날짜 기준
+        const targetDays = dateUtils.getDaysBetween(dateRange.start, target.date);
+        endX = (targetDays / totalDays) * contentWidth;
+        endY = target.parentIndex * rowHeight + rowHeight / 2;
+    }
+
+    // 경로 생성 로직
+    const midX = startX + 20;
+    let path = '';
+
+    if (startX < endX - 40) {
+        path = `M ${startX} ${startY} L ${midX} ${startY} L ${midX} ${endY} L ${endX} ${endY}`;
+    } else {
+        const backX = startX + 10;
+        const forwardX = endX - 30;
+        const midY = (startY + endY) / 2;
+        path = `M ${startX} ${startY} L ${backX} ${startY} L ${backX} ${midY} L ${forwardX} ${midY} L ${forwardX} ${endY} L ${endX} ${endY}`;
+    }
+
+    return (
+        <path
+            key={`${source.data.id}-${target.data.id}`}
+            d={path}
+            fill="none"
+            stroke="#999"
+            strokeWidth="2"
+            strokeDasharray="4 2"
+            markerEnd="url(#arrowhead)"
+        />
+    );
+};
+
+// 팝오버를 위한 현재 작업 찾기
+const popoverTask = popoverInfo ? flatTasks.find(t => t.id === popoverInfo.taskId) : null;
+
+// 후행 작업(Successors) 찾기 (작업용)
+const successors = popoverTask ? flatTasks.filter(t => t.dependencies && t.dependencies.includes(popoverTask.id)) : [];
+
+// 선행 작업(Predecessors) 찾기 (작업용)
+const predecessors = popoverTask ? flatTasks.filter(t => popoverTask.dependencies && popoverTask.dependencies.includes(t.id)) : [];
+
+// 마일스톤용 선행/후행 찾기
+const milestonePredecessors = useMemo(() => {
+    if (!milestoneEditInfo) return [];
+    const { milestone } = milestoneEditInfo;
+    const preds = [];
+    if (milestone.dependencies) {
+        milestone.dependencies.forEach(depId => {
+            const item = itemMap.get(depId);
+            if (item) preds.push({ id: item.data.id, name: item.name });
+        });
+    }
+    return preds;
+}, [milestoneEditInfo, itemMap]);
+
+const milestoneSuccessors = useMemo(() => {
+    if (!milestoneEditInfo) return [];
+    const { milestone } = milestoneEditInfo;
+    const succs = [];
+
+    // 1. 작업이 마일스톤을 의존하는 경우
+    flatTasks.forEach(t => {
+        if (t.dependencies && t.dependencies.includes(milestone.id)) {
+            succs.push({ id: t.id, name: t.name });
+        }
+    });
+
+    // 2. 다른 마일스톤이 이 마일스톤을 의존하는 경우
+    flatTasks.forEach(t => {
+        if (t.milestones) {
+            t.milestones.forEach(ms => {
+                if (ms.dependencies && ms.dependencies.includes(milestone.id)) {
+                    succs.push({ id: ms.id, name: ms.label || '마일스톤' });
+                }
+            });
+        }
+    });
+
+    return succs;
+}, [milestoneEditInfo, flatTasks, itemMap]);
+
+// 의존성 제거 핸들러
+const handleRemoveDependency = (targetId, dependencyId) => {
+    // 1. Target이 작업인 경우
+    const targetTask = flatTasks.find(t => t.id === targetId);
+    if (targetTask) {
+        const newDeps = targetTask.dependencies.filter(id => id !== dependencyId);
+        onUpdateTask(targetId, { dependencies: newDeps });
+        return;
+    }
+
+    // 2. Target이 마일스톤인 경우
+    const parentTask = flatTasks.find(t => t.milestones && t.milestones.some(m => m.id === targetId));
+    if (parentTask) {
+        const updatedMilestones = parentTask.milestones.map(m => {
+            if (m.id === targetId) {
+                const newDeps = (m.dependencies || []).filter(id => id !== dependencyId);
+                return { ...m, dependencies: newDeps };
+            }
+            return m;
+        });
+        onUpdateTask(parentTask.id, { milestones: updatedMilestones });
+
+        // 팝오버 정보 갱신
+        if (milestoneEditInfo && milestoneEditInfo.milestone.id === targetId) {
+            const updatedMilestone = updatedMilestones.find(m => m.id === targetId);
+            setMilestoneEditInfo(prev => ({ ...prev, milestone: updatedMilestone }));
+        }
+    }
+};
+
+return (
+    <div className={`timeline-view ${viewMode === 'split' ? 'split-mode' : ''} ${isCompact ? 'compact-mode' : ''}`} ref={containerRef}>
+        <div className={`timeline-container ${showTaskNames ? 'with-names' : ''}`} ref={captureRef}>
+            {/* ... (Existing JSX) ... */}
+            {/* 왼쪽 작업명 컬럼 */}
+            {showTaskNames && (
+                <div className="task-names-column">
+                    <div className="task-names-header" onClick={() => onSelectTask(null)}>작업명</div>
+                    <div className="task-names-list" ref={taskNamesScrollRef}>
+                        {tasks.length === 0 ? (
+                            <div className="empty-names">작업 없음</div>
+                        ) : (
+                            <DndContext
+                                sensors={sensors}
+                                collisionDetection={closestCenter}
+                                onDragStart={handleDragStart}
+                                onDragEnd={handleDragEnd}
+                            >
+                                <SortableContext
+                                    items={items}
+                                    strategy={verticalListSortingStrategy}
                                 >
-                                    <SortableContext
-                                        items={items}
-                                        strategy={verticalListSortingStrategy}
-                                    >
-                                        {flatTasks.map((task) => (
-                                            <SortableTaskNameItem
-                                                key={task.id}
-                                                task={task}
-                                                selectedTaskId={selectedTaskId}
-                                                editingTaskId={editingTaskId}
-                                                editingName={editingName}
-                                                onSelect={handleTaskClick}
-                                                onDoubleClick={(e) => {
-                                                    e.stopPropagation();
-                                                    setEditingTaskId(task.id);
-                                                    setEditingName(task.name);
-                                                }}
-                                                onContextMenu={(e) => handleContextMenu(e, task, dateRange.start)}
-                                                onEditChange={(e) => setEditingName(e.target.value)}
-                                                onEditBlur={() => {
+                                    {flatTasks.map((task) => (
+                                        <SortableTaskNameItem
+                                            key={task.id}
+                                            task={task}
+                                            selectedTaskId={selectedTaskId}
+                                            editingTaskId={editingTaskId}
+                                            editingName={editingName}
+                                            onSelect={handleTaskClick}
+                                            onDoubleClick={(e) => {
+                                                e.stopPropagation();
+                                                setEditingTaskId(task.id);
+                                                setEditingName(task.name);
+                                            }}
+                                            onContextMenu={(e) => handleContextMenu(e, task, dateRange.start)}
+                                            onEditChange={(e) => setEditingName(e.target.value)}
+                                            onEditBlur={() => {
+                                                if (editingName.trim() !== task.name) {
+                                                    onUpdateTask(task.id, { name: editingName });
+                                                }
+                                                setEditingTaskId(null);
+                                            }}
+                                            onEditKeyDown={(e) => {
+                                                if (e.key === 'Enter') {
                                                     if (editingName.trim() !== task.name) {
                                                         onUpdateTask(task.id, { name: editingName });
                                                     }
                                                     setEditingTaskId(null);
-                                                }}
-                                                onEditKeyDown={(e) => {
-                                                    if (e.key === 'Enter') {
-                                                        if (editingName.trim() !== task.name) {
-                                                            onUpdateTask(task.id, { name: editingName });
-                                                        }
-                                                        setEditingTaskId(null);
-                                                    } else if (e.key === 'Escape') {
-                                                        setEditingTaskId(null);
-                                                    }
-                                                }}
-                                            />
-                                        ))}
-                                    </SortableContext>
-                                </DndContext>
-                            )}
-                        </div>
-                    </div>
-                )}
-
-                {/* 타임라인 스크롤 컨테이너 */}
-                <div className="timeline-scroll-container" ref={timelineScrollRef}>
-                    {/* 타임라인 헤더 */}
-                    <TimelineHeader
-                        startDate={dateRange.start}
-                        endDate={dateRange.end}
-                        timeScale={timeScale}
-                        containerWidth={contentWidth}
-                        showToday={showToday}
-                        onClick={() => onSelectTask(null)}
-                    />
-
-                    {/* 타임라인 바들 */}
-                    <div
-                        className={`timeline-content ${isLinkingMode ? 'linking-mode' : ''}`}
-                        style={{ width: `${contentWidth}px` }}
-                        onClick={(e) => {
-                            // 빈 영역 클릭 시 마일스톤 추가
-                            if (e.target.classList.contains('timeline-content') || e.target.classList.contains('empty-timeline')) {
-                                if (isLinkingMode) return; // 연결 모드에서는 무시
-
-                                const rect = e.currentTarget.getBoundingClientRect();
-                                const x = e.clientX - rect.left;
-                                const totalDays = dateUtils.getDaysBetween(dateRange.start, dateRange.end);
-                                const daysFromStart = Math.round((x / contentWidth) * totalDays);
-                                const clickedDate = dateUtils.addDays(dateRange.start, daysFromStart);
-
-                                // 선택된 작업 또는 첫 작업을 대상으로
-                                const targetTask = flatTasks.find(t => t.id === selectedTaskId) || flatTasks[0];
-
-                                if (targetTask) {
-                                    setMilestoneModalInfo({ task: targetTask, date: clickedDate });
-                                }
-                            }
-                        }}
-                        onContextMenu={(e) => {
-                            // 빈 영역 우클릭 시 마일스톤 추가 (타임라인 바가 아닌 곳)
-                            if (!e.target.closest('.timeline-bar') && !e.target.closest('.milestone-marker')) {
-                                e.preventDefault();
-                                if (isLinkingMode) return;
-
-                                const rect = e.currentTarget.getBoundingClientRect();
-                                const x = e.clientX - rect.left;
-                                const totalDays = dateUtils.getDaysBetween(dateRange.start, dateRange.end);
-                                const daysFromStart = Math.round((x / contentWidth) * totalDays);
-                                const clickedDate = dateUtils.addDays(dateRange.start, daysFromStart);
-
-                                const targetTask = flatTasks.find(t => t.id === selectedTaskId) || flatTasks[0];
-
-                                if (targetTask) {
-                                    setMilestoneModalInfo({ task: targetTask, date: clickedDate });
-                                }
-                            }
-                        }}
-                    >
-                        {/* 의존성 라인 레이어 */}
-                        {renderDependencies()}
-
-                        {tasks.length === 0 ? (
-                            <div className="empty-timeline">
-                                <p>작업을 추가하여 타임라인을 시작하세요</p>
-                            </div>
-                        ) : (
-                            flatTasks.map((task) => (
-                                <TimelineBar
-                                    key={task.id}
-                                    task={task}
-                                    level={task.level}
-                                    startDate={dateRange.start}
-                                    endDate={dateRange.end}
-                                    containerWidth={contentWidth}
-                                    isSelected={task.id === selectedTaskId}
-                                    isDragTarget={dragTargetTaskId === task.id}
-                                    onSelect={() => handleTaskClick(task.id)}
-                                    onDragUpdate={handleDragUpdate}
-                                    onDragEnd={handleTimelineBarDragEnd}
-                                    onMilestoneDragEnd={handleMilestoneDragEnd}
-                                    onMilestoneDragMove={handleMilestoneDragMove}
-                                    onContextMenu={(e, date) => handleContextMenu(e, task, date)}
-                                    onMilestoneContextMenu={(e, milestone) => handleMilestoneContextMenu(e, task, milestone)}
-                                    onMilestoneClick={handleMilestoneClick}
-                                    showLabel={!showTaskNames}
-                                    timeScale={timeScale}
-                                />
-                            ))
+                                                } else if (e.key === 'Escape') {
+                                                    setEditingTaskId(null);
+                                                }
+                                            }}
+                                        />
+                                    ))}
+                                </SortableContext>
+                            </DndContext>
                         )}
                     </div>
                 </div>
+            )}
+
+            {/* 타임라인 스크롤 컨테이너 */}
+            <div className="timeline-scroll-container" ref={timelineScrollRef}>
+                {/* 타임라인 헤더 */}
+                <TimelineHeader
+                    startDate={dateRange.start}
+                    endDate={dateRange.end}
+                    timeScale={timeScale}
+                    containerWidth={contentWidth}
+                    showToday={showToday}
+                    onClick={() => onSelectTask(null)}
+                />
+
+                {/* 타임라인 바들 */}
+                <div
+                    className={`timeline-content ${isLinkingMode ? 'linking-mode' : ''}`}
+                    style={{ width: `${contentWidth}px` }}
+                    onClick={(e) => {
+                        // 빈 영역 클릭 시 마일스톤 추가
+                        if (e.target.classList.contains('timeline-content') || e.target.classList.contains('empty-timeline')) {
+                            if (isLinkingMode) return; // 연결 모드에서는 무시
+
+                            const rect = e.currentTarget.getBoundingClientRect();
+                            const x = e.clientX - rect.left;
+                            const totalDays = dateUtils.getDaysBetween(dateRange.start, dateRange.end);
+                            const daysFromStart = Math.round((x / contentWidth) * totalDays);
+                            const clickedDate = dateUtils.addDays(dateRange.start, daysFromStart);
+
+                            // 선택된 작업 또는 첫 작업을 대상으로
+                            const targetTask = flatTasks.find(t => t.id === selectedTaskId) || flatTasks[0];
+
+                            if (targetTask) {
+                                setMilestoneModalInfo({ task: targetTask, date: clickedDate });
+                            }
+                        }
+                    }}
+                    onContextMenu={(e) => {
+                        // 빈 영역 우클릭 시 마일스톤 추가 (타임라인 바가 아닌 곳)
+                        if (!e.target.closest('.timeline-bar') && !e.target.closest('.milestone-marker')) {
+                            e.preventDefault();
+                            if (isLinkingMode) return;
+
+                            const rect = e.currentTarget.getBoundingClientRect();
+                            const x = e.clientX - rect.left;
+                            const totalDays = dateUtils.getDaysBetween(dateRange.start, dateRange.end);
+                            const daysFromStart = Math.round((x / contentWidth) * totalDays);
+                            const clickedDate = dateUtils.addDays(dateRange.start, daysFromStart);
+
+                            const targetTask = flatTasks.find(t => t.id === selectedTaskId) || flatTasks[0];
+
+                            if (targetTask) {
+                                setMilestoneModalInfo({ task: targetTask, date: clickedDate });
+                            }
+                        }
+                    }}
+                >
+                    {/* 의존성 라인 레이어 */}
+                    {renderDependencies()}
+
+                    {tasks.length === 0 ? (
+                        <div className="empty-timeline">
+                            <p>작업을 추가하여 타임라인을 시작하세요</p>
+                        </div>
+                    ) : (
+                        flatTasks.map((task) => (
+                            <TimelineBar
+                                key={task.id}
+                                task={task}
+                                level={task.level}
+                                startDate={dateRange.start}
+                                endDate={dateRange.end}
+                                containerWidth={contentWidth}
+                                isSelected={task.id === selectedTaskId}
+                                isDragTarget={dragTargetTaskId === task.id}
+                                onSelect={() => handleTaskClick(task.id)}
+                                onDragUpdate={handleDragUpdate}
+                                onDragEnd={handleTimelineBarDragEnd}
+                                onMilestoneDragEnd={handleMilestoneDragEnd}
+                                onMilestoneDragMove={handleMilestoneDragMove}
+                                onContextMenu={(e, date) => handleContextMenu(e, task, date)}
+                                onMilestoneContextMenu={(e, milestone) => handleMilestoneContextMenu(e, task, milestone)}
+                                onMilestoneClick={handleMilestoneClick}
+                                showLabel={!showTaskNames}
+                                timeScale={timeScale}
+                            />
+                        ))
+                    )}
+                </div>
             </div>
-
-            {/* 컨텍스트 메뉴 팝오버 */}
-            {popoverInfo && popoverTask && (
-                <TimelineBarPopover
-                    position={{ x: popoverInfo.x, y: popoverInfo.y }}
-                    task={popoverTask}
-                    successors={successors}
-                    predecessors={predecessors}
-                    onClose={() => setPopoverInfo(null)}
-                    onUpdate={(taskId, updates) => {
-                        onUpdateTask(taskId, updates);
-                    }}
-                    onDelete={(taskId) => {
-                        onUpdateTask(taskId, { deleted: true });
-                    }}
-                    onAddMilestone={() => {
-                        setMilestoneModalInfo({
-                            task: popoverTask,
-                            date: popoverInfo.date
-                        });
-                        setPopoverInfo(null);
-                    }}
-                    onStartLinking={() => startLinking(popoverTask.id)}
-                />
-            )}
-
-            {/* 마일스톤 편집 팝오버 */}
-            {milestoneEditInfo && (
-                <MilestoneEditPopover
-                    position={{ x: milestoneEditInfo.x, y: milestoneEditInfo.y }}
-                    milestone={milestoneEditInfo.milestone}
-                    predecessors={milestonePredecessors}
-                    successors={milestoneSuccessors}
-                    onClose={() => setMilestoneEditInfo(null)}
-                    onUpdate={handleUpdateMilestone}
-                    onDelete={handleDeleteMilestone}
-                    onStartLinking={() => startLinking(milestoneEditInfo.milestone.id)}
-                    onRemoveDependency={handleRemoveDependency}
-                />
-            )}
-
-            {/* 마일스톤 추가 모달 */}
-            {milestoneModalInfo && (
-                <MilestoneQuickAdd
-                    task={milestoneModalInfo.task}
-                    date={milestoneModalInfo.date}
-                    onClose={() => setMilestoneModalInfo(null)}
-                    onAdd={handleAddMilestone}
-                />
-            )}
         </div>
-    );
+
+        {/* 컨텍스트 메뉴 팝오버 */}
+        {popoverInfo && popoverTask && (
+            <TimelineBarPopover
+                position={{ x: popoverInfo.x, y: popoverInfo.y }}
+                task={popoverTask}
+                successors={successors}
+                predecessors={predecessors}
+                onClose={() => setPopoverInfo(null)}
+                onUpdate={(taskId, updates) => {
+                    onUpdateTask(taskId, updates);
+                }}
+                onDelete={(taskId) => {
+                    onUpdateTask(taskId, { deleted: true });
+                }}
+                onAddMilestone={() => {
+                    setMilestoneModalInfo({
+                        task: popoverTask,
+                        date: popoverInfo.date
+                    });
+                    setPopoverInfo(null);
+                }}
+                onStartLinking={() => startLinking(popoverTask.id)}
+            />
+        )}
+
+        {/* 마일스톤 편집 팝오버 */}
+        {milestoneEditInfo && (
+            <MilestoneEditPopover
+                position={{ x: milestoneEditInfo.x, y: milestoneEditInfo.y }}
+                milestone={milestoneEditInfo.milestone}
+                predecessors={milestonePredecessors}
+                successors={milestoneSuccessors}
+                onClose={() => setMilestoneEditInfo(null)}
+                onUpdate={handleUpdateMilestone}
+                onDelete={handleDeleteMilestone}
+                onStartLinking={() => startLinking(milestoneEditInfo.milestone.id)}
+                onRemoveDependency={handleRemoveDependency}
+            />
+        )}
+
+        {/* 마일스톤 추가 모달 */}
+        {milestoneModalInfo && (
+            <MilestoneQuickAdd
+                task={milestoneModalInfo.task}
+                date={milestoneModalInfo.date}
+                onClose={() => setMilestoneModalInfo(null)}
+                onAdd={handleAddMilestone}
+            />
+        )}
+    </div>
+);
 });
 
 export default TimelineView;
