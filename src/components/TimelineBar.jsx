@@ -22,14 +22,22 @@ function TimelineBar({
     const [isDragging, setIsDragging] = useState(false);
     const [dragType, setDragType] = useState(null); // 'move', 'resize-start', 'resize-end'
     const [dragStart, setDragStart] = useState({ x: 0, taskStart: null, taskEnd: null });
+
+    // 드래그 중 시각적 피드백을 위한 로컬 상태
+    const [draggedDates, setDraggedDates] = useState(null);
+
     const barRef = useRef(null);
 
     const totalDays = dateUtils.getDaysBetween(startDate, endDate);
 
+    // 렌더링에 사용할 날짜 (드래그 중이면 draggedDates, 아니면 task의 날짜)
+    const displayStartDate = draggedDates?.startDate || task.startDate;
+    const displayEndDate = draggedDates?.endDate || task.endDate;
+
     // 타임라인 바의 위치 및 너비 계산
     const { width, offset } = dateUtils.calculateWidth(
-        task.startDate,
-        task.endDate,
+        displayStartDate,
+        displayEndDate,
         startDate,
         endDate,
         containerWidth
@@ -82,6 +90,12 @@ function TimelineBar({
                 const snappedEnd = dateUtils.addDays(snappedStart, duration);
 
                 finalDragState.current = { start: snappedStart, end: snappedEnd };
+
+                // 로컬 상태 업데이트 (시각적 피드백)
+                setDraggedDates({
+                    startDate: dateUtils.formatDate(snappedStart),
+                    endDate: dateUtils.formatDate(snappedEnd)
+                });
                 onDragUpdate(task.id, snappedStart, snappedEnd);
             } else if (dragType === 'resize-start') {
                 // 시작일 변경
@@ -90,6 +104,12 @@ function TimelineBar({
 
                 if (snappedStart < dragStart.taskEnd) {
                     finalDragState.current = { start: snappedStart, end: dragStart.taskEnd };
+
+                    // 로컬 상태 업데이트 (시각적 피드백)
+                    setDraggedDates({
+                        startDate: dateUtils.formatDate(snappedStart),
+                        endDate: task.endDate
+                    });
                     onDragUpdate(task.id, snappedStart, dragStart.taskEnd);
                 }
             } else if (dragType === 'resize-end') {
@@ -99,6 +119,12 @@ function TimelineBar({
 
                 if (snappedEnd > dragStart.taskStart) {
                     finalDragState.current = { start: dragStart.taskStart, end: snappedEnd };
+
+                    // 로컬 상태 업데이트 (시각적 피드백)
+                    setDraggedDates({
+                        startDate: task.startDate,
+                        endDate: dateUtils.formatDate(snappedEnd)
+                    });
                     onDragUpdate(task.id, dragStart.taskStart, snappedEnd);
                 }
             }
@@ -121,6 +147,9 @@ function TimelineBar({
                     hasEnd: !!finalDragState.current.end
                 });
             }
+
+            // 로컬 드래그 상태 클리어
+            setDraggedDates(null);
             setIsDragging(false);
             setDragType(null);
         };
@@ -132,7 +161,7 @@ function TimelineBar({
             document.removeEventListener('mousemove', handleMouseMove);
             document.removeEventListener('mouseup', handleMouseUp);
         };
-    }, [isDragging, dragType, dragStart, containerWidth, totalDays, task.id, onDragUpdate, onDragEnd]);
+    }, [isDragging, dragType, dragStart, containerWidth, totalDays, task.id, task.startDate, task.endDate, onDragUpdate, onDragEnd]);
 
     // 마일스톤 렌더링
     const renderMilestones = () => {
