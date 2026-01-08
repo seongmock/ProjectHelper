@@ -231,8 +231,10 @@ function App() {
 
         // addToHistory가 true면 히스토리에 추가, false면 현재 상태만 업데이트
         if (addToHistory) {
+            console.log('[App] handleUpdateTask: adding to history', { taskId, updates });
             setTasks(updateFunc);
         } else {
+            console.log('[App] handleUpdateTask: silent update (no history)', { taskId, updates });
             setTasksSilent(updateFunc);
         }
     }, [setTasks, setTasksSilent]);

@@ -334,10 +334,18 @@ const TimelineView = forwardRef(({
 
     // 타임라인 바 드래그 완료 시 최종 상태를 히스토리에 기록
     const handleTimelineBarDragEnd = (taskId, finalStart, finalEnd) => {
+        console.log('[TimelineView] handleTimelineBarDragEnd called', {
+            taskId,
+            finalStart,
+            finalEnd,
+            formattedStart: dateUtils.formatDate(finalStart),
+            formattedEnd: dateUtils.formatDate(finalEnd)
+        });
         onUpdateTask(taskId, {
             startDate: dateUtils.formatDate(finalStart),
             endDate: dateUtils.formatDate(finalEnd),
         }, true); // 히스토리에 추가
+        console.log('[TimelineView] onUpdateTask called with addToHistory=true');
     };
 
     // 작업 클릭 핸들러 (연결 모드 처리)
