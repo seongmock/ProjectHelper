@@ -66,14 +66,14 @@ function SortableTaskNameItem({ task, selectedTaskId, editingTaskId, editingName
                     onChange={onEditChange}
                     onBlur={onEditBlur}
                     onKeyDown={(e) => {
-                        e.stopPropagation();
                         onEditKeyDown(e);
+                        e.stopPropagation(); // DnD 센서 차단
                     }}
+                    onKeyUp={(e) => e.stopPropagation()} // DnD 센서 차단
                     autoFocus
                     onClick={(e) => e.stopPropagation()}
-                    onMouseDown={(e) => e.stopPropagation()}
-                    onPointerDown={(e) => e.stopPropagation()}
-                    onKeyUp={(e) => e.stopPropagation()}
+                    onMouseDown={(e) => e.stopPropagation()} // 드래그 방지
+                    onPointerDown={(e) => e.stopPropagation()} // 드래그 방지
                 />
             ) : (
                 task.name
