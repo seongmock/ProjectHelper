@@ -26,10 +26,11 @@ if [ -n "$COMPOSE_CMD" ] && command -v docker &> /dev/null; then
         COMPOSE_CMD=""
     else
         echo "Starting Docker containers..."
-        if ! $COMPOSE_CMD -f docker-compose.dev.yml up; then
+        # Use separate project name (-p project-helper-dev) to avoid conflict with production server
+        if ! $COMPOSE_CMD -p project-helper-dev -f docker-compose.dev.yml up; then
             echo -e "${RED}Docker start failed. Attempting to clean up stale resources and retry...${NC}"
-            $COMPOSE_CMD -f docker-compose.dev.yml down --remove-orphans
-            $COMPOSE_CMD -f docker-compose.dev.yml up
+            $COMPOSE_CMD -p project-helper-dev -f docker-compose.dev.yml down --remove-orphans
+            $COMPOSE_CMD -p project-helper-dev -f docker-compose.dev.yml up
         fi
     fi
 fi
