@@ -36,6 +36,8 @@ function TimelineBar({
     const [milestoneDragStart, setMilestoneDragStart] = useState({ x: 0, y: 0, originalDate: null });
     const [draggedMilestoneDate, setDraggedMilestoneDate] = useState(null);
     const [draggedMilestoneY, setDraggedMilestoneY] = useState(0);
+    // 마일스톤 스냅 OFF 시 부드러운 드래그를 위한 델타 상태
+    const [milestoneDragDeltaX, setMilestoneDragDeltaX] = useState(0);
 
     // 스냅 OFF 시 부드러운 드래그를 위한 픽셀 델타 상태
     const [dragDelta, setDragDelta] = useState({ x: 0, w: 0 });
@@ -226,6 +228,14 @@ function TimelineBar({
             } else {
                 // 스냅 끔: 일 단위로만 반올림 (부드러운 드래그)
                 snappedDate = dateUtils.snapToDay(rawNewDate, 'closest');
+            } else {
+                // 스냅 끔: 일 단위로만 반올림 (부드러운 드래그)
+                snappedDate = dateUtils.snapToDay(rawNewDate, 'closest');
+
+                // 시각적 업데이트 (부드러운 이동)
+                if (!snapEnabled) {
+                    setMilestoneDragDeltaX(deltaX);
+                }
             }
 
             // Y축 이동 계산
@@ -261,7 +271,10 @@ function TimelineBar({
             setDraggingMilestone(null);
             setDraggingMilestone(null);
             setDraggedMilestoneDate(null);
+            setDraggingMilestone(null);
+            setDraggedMilestoneDate(null);
             setDraggedMilestoneY(0);
+            setMilestoneDragDeltaX(0);
         };
 
         document.addEventListener('mousemove', handleMouseMove);
@@ -386,19 +399,25 @@ function TimelineBar({
                         ...(draggingMilestone === milestone.id ? {
                             transform: `translate(-50%, -50%) translateY(${draggedMilestoneY}px)`,
                             zIndex: 1000
-                        } : {})
-                    }}
-                    title={`${milestone.label} (${currentDate})`}
-                    onContextMenu={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        onMilestoneContextMenu(e, milestone);
-                    }}
-                    onClick={(e) => {
-                        if (onMilestoneClick) {
-                            onMilestoneClick(e, milestone);
-                        }
-                    }}
+                    style={{
+                        left: `${position}px`,
+                        ...(draggingMilestone === milestone.id ? {
+                transform: `translate(-50%, -50%) translateY(${draggedMilestoneY}px)${!snapEnabled ? ` translateX(${milestoneDragDeltaX}px)` : ''}`,
+                zIndex: 1000
+            } : {})
+                    }
+}
+title = {`${milestone.label} (${currentDate})`}
+onContextMenu = {(e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    onMilestoneContextMenu(e, milestone);
+}}
+onClick = {(e) => {
+    if (onMilestoneClick) {
+        onMilestoneClick(e, milestone);
+    }
+}}
                 >
                     <div
                         className="milestone-shape"
@@ -423,133 +442,135 @@ function TimelineBar({
                         )}
                     </div>
                     <span className="milestone-label" style={labelStyle}>{milestone.label}</span>
-                </div>
+                </div >
             );
         });
     };
 
-    // 날짜 유효성 확인
-    const hasValidDates = startDate && endDate && task.startDate && task.endDate;
+// 날짜 유효성 확인
+const hasValidDates = startDate && endDate && task.startDate && task.endDate;
 
-    const barContent = (
-        <div
-            ref={barRef}
-            className={`timeline-bar ${isSelected ? 'selected' : ''} ${isDragging ? 'dragging' : ''}`}
-            style={{
-                left: `${offset}px`,
-                width: `${width}px`,
-                backgroundColor: task.color,
-            }}
-            onClick={(e) => {
-                e.stopPropagation();
-                onSelect(task.id);
-            }}
-            onContextMenu={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
+const barContent = (
+    <div
+        ref={barRef}
+        className={`timeline-bar ${isSelected ? 'selected' : ''} ${isDragging ? 'dragging' : ''}`}
+        style={{
+            left: `${offset}px`,
+            width: `${Math.max(width + (isDragging && !snapEnabled ? dragDelta.w : 0), 24)}px`, // 최소 24px 유지
+            backgroundColor: task.color,
+            transform: (isDragging && !snapEnabled && dragType !== 'resize-end') ? `translateX(${dragDelta.x}px)` : undefined,
+            zIndex: isDragging ? 20 : 1, // 드래그 중 z-index 상승
+        }}
+        onClick={(e) => {
+            e.stopPropagation();
+            onSelect(task.id);
+        }}
+        onContextMenu={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
 
-                // 클릭 위치에 따른 날짜 계산
-                const rect = barRef.current.getBoundingClientRect();
-                const offsetX = e.clientX - rect.left;
-                const width = rect.width;
-                const totalDays = dateUtils.getDaysBetween(task.startDate, task.endDate);
-                const daysToAdd = Math.round((offsetX / width) * totalDays);
-                const clickDate = dateUtils.addDays(task.startDate, daysToAdd);
+            // 클릭 위치에 따른 날짜 계산
+            const rect = barRef.current.getBoundingClientRect();
+            const offsetX = e.clientX - rect.left;
+            const width = rect.width;
+            const totalDays = dateUtils.getDaysBetween(task.startDate, task.endDate);
+            const daysToAdd = Math.round((offsetX / width) * totalDays);
+            const clickDate = dateUtils.addDays(task.startDate, daysToAdd);
 
-                onContextMenu(e, clickDate);
-            }}
-        >
-            {/* 드래그 중 날짜 라벨 */}
-            {isDragging && draggedDates && (
-                <>
-                    {/* 이동 시: 중앙 표시 */}
-                    {dragType === 'move' && (
-                        <div className="timeline-date-label label-center">
-                            {dateUtils.formatDate(new Date(draggedDates.startDate), 'MM.DD')} ~ {dateUtils.formatDate(new Date(draggedDates.endDate), 'MM.DD')}
-                        </div>
-                    )}
-                    {/* 시작 사이즈 조절: 왼쪽 표시 */}
-                    {dragType === 'resize-start' && (
-                        <div className="timeline-date-label label-left">
-                            {dateUtils.formatDate(new Date(draggedDates.startDate), 'MM.DD')}
-                        </div>
-                    )}
-                    {/* 종료 사이즈 조절: 오른쪽 표시 */}
-                    {dragType === 'resize-end' && (
-                        <div className="timeline-date-label label-right">
-                            {dateUtils.formatDate(new Date(draggedDates.endDate), 'MM.DD')}
-                        </div>
-                    )}
-                </>
-            )}
-
-            {/* 시작 핸들 */}
-            <div
-                className="resize-handle resize-start"
-                onMouseDown={(e) => handleMouseDown(e, 'resize-start')}
-                onMouseEnter={(e) => e.stopPropagation()}
-            />
-
-            {/* 바 내용 */}
-            <div
-                className="bar-content"
-                onMouseDown={(e) => handleMouseDown(e, 'move')}
-            >
-                {showLabel && (
-                    <span className="bar-label">
-                        {task.name}
-                    </span>
+            onContextMenu(e, clickDate);
+        }}
+    >
+        {/* 드래그 중 날짜 라벨 */}
+        {isDragging && draggedDates && (
+            <>
+                {/* 이동 시: 중앙 표시 */}
+                {dragType === 'move' && (
+                    <div className="timeline-date-label label-center">
+                        {dateUtils.formatDate(new Date(draggedDates.startDate), 'MM.DD')} ~ {dateUtils.formatDate(new Date(draggedDates.endDate), 'MM.DD')}
+                    </div>
                 )}
-            </div>
+                {/* 시작 사이즈 조절: 왼쪽 표시 */}
+                {dragType === 'resize-start' && (
+                    <div className="timeline-date-label label-left">
+                        {dateUtils.formatDate(new Date(draggedDates.startDate), 'MM.DD')}
+                    </div>
+                )}
+                {/* 종료 사이즈 조절: 오른쪽 표시 */}
+                {dragType === 'resize-end' && (
+                    <div className="timeline-date-label label-right">
+                        {dateUtils.formatDate(new Date(draggedDates.endDate), 'MM.DD')}
+                    </div>
+                )}
+            </>
+        )}
 
-            {/* 종료 핸들 */}
-            <div
-                className="resize-handle resize-end"
-                onMouseDown={(e) => handleMouseDown(e, 'resize-end')}
-                onMouseEnter={(e) => e.stopPropagation()}
-            />
-        </div>
-    );
-
-    return (
+        {/* 시작 핸들 */}
         <div
-            className={`timeline-row level-${level} ${isDragTarget ? 'drag-target' : ''}`}
-            data-task-id={task.id}
+            className="resize-handle resize-start"
+            onMouseDown={(e) => handleMouseDown(e, 'resize-start')}
+            onMouseEnter={(e) => e.stopPropagation()}
+        />
+
+        {/* 바 내용 */}
+        <div
+            className="bar-content"
+            onMouseDown={(e) => handleMouseDown(e, 'move')}
         >
-            {hasValidDates ? (
-                // 드래그 중이 아닐 때만 툴팁 표시 (잔영 제거)
-                !isDragging ? (
-                    <Tooltip content={task.description} position="top">
-                        {barContent}
-                    </Tooltip>
-                ) : (
-                    barContent
-                )
-            ) : null}
-            {/* 마일스톤 마커들 */}
-            {renderMilestones()}
-
-            {/* 구분선 (Divider) */}
-            {task.divider && task.divider.enabled && (
-                <div
-                    className="task-divider"
-                    style={{
-                        position: 'absolute',
-                        bottom: 0,
-                        left: `${offset}px`,
-                        width: `${Math.max(width + (isDragging && !snapEnabled ? dragDelta.w : 0), 24)}px`, // 최소 24px 유지
-                        transform: (isDragging && !snapEnabled && dragType !== 'resize-end') ? `translateX(${dragDelta.x}px)` : undefined,
-                        opacity: isDragging ? 0.9 : 1,
-                        zIndex: isDragging ? 100 : 1,
-                        borderBottom: `${task.divider.thickness}px ${task.divider.style} ${task.divider.color}`,
-                        pointerEvents: 'none',
-                    }}
-                />
+            {showLabel && (
+                <span className="bar-label">
+                    {task.name}
+                </span>
             )}
-
-
         </div>
-    );
+
+        {/* 종료 핸들 */}
+        <div
+            className="resize-handle resize-end"
+            onMouseDown={(e) => handleMouseDown(e, 'resize-end')}
+            onMouseEnter={(e) => e.stopPropagation()}
+        />
+    </div>
+);
+
+return (
+    <div
+        className={`timeline-row level-${level} ${isDragTarget ? 'drag-target' : ''}`}
+        data-task-id={task.id}
+    >
+        {hasValidDates ? (
+            // 드래그 중이 아닐 때만 툴팁 표시 (잔영 제거)
+            !isDragging ? (
+                <Tooltip content={task.description} position="top">
+                    {barContent}
+                </Tooltip>
+            ) : (
+                barContent
+            )
+        ) : null}
+        {/* 마일스톤 마커들 */}
+        {renderMilestones()}
+
+        {/* 구분선 (Divider) */}
+        {task.divider && task.divider.enabled && (
+            <div
+                className="task-divider"
+                style={{
+                    position: 'absolute',
+                    bottom: 0,
+                    left: `${offset}px`,
+                    width: `${Math.max(width + (isDragging && !snapEnabled ? dragDelta.w : 0), 24)}px`, // 최소 24px 유지
+                    transform: (isDragging && !snapEnabled && dragType !== 'resize-end') ? `translateX(${dragDelta.x}px)` : undefined,
+                    opacity: isDragging ? 0.9 : 1,
+                    zIndex: isDragging ? 100 : 1,
+                    borderBottom: `${task.divider.thickness}px ${task.divider.style} ${task.divider.color}`,
+                    pointerEvents: 'none',
+                }}
+            />
+        )}
+
+
+    </div>
+);
 }
 
 export default TimelineBar;
