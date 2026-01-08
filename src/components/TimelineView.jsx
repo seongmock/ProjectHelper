@@ -504,7 +504,21 @@ const TimelineView = forwardRef(({
                     alert('타임라인 이미지가 클립보드에 복사되었습니다.');
                 } catch (err) {
                     console.error('클립보드 복사 실패:', err);
-                    alert('클립보드 복사에 실패했습니다.');
+                    // 클립보드 복사 실패 시 (보안 정책 등) 이미지 다운로드로 대체
+                    try {
+                        const url = URL.createObjectURL(blob);
+                        const link = document.createElement('a');
+                        link.href = url;
+                        link.download = `timeline-capture-${new Date().toISOString().slice(0, 10)}.png`;
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                        URL.revokeObjectURL(url);
+                        alert('클립보드 접근 권한 문제로 이미지를 다운로드했습니다.');
+                    } catch (downloadErr) {
+                        console.error('다운로드 실패:', downloadErr);
+                        alert('이미지 저장에 실패했습니다.');
+                    }
                 }
             });
         } catch (err) {
