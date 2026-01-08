@@ -726,8 +726,6 @@ function App() {
                 onUndo={undo}
                 onRedo={redo}
                 onOpenPromptGuide={() => setIsPromptGuideOpen(true)}
-                snapEnabled={snapEnabled}
-                onToggleSnap={() => setSnapEnabled(!snapEnabled)}
             />
 
             <Toolbar
@@ -749,6 +747,8 @@ function App() {
                 showTaskNames={showTaskNames}
                 onToggleTaskNames={() => setShowTaskNames(!showTaskNames)}
                 onCopyImage={handleCopyTimeline}
+                snapEnabled={snapEnabled}
+                onToggleSnap={() => setSnapEnabled(!snapEnabled)}
             />
 
             <div className="main-content">
