@@ -826,6 +826,25 @@ const TimelineView = forwardRef(({
                     <div
                         className={`timeline-content ${isLinkingMode ? 'linking-mode' : ''}`}
                         style={{ width: `${contentWidth}px` }}
+                        onClick={(e) => {
+                            // 빈 영역 클릭 시 마일스톤 추가
+                            if (e.target.classList.contains('timeline-content') || e.target.classList.contains('empty-timeline')) {
+                                if (isLinkingMode) return; // 연결 모드에서는 무시
+
+                                const rect = e.currentTarget.getBoundingClientRect();
+                                const x = e.clientX - rect.left;
+                                const totalDays = dateUtils.getDaysBetween(dateRange.start, dateRange.end);
+                                const daysFromStart = Math.round((x / contentWidth) * totalDays);
+                                const clickedDate = dateUtils.addDays(dateRange.start, daysFromStart);
+
+                                // 선택된 작업 또는 첫 작업을 대상으로
+                                const targetTask = flatTasks.find(t => t.id === selectedTaskId) || flatTasks[0];
+
+                                if (targetTask) {
+                                    setMilestoneModalInfo({ task: targetTask, date: clickedDate });
+                                }
+                            }
+                        }}
                     >
                         {/* 의존성 라인 레이어 */}
                         {renderDependencies()}
