@@ -36,9 +36,20 @@ function MilestoneEditPopover({ position, milestone, predecessors = [], successo
         }
     }, [position]);
 
+    const labelRef = useRef(labelText);
+
+    // labelText 변경 시 ref 업데이트
+    useEffect(() => {
+        labelRef.current = labelText;
+    }, [labelText]);
+
     useEffect(() => {
         const handleClickOutside = (event) => {
             if (popoverRef.current && !popoverRef.current.contains(event.target)) {
+                // 닫기 전 변경사항 저장
+                if (labelRef.current !== milestone.label) {
+                    onUpdate(milestone.id, { label: labelRef.current });
+                }
                 onClose();
             }
         };
@@ -47,7 +58,7 @@ function MilestoneEditPopover({ position, milestone, predecessors = [], successo
         return () => {
             document.removeEventListener('mousedown', handleClickOutside);
         };
-    }, [onClose]);
+    }, [onClose, milestone.id, milestone.label, onUpdate]);
 
     const handleLabelChange = (e) => {
         setLabelText(e.target.value);
