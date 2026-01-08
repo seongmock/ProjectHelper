@@ -32,8 +32,9 @@ function TimelineBar({
 
     // 마일스톤 드래그 상태
     const [draggingMilestone, setDraggingMilestone] = useState(null); // milestone.id
-    const [milestoneDragStart, setMilestoneDragStart] = useState({ x: 0, originalDate: null });
+    const [milestoneDragStart, setMilestoneDragStart] = useState({ x: 0, y: 0, originalDate: null });
     const [draggedMilestoneDate, setDraggedMilestoneDate] = useState(null);
+    const [draggedMilestoneY, setDraggedMilestoneY] = useState(0);
 
     const barRef = useRef(null);
 
@@ -193,8 +194,12 @@ function TimelineBar({
             const rawNewDate = dateUtils.addDays(milestoneDragStart.originalDate, deltaDays);
             const snappedDate = dateUtils.snapAdaptive(rawNewDate, 'closest', totalDays);
 
+            // Y축 이동 계산
+            const deltaY = e.clientY - milestoneDragStart.y;
+
             // 로컬 상태 업데이트 (시각적 피드백)
             setDraggedMilestoneDate(dateUtils.formatDate(snappedDate));
+            setDraggedMilestoneY(deltaY);
 
             // 가이드라인 업데이트 (스냅된 날짜 기준)
             if (onGuideMove) {
@@ -220,7 +225,9 @@ function TimelineBar({
 
             // 로컬 드래그 상태 클리어
             setDraggingMilestone(null);
+            setDraggingMilestone(null);
             setDraggedMilestoneDate(null);
+            setDraggedMilestoneY(0);
         };
 
         document.addEventListener('mousemove', handleMouseMove);
@@ -342,6 +349,8 @@ function TimelineBar({
                     className={`milestone-marker ${draggingMilestone === milestone.id ? 'dragging' : ''}`}
                     style={{
                         left: `${position}px`,
+                        transform: draggingMilestone === milestone.id ? `translateY(${draggedMilestoneY}px)` : 'none',
+                        zIndex: draggingMilestone === milestone.id ? 1000 : 1, // 드래그 중인 것 최상위로
                     }}
                     title={`${milestone.label} (${currentDate})`}
                     onContextMenu={(e) => {
@@ -362,6 +371,7 @@ function TimelineBar({
                             setDraggingMilestone(milestone.id);
                             setMilestoneDragStart({
                                 x: e.clientX,
+                                y: e.clientY,
                                 originalDate: new Date(milestone.date)
                             });
                             setDraggedMilestoneDate(milestone.date);
