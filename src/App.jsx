@@ -234,6 +234,44 @@ function App() {
         setTasks(updateFunc);
     }, [setTasks]);
 
+    // 여러 작업 동시 업데이트 처리 (Undo/Redo를 위해 한 번의 상태 변경으로 처리)
+    const handleUpdateMultipleTasks = useCallback((updatesArray, addToHistory = true) => {
+        const updateFunc = (prevTasks) => {
+            let newTasks = [...prevTasks];
+
+            updatesArray.forEach(({ taskId, updates }) => {
+                newTasks = newTasks.map(task => {
+                    if (task.id === taskId) {
+                        return { ...task, ...updates };
+                    }
+                    if (task.children) {
+                        return {
+                            ...task,
+                            children: updateSubtasks(task.children, taskId, updates)
+                        };
+                    }
+                    return task;
+                });
+            });
+            return newTasks;
+        };
+
+        // 재귀 업데이트 헬퍼
+        const updateSubtasks = (tasks, targetId, updates) => {
+            return tasks.map(task => {
+                if (task.id === targetId) {
+                    return { ...task, ...updates };
+                }
+                if (task.children) {
+                    return { ...task, children: updateSubtasks(task.children, targetId, updates) };
+                }
+                return task;
+            });
+        };
+
+        setTasks(updateFunc);
+    }, [setTasks]);
+
     // 작업 삭제
     const handleDeleteTask = useCallback((taskId) => {
         const deleteTask = (items) => {
@@ -711,6 +749,7 @@ function App() {
                         selectedTaskId={selectedTaskId}
                         onSelectTask={setSelectedTaskId}
                         onUpdateTask={handleUpdateTask}
+                        onUpdateTasks={handleUpdateMultipleTasks}
                         onDeleteTask={handleDeleteTask}
                         onAddTask={handleAddTask}
                         onReorderTasks={handleReorderTasks}
@@ -728,6 +767,7 @@ function App() {
                         selectedTaskId={selectedTaskId}
                         onSelectTask={setSelectedTaskId}
                         onUpdateTask={handleUpdateTask}
+                        onUpdateTasks={handleUpdateMultipleTasks}
                         onMoveTask={handleMoveTask}
                         onIndentTask={handleIndentTask}
                         onOutdentTask={handleOutdentTask}

@@ -104,6 +104,7 @@ const TimelineView = forwardRef(({
     selectedTaskId,
     onSelectTask,
     onUpdateTask,
+    onUpdateTasks, // 여러 작업 동시 업데이트용
     onMoveTask,
     onIndentTask, // Add prop
     onOutdentTask, // Add prop
@@ -374,12 +375,8 @@ const TimelineView = forwardRef(({
                 m.id === milestoneId
                     ? { ...m, date: newDate }
                     : m
-            );
-            onUpdateTask(sourceTaskId, {
-                milestones: updatedMilestones
-            }, true);
         } else {
-            // 다른 작업으로 이동 - 두 작업을 동시에 업데이트
+            // 다른 작업으로 이동 - 두 작업을 동시에 업데이트 (onUpdateTasks 사용)
             const targetTask = flatTasks.find(t => t.id === targetTaskId);
             if (!targetTask) return;
 
@@ -392,15 +389,17 @@ const TimelineView = forwardRef(({
                 { ...milestone, date: newDate }
             ];
 
-            // 원본 작업 업데이트 (히스토리에 추가 안함)
-            onUpdateTask(sourceTaskId, {
-                milestones: updatedSourceMilestones
-            }, false);
-
-            // 대상 작업 업데이트 (히스토리에 추가)
-            onUpdateTask(targetTaskId, {
-                milestones: updatedTargetMilestones
-            }, true);
+            if (onUpdateTasks) {
+                // 원자적 업데이트 (하나의 히스토리 엔트리)
+                onUpdateTasks([
+                    { taskId: sourceTaskId, updates: { milestones: updatedSourceMilestones } },
+                    { taskId: targetTaskId, updates: { milestones: updatedTargetMilestones } }
+                ], true);
+            } else {
+                // Fallback (기존 방식 - 문제점: undo 시 마일스톤 증발 가능성)
+                onUpdateTask(sourceTaskId, { milestones: updatedSourceMilestones }, false);
+                onUpdateTask(targetTaskId, { milestones: updatedTargetMilestones }, true);
+            }
         }
 
         // 대상 작업 클리어
