@@ -1,6 +1,6 @@
 .tooltip-container {
-    position: relative;
-    display: inline-block;
+    display: contents;
+    /* 레이아웃에 영향 없이 자식 요소만 렌더링 */
 }
 
 .tooltip-content {

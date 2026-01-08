@@ -846,8 +846,8 @@ const TimelineView = forwardRef(({
                             }
                         }}
                         onContextMenu={(e) => {
-                            // 빈 영역 우클릭 시 마일스톤 추가
-                            if (e.target.classList.contains('timeline-content') || e.target.classList.contains('empty-timeline')) {
+                            // 빈 영역 우클릭 시 마일스톤 추가 (타임라인 바가 아닌 곳)
+                            if (!e.target.closest('.timeline-bar') && !e.target.closest('.milestone-marker')) {
                                 e.preventDefault();
                                 if (isLinkingMode) return;
 
