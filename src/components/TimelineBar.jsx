@@ -441,6 +441,7 @@ function TimelineBar({
             <div
                 className="resize-handle resize-start"
                 onMouseDown={(e) => handleMouseDown(e, 'resize-start')}
+                onMouseEnter={(e) => e.stopPropagation()}
             />
 
             {/* 바 내용 */}
@@ -459,6 +460,7 @@ function TimelineBar({
             <div
                 className="resize-handle resize-end"
                 onMouseDown={(e) => handleMouseDown(e, 'resize-end')}
+                onMouseEnter={(e) => e.stopPropagation()}
             />
         </div>
     );
