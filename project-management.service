@@ -1,0 +1,21 @@
+[Unit]
+Description=Project Management App Service
+After=docker.service network-online.target
+Requires=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/path/to/your/project
+# Docker Compose를 사용하여 실행 (권장)
+ExecStart=/usr/local/bin/docker-compose up -d --build
+ExecStop=/usr/local/bin/docker-compose down
+
+# 또는 start_server.sh 스크립트 사용 시 (Docker/Node 자동 감지)
+# ExecStart=/path/to/your/project/start_server.sh
+
+User=root
+Group=root
+
+[Install]
+WantedBy=multi-user.target

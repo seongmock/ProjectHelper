@@ -1,14 +1,14 @@
 import './Header.css';
 
 function Header({ darkMode, onToggleDarkMode, onExport, onImport, canUndo, canRedo, onUndo, onRedo }) {
-    const handleImportClick = () => {
+    const handleImportClick = (isMerge = false) => {
         const input = document.createElement('input');
         input.type = 'file';
         input.accept = '.json';
         input.onchange = (e) => {
             const file = e.target.files[0];
             if (file) {
-                onImport(file);
+                onImport(file, isMerge);
             }
         };
         input.click();
@@ -48,11 +48,19 @@ function Header({ darkMode, onToggleDarkMode, onExport, onImport, canUndo, canRe
                     <div className="import-export-buttons flex gap-sm">
                         <button
                             className="tooltip"
-                            onClick={handleImportClick}
-                            data-tooltip="JSON 파일 가져오기"
+                            onClick={() => handleImportClick(false)}
+                            data-tooltip="JSON 파일 가져오기 (덮어쓰기)"
                             title="가져오기"
                         >
                             📥 가져오기
+                        </button>
+                        <button
+                            className="tooltip"
+                            onClick={() => handleImportClick(true)}
+                            data-tooltip="JSON 파일 병합하기 (추가)"
+                            title="병합"
+                        >
+                            📥 병합
                         </button>
                         <button
                             className="tooltip"

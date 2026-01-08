@@ -78,3 +78,35 @@ serve -s dist -l 8080
 
 *   **권한 문제**: `permission denied` 에러가 발생하면 명령어 앞에 `sudo`를 붙여보세요 (예: `sudo ./start_server.sh`).
 *   **포트 충돌**: 8080 포트가 이미 사용 중이라면 `docker-compose.yml` 또는 `start_server.sh`에서 포트 번호를 변경하세요.
+
+## 6. 서비스 등록 (Service Registration) - 선택 사항
+
+서버가 재부팅되어도 애플리케이션이 자동으로 실행되도록 하려면 `systemd` 서비스로 등록하세요.
+
+1.  **서비스 파일 수정**:
+    `project-management.service` 파일을 열어 `WorkingDirectory` 경로를 현재 프로젝트 경로로 수정하세요.
+    ```ini
+    WorkingDirectory=/home/user/project-management  <-- 실제 경로로 변경
+    ```
+
+2.  **파일 복사**:
+    ```bash
+    sudo cp project-management.service /etc/systemd/system/
+    ```
+
+3.  **서비스 활성화 및 시작**:
+    ```bash
+    # 서비스 데몬 리로드
+    sudo systemctl daemon-reload
+    
+    # 부팅 시 자동 실행 활성화
+    sudo systemctl enable project-management
+    
+    # 서비스 바로 시작
+    sudo systemctl start project-management
+    ```
+
+4.  **상태 확인**:
+    ```bash
+    sudo systemctl status project-management
+    ```

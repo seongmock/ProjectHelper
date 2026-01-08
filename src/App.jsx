@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { getSampleData, createNewTask } from './utils/dataModel';
+import { getSampleData, createNewTask, generateId } from './utils/dataModel';
 import { storage } from './utils/storage';
 import { useUndoRedo } from './hooks/useUndoRedo';
 import Header from './components/Header';
@@ -342,18 +342,20 @@ function App() {
     }, [tasks, viewMode, timeScale, zoomLevel, showToday, isCompact, showTaskNames, darkMode]);
 
     // 가져오기
-    const handleImport = useCallback((file) => {
+    const handleImport = useCallback((file, isMerge = false) => {
         storage.importData(file)
             .then(importedData => {
+                let newTasks = [];
+
                 if (Array.isArray(importedData)) {
                     // 구버전 호환 (배열인 경우)
-                    setTasks(importedData);
+                    newTasks = importedData;
                 } else if (importedData.data && Array.isArray(importedData.data)) {
                     // 신버전 (메타데이터 포함)
-                    setTasks(importedData.data);
+                    newTasks = importedData.data;
 
-                    // 뷰 설정 복원
-                    if (importedData.meta && importedData.meta.viewSettings) {
+                    // 덮어쓰기 모드일 때만 뷰 설정 복원
+                    if (!isMerge && importedData.meta && importedData.meta.viewSettings) {
                         const settings = importedData.meta.viewSettings;
                         if (settings.viewMode) setViewMode(settings.viewMode);
                         if (settings.timeScale) setTimeScale(settings.timeScale);
@@ -366,7 +368,42 @@ function App() {
                 } else {
                     throw new Error('Invalid data format');
                 }
-                alert('데이터를 성공적으로 가져왔습니다.');
+
+                if (isMerge) {
+                    // 병합 모드: ID 재생성 후 추가
+                    const regenerateIds = (items) => {
+                        return items.map(item => {
+                            const newId = generateId();
+                            // 자식들도 재귀적으로 ID 변경
+                            const newChildren = item.children ? regenerateIds(item.children) : [];
+
+                            // 마일스톤 ID도 변경
+                            const newMilestones = item.milestones ? item.milestones.map(ms => ({
+                                ...ms,
+                                id: generateId()
+                            })) : [];
+
+                            return {
+                                ...item,
+                                id: newId,
+                                children: newChildren,
+                                milestones: newMilestones,
+                                // 의존성은 ID가 바뀌면 깨지므로 일단 초기화하거나, 
+                                // 매핑 테이블을 만들어서 변환해야 함. 
+                                // 여기서는 간단히 병합 시 의존성 링크는 해제하는 것으로 처리 (복잡도 관리)
+                                dependencies: []
+                            };
+                        });
+                    };
+
+                    const processedTasks = regenerateIds(newTasks);
+                    setTasks(prev => [...prev, ...processedTasks]);
+                    alert('데이터가 성공적으로 병합되었습니다.');
+                } else {
+                    // 덮어쓰기 모드
+                    setTasks(newTasks);
+                    alert('데이터를 성공적으로 가져왔습니다.');
+                }
             })
             .catch(error => {
                 console.error('Failed to import data:', error);
