@@ -588,7 +588,6 @@ const TimelineView = forwardRef(({
 
         try {
             // 캡처 시작: 클래스 추가
-            // 캡처 시작: 클래스 추가
             if (containerRef.current) {
                 containerRef.current.classList.add('capturing');
             }
