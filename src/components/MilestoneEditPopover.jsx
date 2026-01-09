@@ -178,8 +178,6 @@ function MilestoneEditPopover({ position, milestone, predecessors = [], successo
                                     fontSize: '11px',
                                     border: '1px solid #ddd',
                                     borderRadius: '4px',
-                                    background: (milestone.labelPosition === pos.id || (!milestone.labelPosition && pos.id === 'auto')) ? '#007bff' : 'white',
-                                    color: (milestone.labelPosition === pos.id || (!milestone.labelPosition && pos.id === 'auto')) ? 'white' : '#333',
                                     cursor: 'pointer',
                                     transition: 'all 0.2s'
                                 }}

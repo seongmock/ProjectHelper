@@ -245,8 +245,16 @@ const TimelineView = forwardRef(({
         const getAllDates = (items) => {
             const dates = [];
             items.forEach(item => {
-                if (item.startDate) dates.push(new Date(item.startDate));
-                if (item.endDate) dates.push(new Date(item.endDate));
+                // 다중 기간 지원
+                if (item.timeRanges && item.timeRanges.length > 0) {
+                    item.timeRanges.forEach(range => {
+                        if (range.startDate) dates.push(new Date(range.startDate));
+                        if (range.endDate) dates.push(new Date(range.endDate));
+                    });
+                } else {
+                    if (item.startDate) dates.push(new Date(item.startDate));
+                    if (item.endDate) dates.push(new Date(item.endDate));
+                }
 
                 // 마일스톤 날짜도 포함
                 if (item.milestones && item.milestones.length > 0) {
@@ -297,13 +305,24 @@ const TimelineView = forwardRef(({
     const itemMap = useMemo(() => {
         const map = new Map();
         flatTasks.forEach((task, index) => {
+            // 작업의 시작/종료일 계산 (다중 기간인 경우 전체 범위)
+            let minStart = task.startDate;
+            let maxEnd = task.endDate;
+
+            if (task.timeRanges && task.timeRanges.length > 0) {
+                const starts = task.timeRanges.map(r => new Date(r.startDate).getTime());
+                const ends = task.timeRanges.map(r => new Date(r.endDate).getTime());
+                minStart = new Date(Math.min(...starts));
+                maxEnd = new Date(Math.max(...ends));
+            }
+
             // 작업 정보 저장
             map.set(task.id, {
                 type: 'task',
                 data: task,
                 index: index,
-                startDate: task.startDate,
-                endDate: task.endDate,
+                startDate: minStart, // 전체 범위 시작 (의존성 표시용)
+                endDate: maxEnd,     // 전체 범위 종료 (의존성 표시용)
                 name: task.name
             });
 
@@ -324,18 +343,32 @@ const TimelineView = forwardRef(({
     }, [flatTasks]);
 
     // 드래그로 날짜 변경 - 드래그 중에는 호출하지 않음 (시각적 피드백은 로컬 상태로)
-    const handleDragUpdate = (taskId, newStartDate, newEndDate) => {
-        // 드래그 중에는 아무것도 하지 않음 - 로컬 DOM만 업데이트됨
-        // onUpdateTask는 호출하지 않아서 히스토리 오염 방지
+    const handleDragUpdate = (taskId, newStartDate, newEndDate, rangeId) => {
+        // 드래그 중에는 아무것도 하지 않음 (로컬 상태만 업데이트)
     };
 
     // 타임라인 바 드래그 완료 시 최종 상태를 히스토리에 기록
-    const handleTimelineBarDragEnd = (taskId, finalStart, finalEnd) => {
-        onUpdateTask(taskId, {
-            startDate: dateUtils.formatDate(finalStart),
-            endDate: dateUtils.formatDate(finalEnd),
-        }, true); // 히스토리에 추가
+    const handleTimelineBarDragEnd = (taskId, finalStart, finalEnd, rangeId) => {
+        const task = flatTasks.find(t => t.id === taskId);
+        if (!task) return;
+
+        if (rangeId && task.timeRanges) {
+            // 특정 범위 업데이트
+            const updatedRanges = task.timeRanges.map(r =>
+                r.id === rangeId
+                    ? { ...r, startDate: dateUtils.formatDate(finalStart), endDate: dateUtils.formatDate(finalEnd) }
+                    : r
+            );
+            onUpdateTask(taskId, { timeRanges: updatedRanges }, true);
+        } else {
+            // Legacy fallback (단일 기간)
+            onUpdateTask(taskId, {
+                startDate: dateUtils.formatDate(finalStart),
+                endDate: dateUtils.formatDate(finalEnd),
+            }, true);
+        }
     };
+
 
     // 가이드라인 상태
     const [guideLineX, setGuideLineX] = useState(null);
@@ -1124,6 +1157,7 @@ const TimelineView = forwardRef(({
                 <TimelineBarPopover
                     position={{ x: popoverInfo.x, y: popoverInfo.y }}
                     task={popoverTask}
+                    clickedDate={popoverInfo.date} // 클릭 날짜 전달
                     successors={successors}
                     predecessors={predecessors}
                     onClose={() => setPopoverInfo(null)}
@@ -1135,10 +1169,27 @@ const TimelineView = forwardRef(({
                             onDeleteTask(taskId);
                         }
                     }}
+                    onAddTimeRange={(taskId, date) => {
+                        const task = flatTasks.find(t => t.id === taskId);
+                        if (task) {
+                            const startDate = dateUtils.formatDate(date);
+                            const endDate = dateUtils.formatDate(dateUtils.addDays(date, 7)); // 기본 7일
+                            const newRange = {
+                                id: generateId(),
+                                startDate,
+                                endDate
+                            };
+                            // 기존 timeRanges가 없으면 빈 배열로 취급
+                            const newRanges = [...(task.timeRanges || []), newRange];
+                            onUpdateTask(taskId, { timeRanges: newRanges }, true);
+                        }
+                        setPopoverInfo(null);
+                    }}
                     onAddMilestone={() => {
                         setMilestoneModalInfo({
                             task: popoverTask,
-                            date: popoverInfo.date
+                            date: popoverInfo.date,
+                            labelPosition: 'auto' // Default to auto
                         });
                         setPopoverInfo(null);
                     }}

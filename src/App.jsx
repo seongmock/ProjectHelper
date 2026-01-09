@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { getSampleData, createNewTask, generateId, flattenTasks } from './utils/dataModel';
+import { getSampleData, createNewTask, generateId, flattenTasks, migrateTaskData } from './utils/dataModel';
 import { storage } from './utils/storage';
 import { useUndoRedo } from './hooks/useUndoRedo';
 import Header from './components/Header';
@@ -67,17 +67,18 @@ function App() {
         const saved = storage.loadData();
         if (!saved) return getSampleData();
 
+        let dataToLoad;
+
         // 신버전 데이터 구조 (meta, data) 지원
         if (saved.data && Array.isArray(saved.data)) {
-            return saved.data;
+            dataToLoad = saved.data;
+        } else if (Array.isArray(saved)) { // 구버전 데이터 구조 (배열)
+            dataToLoad = saved;
+        } else {
+            return getSampleData();
         }
 
-        // 구버전 데이터 구조 (배열)
-        if (Array.isArray(saved)) {
-            return saved;
-        }
-
-        return getSampleData();
+        return migrateTaskData(dataToLoad);
     };
 
     // 프로젝트 데이터 (실행 취소/다시 실행 지원)

@@ -91,7 +91,7 @@ function MilestoneQuickAdd({ task, date, onClose, onAdd }) {
                         </div>
                     </div>
                     <div className="popover-actions" style={{ justifyContent: 'flex-end', marginTop: '16px' }}>
-                        <button type="button" className="action-btn" onClick={onClose} style={{ backgroundColor: '#f5f5f5', color: '#333' }}>취소</button>
+                        <button type="button" className="action-btn secondary" onClick={onClose}>취소</button>
                         <button type="submit" className="action-btn primary">추가</button>
                     </div>
                 </form>

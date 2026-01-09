@@ -13,7 +13,7 @@
 }
 
 .milestone-quick-add-dialog {
-    background-color: white;
+    background-color: var(--color-bg-primary);
     border-radius: 8px;
     width: 320px;
     padding: 12px;
@@ -65,7 +65,7 @@
     display: block;
     margin-bottom: 4px;
     font-size: 11px;
-    color: #666;
+    color: var(--color-text-secondary);
     font-weight: 600;
 }
 
@@ -78,6 +78,8 @@
     border-radius: 4px;
     font-size: 12px;
     box-sizing: border-box;
+    background-color: var(--color-bg-primary);
+    color: var(--color-text-primary);
 }
 
 .form-group input:focus,
@@ -117,4 +119,15 @@
 
 .action-btn.primary:hover {
     background-color: #357abd;
+}
+
+.action-btn.secondary {
+    background-color: var(--color-bg-tertiary);
+    color: var(--color-text-secondary);
+    border: 1px solid var(--color-border);
+}
+
+.action-btn.secondary:hover {
+    background-color: var(--color-bg-secondary);
+    color: var(--color-text-primary);
 }

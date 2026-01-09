@@ -6,86 +6,74 @@ import './TimelineBar.css';
 function TimelineBar({
     task,
     level,
-    startDate,
-    endDate,
+    startDate, // View start date
+    endDate,   // View end date
     containerWidth,
     isSelected,
     isDragTarget,
     onSelect,
     onDragUpdate,
-    onDragEnd, // 드래그 완료 콜백
-    onMilestoneDragEnd, // 마일스톤 드래그 완료 콜백
+    onDragEnd, // Callback with rangeId
+    onMilestoneDragEnd,
     onMilestoneDragMove,
-    onGuideMove, // 가이드라인 이동 콜백
+    onGuideMove,
     onContextMenu,
     onMilestoneContextMenu,
     onMilestoneClick,
     showLabel = true,
     timeScale = 'monthly',
-    snapEnabled = true // 기본값
+    snapEnabled = true
 }) {
-    const [isDragging, setIsDragging] = useState(false);
+    const [activeRangeId, setActiveRangeId] = useState(null); // ID of range being dragged
     const [dragType, setDragType] = useState(null); // 'move', 'resize-start', 'resize-end'
-    const [dragStart, setDragStart] = useState({ x: 0, taskStart: null, taskEnd: null });
+    const [dragStart, setDragStart] = useState({ x: 0, rangeStart: null, rangeEnd: null });
 
-    // 드래그 중 시각적 피드백을 위한 로컬 상태
+    // Local state for visual feedback during drag
     const [draggedDates, setDraggedDates] = useState(null);
 
-    // 마일스톤 드래그 상태
-    const [draggingMilestone, setDraggingMilestone] = useState(null); // milestone.id
+    // Milestone drag state
+    const [draggingMilestone, setDraggingMilestone] = useState(null);
     const [milestoneDragStart, setMilestoneDragStart] = useState({ x: 0, y: 0, originalDate: null });
     const [draggedMilestoneDate, setDraggedMilestoneDate] = useState(null);
     const [draggedMilestoneY, setDraggedMilestoneY] = useState(0);
 
-    const barRef = useRef(null);
-
+    const barRefs = useRef({}); // Refs for each range bar
     const totalDays = dateUtils.getDaysBetween(startDate, endDate);
 
-    // 렌더링에 사용할 날짜 (드래그 중이면 draggedDates, 아니면 task의 날짜)
-    const displayStartDate = draggedDates?.startDate || task.startDate;
-    const displayEndDate = draggedDates?.endDate || task.endDate;
+    // Helper to get time ranges (fallback to legacy)
+    const timeRanges = (task.timeRanges && task.timeRanges.length > 0)
+        ? task.timeRanges
+        : [{ id: 'legacy', startDate: task.startDate, endDate: task.endDate }];
 
-    // 타임라인 바의 위치 및 너비 계산
-    const { width, offset } = dateUtils.calculateWidth(
-        displayStartDate,
-        displayEndDate,
-        startDate,
-        endDate,
-        containerWidth
-    );
-
-    // 드래그 시작
-    const handleMouseDown = (e, type) => {
+    // Handle Drag Start for a specific range
+    const handleMouseDown = (e, type, range) => {
         e.stopPropagation();
-        setIsDragging(true);
+        setActiveRangeId(range.id);
         setDragType(type);
         setDragStart({
             x: e.clientX,
-            taskStart: new Date(task.startDate),
-            taskEnd: new Date(task.endDate),
+            rangeStart: new Date(range.startDate),
+            rangeEnd: new Date(range.endDate),
         });
 
-        // 드래그 시작 시 초기 상태 저장 (여기서 한 번만 수행)
         finalDragState.current = {
-            start: new Date(task.startDate),
-            end: new Date(task.endDate)
+            start: new Date(range.startDate),
+            end: new Date(range.endDate)
         };
 
         onSelect(task.id);
     };
 
-    // 드래그 중 최종 상태 추적 (useRef 사용하여 매 렌더링마다 초기화 방지)
     const finalDragState = useRef({ start: null, end: null });
 
-    // 드래그 중
+    // Drag Logic
     useEffect(() => {
-        if (!isDragging) return;
+        if (!activeRangeId) return;
 
         const handleMouseMove = (e) => {
             const deltaX = e.clientX - dragStart.x;
             const deltaDays = Math.round((deltaX / containerWidth) * totalDays);
 
-            // 적응형 스냅 로직: 전체 타임라인 범위에 따라 스냅 단위 자동 조정
             const applySnapping = (date, type) => {
                 if (snapEnabled) {
                     return dateUtils.snapAdaptive(date, type, totalDays);
@@ -96,66 +84,49 @@ function TimelineBar({
             let guideDate = null;
 
             if (dragType === 'move') {
-                // 바 전체 이동
-                const rawNewStart = dateUtils.addDays(dragStart.taskStart, deltaDays);
-
-                // 시작일을 스냅
+                const rawNewStart = dateUtils.addDays(dragStart.rangeStart, deltaDays);
                 const snappedStart = applySnapping(rawNewStart, 'start');
-
-                // 기간 유지하며 종료일 계산
-                const duration = dateUtils.getDaysBetween(dragStart.taskStart, dragStart.taskEnd);
+                const duration = dateUtils.getDaysBetween(dragStart.rangeStart, dragStart.rangeEnd);
                 const snappedEnd = dateUtils.addDays(snappedStart, duration);
 
                 finalDragState.current = { start: snappedStart, end: snappedEnd };
 
-                // 로컬 상태 업데이트 (시각적 피드백)
                 setDraggedDates({
                     startDate: dateUtils.formatDate(snappedStart),
                     endDate: dateUtils.formatDate(snappedEnd)
                 });
-                onDragUpdate(task.id, snappedStart, snappedEnd);
-
-                // 가이드라인은 시작점에 맞춤
+                // Update specific range locally
+                onDragUpdate(task.id, snappedStart, snappedEnd, activeRangeId);
                 guideDate = snappedStart;
+
             } else if (dragType === 'resize-start') {
-                // 시작일 변경
-                const rawNewStart = dateUtils.addDays(dragStart.taskStart, deltaDays);
+                const rawNewStart = dateUtils.addDays(dragStart.rangeStart, deltaDays);
                 const snappedStart = applySnapping(rawNewStart, 'start');
 
-                if (snappedStart < dragStart.taskEnd) {
-                    finalDragState.current = { start: snappedStart, end: dragStart.taskEnd };
-
-                    // 로컬 상태 업데이트 (시각적 피드백)
+                if (snappedStart < dragStart.rangeEnd) {
+                    finalDragState.current = { start: snappedStart, end: dragStart.rangeEnd };
                     setDraggedDates({
                         startDate: dateUtils.formatDate(snappedStart),
-                        endDate: dateUtils.formatDate(dragStart.taskEnd)
+                        endDate: dateUtils.formatDate(dragStart.rangeEnd)
                     });
-                    onDragUpdate(task.id, snappedStart, dragStart.taskEnd);
-
-                    // 가이드라인은 시작점에 맞춤
+                    onDragUpdate(task.id, snappedStart, dragStart.rangeEnd, activeRangeId);
                     guideDate = snappedStart;
                 }
             } else if (dragType === 'resize-end') {
-                // 종료일 변경
-                const rawNewEnd = dateUtils.addDays(dragStart.taskEnd, deltaDays);
+                const rawNewEnd = dateUtils.addDays(dragStart.rangeEnd, deltaDays);
                 const snappedEnd = applySnapping(rawNewEnd, 'end');
 
-                if (snappedEnd > dragStart.taskStart) {
-                    finalDragState.current = { start: dragStart.taskStart, end: snappedEnd };
-
-                    // 로컬 상태 업데이트 (시각적 피드백)
+                if (snappedEnd > dragStart.rangeStart) {
+                    finalDragState.current = { start: dragStart.rangeStart, end: snappedEnd };
                     setDraggedDates({
-                        startDate: dateUtils.formatDate(dragStart.taskStart),
+                        startDate: dateUtils.formatDate(dragStart.rangeStart),
                         endDate: dateUtils.formatDate(snappedEnd)
                     });
-                    onDragUpdate(task.id, dragStart.taskStart, snappedEnd);
-
-                    // 가이드라인은 종료점에 맞춤
+                    onDragUpdate(task.id, dragStart.rangeStart, snappedEnd, activeRangeId);
                     guideDate = snappedEnd;
                 }
             }
 
-            // 가이드라인 업데이트 (스냅된 날짜 기준)
             if (onGuideMove && guideDate) {
                 const guideDays = dateUtils.getDaysBetween(startDate, guideDate);
                 const guideOffset = (guideDays / totalDays) * containerWidth;
@@ -164,17 +135,14 @@ function TimelineBar({
         };
 
         const handleMouseUp = () => {
-            // 가이드라인 제거
             if (onGuideMove) onGuideMove(null);
 
-            // 드래그 완료 시 최종 상태를 히스토리에 기록
             if (onDragEnd && finalDragState.current.start && finalDragState.current.end) {
-                onDragEnd(task.id, finalDragState.current.start, finalDragState.current.end);
+                onDragEnd(task.id, finalDragState.current.start, finalDragState.current.end, activeRangeId);
             }
 
-            // 로컬 드래그 상태 클리어
             setDraggedDates(null);
-            setIsDragging(false);
+            setActiveRangeId(null);
             setDragType(null);
         };
 
@@ -185,59 +153,48 @@ function TimelineBar({
             document.removeEventListener('mousemove', handleMouseMove);
             document.removeEventListener('mouseup', handleMouseUp);
         };
-    }, [isDragging, dragType, dragStart, containerWidth, totalDays, task.id, task.startDate, task.endDate, onDragUpdate, onDragEnd, onGuideMove]);
+    }, [activeRangeId, dragType, dragStart, containerWidth, totalDays, task.id, onDragUpdate, onDragEnd, onGuideMove, snapEnabled, startDate]);
 
-    // 마일스톤 드래그 처리
+
+    // Milestone Drag Logic (Same as before)
     useEffect(() => {
         if (!draggingMilestone) return;
 
         const handleMouseMove = (e) => {
             const deltaX = e.clientX - milestoneDragStart.x;
             const deltaDays = Math.round((deltaX / containerWidth) * totalDays);
-
             const rawNewDate = dateUtils.addDays(milestoneDragStart.originalDate, deltaDays);
-            // 스냅 적용
-            // 스냅 적용
+
             let snappedDate;
             if (snapEnabled) {
-                // 기존 적응형 스냅
                 snappedDate = dateUtils.snapAdaptive(rawNewDate, 'closest', totalDays);
             } else {
-                // 스냅 끔: 일 단위로만 반올림 (부드러운 드래그)
                 snappedDate = dateUtils.snapToDay(rawNewDate, 'closest');
             }
 
-            // Y축 이동 계산
             const deltaY = e.clientY - milestoneDragStart.y;
 
-            // 로컬 상태 업데이트 (시각적 피드백)
             setDraggedMilestoneDate(dateUtils.formatDate(snappedDate));
             setDraggedMilestoneY(deltaY);
 
-            // 가이드라인 업데이트 (스냅된 날짜 기준)
             if (onGuideMove) {
                 const guideDays = dateUtils.getDaysBetween(startDate, snappedDate);
                 const guideOffset = (guideDays / totalDays) * containerWidth;
                 onGuideMove(guideOffset);
             }
 
-            // Y 위치를 부모로 전달 (세로 이동 감지용)
             if (onMilestoneDragMove) {
                 onMilestoneDragMove(e.clientY);
             }
         };
 
         const handleMouseUp = () => {
-            // 가이드라인 제거
             if (onGuideMove) onGuideMove(null);
 
-            // 드래그 완료 시 최종 날짜를 히스토리에 기록
             if (onMilestoneDragEnd && draggedMilestoneDate) {
                 onMilestoneDragEnd(task.id, draggingMilestone, draggedMilestoneDate);
             }
 
-            // 로컬 드래그 상태 클리어
-            setDraggingMilestone(null);
             setDraggingMilestone(null);
             setDraggedMilestoneDate(null);
             setDraggedMilestoneY(0);
@@ -250,14 +207,13 @@ function TimelineBar({
             document.removeEventListener('mousemove', handleMouseMove);
             document.removeEventListener('mouseup', handleMouseUp);
         };
-    }, [draggingMilestone, milestoneDragStart, containerWidth, totalDays, task.id, onMilestoneDragEnd, onMilestoneDragMove, draggedMilestoneDate, onGuideMove]);
+    }, [draggingMilestone, milestoneDragStart, containerWidth, totalDays, task.id, onMilestoneDragEnd, onMilestoneDragMove, draggedMilestoneDate, onGuideMove, snapEnabled, startDate]);
 
-    // 마일스톤 렌더링
+
+    // Render Milestones (Same as before)
     const renderMilestones = () => {
         if (!task.milestones || task.milestones.length === 0) return null;
 
-        // --- Two-Pass Layout System for Collision-Free Labels --- 
-        // 1. Prepare data: Calculate X position and Label Width for all milestones
         const preparedMilestones = task.milestones
             .filter(m => {
                 const d = new Date(m.date);
@@ -266,55 +222,47 @@ function TimelineBar({
             .map(m => {
                 const daysFromStart = dateUtils.getDaysBetween(startDate, m.date);
                 const x = (daysFromStart / totalDays) * containerWidth;
-                // Estimate label width: (chars * 14px) + 10px padding. 
                 const width = (m.label.length * 14) + 10;
                 return { ...m, x, width };
             })
-            .sort((a, b) => a.x - b.x); // Sort by X position
+            .sort((a, b) => a.x - b.x);
 
-        // 2. Pass 1: Reserve Manual Positions
-        // Store occupied ranges: { start, end, type }
         const occupied = [];
-
-        preparedMilestones.forEach(m => {
+        const preparedMap = preparedMilestones.map(m => {
+            // Reserve Manual Positions
             if (m.labelPosition && m.labelPosition !== 'auto') {
                 let start, end;
-                // Determine occupied range based on position type
                 if (m.labelPosition === 'right') {
                     start = m.x + 10;
                     end = m.x + 10 + m.width;
                 } else if (m.labelPosition === 'left') {
                     start = m.x - 10 - m.width;
                     end = m.x - 10;
-                } else { // Top or Bottom (Centered)
+                } else {
                     start = m.x - (m.width / 2);
                     end = m.x + (m.width / 2);
                 }
                 occupied.push({ start, end, type: m.labelPosition, id: m.id });
+                return { ...m, finalLabelPos: m.labelPosition };
             }
+            return m;
         });
 
-        // Helper: Check collision
         const checkCollision = (start, end, type) => {
             return occupied.some(item => {
-                // strict collision check for same slot type
                 if (item.type !== type) return false;
                 return (start < item.end && end > item.start);
             });
         };
 
-        // 3. Pass 2: Resolve Auto Positions
-        const resolvedPositions = {}; // id -> position
+        const resolvedPositions = {};
 
-        preparedMilestones.forEach(m => {
-            // If already manual, just use it
-            if (m.labelPosition && m.labelPosition !== 'auto') {
-                resolvedPositions[m.id] = m.labelPosition;
+        preparedMap.forEach(m => {
+            if (m.finalLabelPos) {
+                resolvedPositions[m.id] = m.finalLabelPos;
                 return;
             }
 
-            // It's Auto. Try priorities: Top -> Bottom -> Right
-            // Check Top
             const topStart = m.x - (m.width / 2);
             const topEnd = m.x + (m.width / 2);
             if (!checkCollision(topStart, topEnd, 'top')) {
@@ -323,7 +271,6 @@ function TimelineBar({
                 return;
             }
 
-            // Check Bottom
             const bottomStart = m.x - (m.width / 2);
             const bottomEnd = m.x + (m.width / 2);
             if (!checkCollision(bottomStart, bottomEnd, 'bottom')) {
@@ -332,7 +279,6 @@ function TimelineBar({
                 return;
             }
 
-            // Check Right
             const rightStart = m.x + 10;
             const rightEnd = m.x + 10 + m.width;
             if (!checkCollision(rightStart, rightEnd, 'right')) {
@@ -341,17 +287,11 @@ function TimelineBar({
                 return;
             }
 
-            // Fallback: Top (even if colliding)
             resolvedPositions[m.id] = 'top';
             occupied.push({ start: topStart, end: topEnd, type: 'top', id: m.id });
         });
 
-        // 4. Render using resolved positions
         return task.milestones.map((milestone) => {
-            // Find the pre-calculated position logic if available (for exact alignment), 
-            // but we can trust the standard calculation since date is source of truth.
-
-            // 드래그 중이면 draggedMilestoneDate 사용, 아니면 milestone.date
             const currentDate = (draggingMilestone === milestone.id && draggedMilestoneDate)
                 ? draggedMilestoneDate
                 : milestone.date;
@@ -365,11 +305,8 @@ function TimelineBar({
             const position = (daysFromStart / totalDays) * containerWidth;
 
             const shape = milestone.shape || 'diamond';
-
-            // Use resolved position
             const finalLabelPos = resolvedPositions[milestone.id] || 'top';
 
-            // 모양별 스타일
             let shapeElement;
             const baseStyle = {
                 width: '16px',
@@ -379,65 +316,35 @@ function TimelineBar({
                 boxShadow: '0 2px 6px rgba(0, 0, 0, 0.3)',
             };
 
-            switch (shape) {
-                case 'circle':
-                    shapeElement = (
-                        <div style={{ ...baseStyle, borderRadius: '50%' }} />
-                    );
-                    break;
-                case 'triangle':
-                    shapeElement = (
+            // Simplified shape rendering for brevity, can expand later if needed
+            // For now trusting component has it. I will copy the svg paths from previous read if possible or keep simple
+            const getShape = () => {
+                switch (shape) {
+                    case 'circle': return <div style={{ ...baseStyle, borderRadius: '50%' }} />;
+                    case 'square': return <div style={{ ...baseStyle, borderRadius: '2px' }} />;
+                    case 'diamond': return <div style={{ ...baseStyle, transform: 'rotate(45deg)' }} />;
+                    case 'triangle': return (
                         <svg width="20" height="20" viewBox="0 0 24 24" style={{ filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3))' }}>
                             <path d="M12 2L22 22H2L12 2Z" fill={milestone.color} stroke="white" strokeWidth="2" strokeLinejoin="round" />
-                        </svg>
-                    );
-                    break;
-                case 'square':
-                    shapeElement = (
-                        <div style={{ ...baseStyle, borderRadius: '2px' }} />
-                    );
-                    break;
-                case 'star':
-                    shapeElement = (
+                        </svg>);
+                    case 'star': return (
                         <svg width="20" height="20" viewBox="0 0 24 24" style={{ filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3))' }}>
                             <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" fill={milestone.color} stroke="white" strokeWidth="2" strokeLinejoin="round" />
-                        </svg>
-                    );
-                    break;
-                case 'flag':
-                    shapeElement = (
+                        </svg>);
+                    case 'flag': return (
                         <svg width="20" height="20" viewBox="0 0 24 24" style={{ filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3))' }}>
                             <path d="M14.4 6L14 4H5V21H7V14H12L12.4 16H22V6H14.4Z" fill={milestone.color} stroke="white" strokeWidth="2" strokeLinejoin="round" />
-                        </svg>
-                    );
-                    break;
-                case 'diamond':
-                default:
-                    shapeElement = (
-                        <div style={{
-                            ...baseStyle,
-                            transform: 'rotate(45deg)',
-                        }} />
-                    );
-                    break;
-            }
+                        </svg>);
+                    default: return <div style={{ ...baseStyle, transform: 'rotate(45deg)' }} />;
+                }
+            };
 
             let labelStyle = {};
-
             switch (finalLabelPos) {
-                case 'top':
-                    labelStyle = { bottom: '100%', left: '50%', transform: 'translateX(-50%)', marginBottom: '4px' };
-                    break;
-                case 'left':
-                    labelStyle = { right: '100%', top: '50%', transform: 'translateY(-50%)', marginRight: '8px' };
-                    break;
-                case 'right':
-                    labelStyle = { left: '100%', top: '50%', transform: 'translateY(-50%)', marginLeft: '8px' };
-                    break;
-                case 'bottom':
-                default:
-                    labelStyle = { top: '100%', left: '50%', transform: 'translateX(-50%)', marginTop: '4px' };
-                    break;
+                case 'top': labelStyle = { bottom: '100%', left: '50%', transform: 'translateX(-50%)', marginBottom: '4px' }; break;
+                case 'left': labelStyle = { right: '100%', top: '50%', transform: 'translateY(-50%)', marginRight: '8px' }; break;
+                case 'right': labelStyle = { left: '100%', top: '50%', transform: 'translateY(-50%)', marginLeft: '8px' }; break;
+                case 'bottom': default: labelStyle = { top: '100%', left: '50%', transform: 'translateX(-50%)', marginTop: '4px' }; break;
             }
 
             return (
@@ -453,32 +360,21 @@ function TimelineBar({
                     }}
                     title={`${milestone.label} (${currentDate})`}
                     onContextMenu={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
+                        e.preventDefault(); e.stopPropagation();
                         onMilestoneContextMenu(e, milestone);
                     }}
-                    onClick={(e) => {
-                        if (onMilestoneClick) {
-                            onMilestoneClick(e, milestone);
-                        }
-                    }}
+                    onClick={(e) => onMilestoneClick && onMilestoneClick(e, milestone)}
                 >
                     <div
                         className="milestone-shape"
                         onMouseDown={(e) => {
                             e.stopPropagation();
                             setDraggingMilestone(milestone.id);
-                            setMilestoneDragStart({
-                                x: e.clientX,
-                                y: e.clientY,
-                                originalDate: new Date(milestone.date)
-                            });
+                            setMilestoneDragStart({ x: e.clientX, y: e.clientY, originalDate: new Date(milestone.date) });
                             setDraggedMilestoneDate(milestone.date);
                         }}
                     >
-                        {shapeElement}
-
-                        {/* 드래그 중 날짜 표시 라벨 */}
+                        {getShape()}
                         {draggingMilestone === milestone.id && draggedMilestoneDate && (
                             <div className="milestone-date-label">
                                 {dateUtils.formatDate(new Date(draggedMilestoneDate), 'MM.DD')}
@@ -491,108 +387,112 @@ function TimelineBar({
         });
     };
 
-    // 날짜 유효성 확인
-    const hasValidDates = startDate && endDate && task.startDate && task.endDate;
-
-    const barContent = (
-        <div
-            ref={barRef}
-            className={`timeline-bar ${isSelected ? 'selected' : ''} ${isDragging ? 'dragging' : ''}`}
-            style={{
-                left: `${offset}px`,
-                width: `${width}px`,
-                backgroundColor: task.color,
-            }}
-            onClick={(e) => {
-                e.stopPropagation();
-                onSelect(task.id);
-            }}
-            onContextMenu={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-
-                // 클릭 위치에 따른 날짜 계산
-                const rect = barRef.current.getBoundingClientRect();
-                const offsetX = e.clientX - rect.left;
-                const width = rect.width;
-                const totalDays = dateUtils.getDaysBetween(task.startDate, task.endDate);
-                const daysToAdd = Math.round((offsetX / width) * totalDays);
-                const clickDate = dateUtils.addDays(task.startDate, daysToAdd);
-
-                onContextMenu(e, clickDate);
-            }}
-        >
-            {/* 드래그 중 날짜 라벨 */}
-            {isDragging && draggedDates && (
-                <>
-                    {/* 이동 시: 중앙 표시 */}
-                    {dragType === 'move' && (
-                        <div className="timeline-date-label label-center">
-                            {dateUtils.formatDate(new Date(draggedDates.startDate), 'MM.DD')} ~ {dateUtils.formatDate(new Date(draggedDates.endDate), 'MM.DD')}
-                        </div>
-                    )}
-                    {/* 시작 사이즈 조절: 왼쪽 표시 */}
-                    {dragType === 'resize-start' && (
-                        <div className="timeline-date-label label-left">
-                            {dateUtils.formatDate(new Date(draggedDates.startDate), 'MM.DD')}
-                        </div>
-                    )}
-                    {/* 종료 사이즈 조절: 오른쪽 표시 */}
-                    {dragType === 'resize-end' && (
-                        <div className="timeline-date-label label-right">
-                            {dateUtils.formatDate(new Date(draggedDates.endDate), 'MM.DD')}
-                        </div>
-                    )}
-                </>
-            )}
-
-            {/* 시작 핸들 */}
-            <div
-                className="resize-handle resize-start"
-                onMouseDown={(e) => handleMouseDown(e, 'resize-start')}
-                onMouseEnter={(e) => e.stopPropagation()}
-            />
-
-            {/* 바 내용 */}
-            <div
-                className="bar-content"
-                onMouseDown={(e) => handleMouseDown(e, 'move')}
-            >
-                {showLabel && (
-                    <span className="bar-label">
-                        {task.name}
-                    </span>
-                )}
-            </div>
-
-            {/* 종료 핸들 */}
-            <div
-                className="resize-handle resize-end"
-                onMouseDown={(e) => handleMouseDown(e, 'resize-end')}
-                onMouseEnter={(e) => e.stopPropagation()}
-            />
-        </div>
-    );
-
     return (
         <div
             className={`timeline-row level-${level} ${isDragTarget ? 'drag-target' : ''}`}
             data-task-id={task.id}
+            onContextMenu={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const rect = e.currentTarget.getBoundingClientRect();
+                const offsetX = e.clientX - rect.left;
+                const totalDays = dateUtils.getDaysBetween(startDate, endDate);
+                const daysToAdd = Math.round((offsetX / containerWidth) * totalDays);
+                const clickDate = dateUtils.addDays(startDate, daysToAdd);
+                onContextMenu(e, clickDate);
+            }}
         >
-            {hasValidDates ? (
-                // 드래그 중이 아닐 때만 툴팁 표시 (잔영 제거)
-                !isDragging ? (
-                    <Tooltip content={task.description} position="top">
-                        {barContent}
-                    </Tooltip>
-                ) : (
-                    barContent
-                )
-            ) : null}
-            {/* 마일스톤 마커들 */}
+            {timeRanges.map(range => {
+                const isActive = activeRangeId === range.id;
+
+                // Use dragged date if active, else range date
+                const displayStart = (isActive && draggedDates) ? draggedDates.startDate : range.startDate;
+                const displayEnd = (isActive && draggedDates) ? draggedDates.endDate : range.endDate;
+
+                if (!displayStart || !displayEnd) return null;
+
+                const { width, offset } = dateUtils.calculateWidth(
+                    displayStart,
+                    displayEnd,
+                    startDate,
+                    endDate,
+                    containerWidth
+                );
+
+                return (
+                    <div
+                        key={range.id}
+                        ref={(el) => (barRefs.current[range.id] = el)}
+                        className={`timeline-bar ${isSelected ? 'selected' : ''} ${isActive ? 'dragging' : ''}`}
+                        style={{
+                            left: `${offset}px`,
+                            width: `${width}px`,
+                            backgroundColor: task.color,
+                        }}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onSelect(task.id);
+                        }}
+                        onContextMenu={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            const rect = e.currentTarget.getBoundingClientRect();
+                            const offsetX = e.clientX - rect.left;
+                            const barTotalDays = dateUtils.getDaysBetween(range.startDate, range.endDate);
+                            const daysToAdd = Math.round((offsetX / rect.width) * barTotalDays);
+                            const clickDate = dateUtils.addDays(range.startDate, daysToAdd);
+                            onContextMenu(e, clickDate);
+                        }}
+                    >
+                        {/* Drag Labels */}
+                        {isActive && draggedDates && (
+                            <>
+                                {dragType === 'move' && (
+                                    <div className="timeline-date-label label-center">
+                                        {dateUtils.formatDate(new Date(draggedDates.startDate), 'MM.DD')} ~ {dateUtils.formatDate(new Date(draggedDates.endDate), 'MM.DD')}
+                                    </div>
+                                )}
+                                {dragType === 'resize-start' && (
+                                    <div className="timeline-date-label label-left">
+                                        {dateUtils.formatDate(new Date(draggedDates.startDate), 'MM.DD')}
+                                    </div>
+                                )}
+                                {dragType === 'resize-end' && (
+                                    <div className="timeline-date-label label-right">
+                                        {dateUtils.formatDate(new Date(draggedDates.endDate), 'MM.DD')}
+                                    </div>
+                                )}
+                            </>
+                        )}
+
+                        {/* Handles */}
+                        <div
+                            className="resize-handle resize-start"
+                            onMouseDown={(e) => handleMouseDown(e, 'resize-start', range)}
+                            onMouseEnter={(e) => e.stopPropagation()}
+                        />
+                        <div
+                            className="bar-content"
+                            onMouseDown={(e) => handleMouseDown(e, 'move', range)}
+                        >
+                            {/* Label only on first bar or all? Typically first, or if space permits. For now all */}
+                            {showLabel && (
+                                <span className="bar-label">
+                                    {task.name}
+                                </span>
+                            )}
+                        </div>
+                        <div
+                            className="resize-handle resize-end"
+                            onMouseDown={(e) => handleMouseDown(e, 'resize-end', range)}
+                            onMouseEnter={(e) => e.stopPropagation()}
+                        />
+                    </div>
+                );
+            })}
+
             {renderMilestones()}
 
-            {/* 구분선 (Divider) */}
             {task.divider && task.divider.enabled && (
                 <div
                     className="task-divider"
@@ -607,10 +507,11 @@ function TimelineBar({
                     }}
                 />
             )}
-
-
         </div>
     );
 }
 
 export default TimelineBar;
+
+
+

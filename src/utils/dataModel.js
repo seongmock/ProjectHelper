@@ -1,11 +1,17 @@
 // 데이터 구조 정의 및 초기 샘플 데이터
 
 export const createNewTask = (name = '새 작업', parentId = null) => {
+    const startDate = formatDate(new Date());
+    const endDate = formatDate(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)); // 30일 후
+
     return {
         id: generateId(),
         name,
-        startDate: formatDate(new Date()),
-        endDate: formatDate(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)), // 30일 후
+        // startDate, // Legacy: Removed in favor of timeRanges
+        // endDate,   // Legacy
+        timeRanges: [
+            { id: generateId(), startDate, endDate }
+        ],
         color: '#4A90E2',
         description: '',
         children: [],
@@ -17,6 +23,7 @@ export const createNewTask = (name = '새 작업', parentId = null) => {
         divider: { enabled: false, thickness: 2, style: 'solid', color: '#000000' }
     };
 };
+
 
 export const generateId = () => {
     return `task-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -47,8 +54,47 @@ export const flattenTasks = (items, level = 0) => {
 };
 
 // 샘플 데이터
+// 데이터 마이그레이션 함수 (Legacy -> Multiple Ranges)
+export const migrateTaskData = (tasks) => {
+    if (!Array.isArray(tasks)) return [];
+
+    return tasks.map(task => {
+        let newTask = { ...task };
+
+        // timeRanges가 없으면 기존 startDate/endDate로 생성
+        if (!newTask.timeRanges || !Array.isArray(newTask.timeRanges)) {
+            if (newTask.startDate && newTask.endDate) {
+                // 기존 데이터 보존
+                newTask.timeRanges = [
+                    {
+                        id: generateId(), // 새 ID 발급
+                        startDate: newTask.startDate,
+                        endDate: newTask.endDate
+                    }
+                ];
+            } else {
+                newTask.timeRanges = [];
+            }
+        }
+
+        // 자식들도 재귀적으로 마이그레이션
+        if (newTask.children && newTask.children.length > 0) {
+            newTask.children = migrateTaskData(newTask.children);
+        }
+
+        // startDate/endDate 필드는 호환성을 위해 유지하거나 제거.
+        // 여기서는 computed로 사용하기 위해 제거하지 않지만,
+        // UI에서는 timeRanges를 우선적으로 사용해야 함.
+        // 의존성 로직 등에서 startDate/endDate를 참조하는 경우를 대비해
+        // 마이그레이션 시점에는 굳이 삭제하지 않음 (단, 업데이트 시에는 동기화 필요)
+
+        return newTask;
+    });
+};
+
+// 샘플 데이터
 export const getSampleData = () => {
-    return [
+    const data = [
         {
             id: 'task-1',
             name: '프로젝트 기획',
@@ -167,4 +213,8 @@ export const getSampleData = () => {
             ],
         },
     ];
+
+    // 샘플 데이터도 마이그레이션을 통해 data structure 통일
+    return migrateTaskData(data);
 };
+
