@@ -192,7 +192,7 @@ const TimelineView = forwardRef(({
     // Expose copyToClipboard to parent
     useImperativeHandle(ref, () => ({
         copyToClipboard: handleCopyToClipboard
-    }));
+    }), [handleCopyToClipboard, flatTasks]); // flatTasks 의존성 추가 (중요)
 
     // 컨테이너 너비 감지 (타임라인 스크롤 영역 기준)
     useEffect(() => {
@@ -635,38 +635,31 @@ const TimelineView = forwardRef(({
                 taskNamesContainer.style.height = 'auto';
             }
 
-            // 높이 결정: DOM 요소 개수 * 행 높이 방식으로 변경 (오차 최소화)
+            // 높이 결정: 데이터 기반 (DOM 의존성 제거, Stale Closure 방지 위해 flatTasks 직접 참조)
             const header = captureContainer.querySelector('.timeline-header');
             const headerHeight = header ? header.offsetHeight : (isCompact ? 50 : 70);
             const rowHeightVal = isCompact ? 28 : 40;
 
-            const timelineContent = captureContainer.querySelector('.timeline-content');
-            let contentHeight = 0;
-
-            if (timelineContent) {
-                // 실제 렌더링된 바 개수 카운트
-                const bars = timelineContent.querySelectorAll('.timeline-bar'); // 혹시 클래스명이 다르면 수정 필요
-                // 만약 bars가 안 잡히면 task-name-item 개수로 백업
-                if (bars.length > 0) {
-                    contentHeight = headerHeight + (bars.length * rowHeightVal);
-                    // 마지막 바의 여유공간 (보더 등) 확인
-                    contentHeight += 2;
-                } else {
-                    // Task Names 개수로 시도
-                    const namesList = captureContainer.querySelector('.task-names-list');
-                    if (namesList) {
-                        const nameItems = namesList.querySelectorAll('.task-name-item');
-                        if (nameItems.length > 0) {
-                            contentHeight = headerHeight + (nameItems.length * rowHeightVal) + 2;
-                        }
-                    }
+            // DOM 쿼리 대신 현재 데이터(flatTasks) 개수 사용
+            // flatTasks는 컴포넌트 렌더링에 사용되는 데이터이므로 가장 정확함
+            let rowCount = 0;
+            if (flatTasks && flatTasks.length > 0) {
+                rowCount = flatTasks.length;
+            } else {
+                // 혹시 flatTasks가 캡처 시점에 비어있다면(거의 없음) DOM fallback
+                const timelineContent = captureContainer.querySelector('.timeline-content');
+                if (timelineContent) {
+                    const bars = timelineContent.querySelectorAll('.timeline-bar');
+                    rowCount = bars.length;
                 }
             }
 
+            let contentHeight = headerHeight + (rowCount * rowHeightVal) + 2;
+
             // 만약 여전히 0이면 기존 방식으로 fallback
-            if (contentHeight === 0) {
+            if (contentHeight <= headerHeight + 5) { // 헤더만 있는 수준이면
                 const scrollContainer = timelineScrollRef.current;
-                contentHeight = scrollContainer.scrollHeight;
+                contentHeight = Math.max(contentHeight, scrollContainer.scrollHeight);
             } else {
                 // 정확히 계산된 높이 사용 (불필요한 공백 제거)
                 // 너무 작지 않게 최소값 보정 (헤더만 찍히는 경우 방지)
