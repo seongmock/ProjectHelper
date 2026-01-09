@@ -329,42 +329,42 @@ function TimelineBar({
             let finalLabelPos = milestone.labelPosition || 'top'; // 기본값은 'top' (명시되지 않았거나 auto일 경우 초기값)
 
             if (finalLabelPos === 'auto') {
-                // Auto Positioning Logic Refined
-                // Strategy: Top (Default) -> Bottom -> Right -> Top (Fallback)
+                // Auto Positioning Logic Refined (Multi-lookback)
 
                 const sortedMilestones = [...task.milestones].sort((a, b) => new Date(a.date) - new Date(b.date));
                 const currentIndex = sortedMilestones.findIndex(m => m.id === milestone.id);
 
                 if (currentIndex > 0) {
-                    const prevMilestone = sortedMilestones[currentIndex - 1];
-                    const prevDate = new Date(prevMilestone.date);
                     const currDate = new Date(milestone.date);
 
-                    const daysDiff = dateUtils.getDaysBetween(prevDate, currDate);
-                    const pixelDist = (daysDiff / totalDays) * containerWidth;
+                    // Count overlaps in the sequence 0..currentIndex-1
+                    // This "Cluster Index" strategy simply counts how many preceding milestones
+                    // are within the collision threshold (60px) of the CURRENT milestone.
+                    // This creates a deterministic, robust positioning:
+                    // 1st item (0 overlaps) -> Top
+                    // 2nd item (1 overlap) -> Bottom
+                    // 3rd item (2 overlaps) -> Right
+                    // 4th item (3 overlaps) -> Top
 
-                    // Collision Threshold (60px)
-                    if (pixelDist < 60) {
-                        const occupied = new Set();
+                    let overlappingPredecessors = 0;
+                    for (let i = currentIndex - 1; i >= 0; i--) {
+                        const prevMilestone = sortedMilestones[i];
+                        const prevDate = new Date(prevMilestone.date);
+                        const daysDiff = dateUtils.getDaysBetween(prevDate, currDate);
+                        const pixelDist = (daysDiff / totalDays) * containerWidth;
 
-                        // Check previous milestone's position
-                        let prevPos = prevMilestone.labelPosition || 'auto';
-                        if (prevPos === 'auto') prevPos = 'top';
-
-                        occupied.add(prevPos);
-
-                        // Try sequence: Top -> Bottom -> Right
-                        if (!occupied.has('top')) {
-                            finalLabelPos = 'top';
-                        } else if (!occupied.has('bottom')) {
-                            finalLabelPos = 'bottom';
-                        } else if (!occupied.has('right')) {
-                            finalLabelPos = 'right';
+                        if (pixelDist < 60) {
+                            overlappingPredecessors++;
                         } else {
-                            // All occupied? Fallback to Top as requested
-                            finalLabelPos = 'top';
+                            break;
                         }
                     }
+
+                    // Assign based on count (Cluster Index Strategy)
+                    const slots = ['top', 'bottom', 'right'];
+                    // Cycle: 0->Top, 1->Bottom, 2->Right, 3->Top...
+                    const slotIndex = overlappingPredecessors % 3;
+                    finalLabelPos = slots[slotIndex];
                 }
             }
 
