@@ -685,7 +685,6 @@ const TimelineView = forwardRef(({
             captureContainer.style.height = captureHeight; // max-content 대신 측정된 높이 사용
 
             // timeline-content의 min-height 무력화
-            const timelineContent = captureContainer.querySelector('.timeline-content');
             let originalMinHeight = '';
             if (timelineContent) {
                 originalMinHeight = timelineContent.style.minHeight;
