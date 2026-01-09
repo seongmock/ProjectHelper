@@ -652,10 +652,7 @@ const TimelineView = forwardRef(({
                 containerRef.current.classList.remove('capturing');
             }
 
-            // 캡처 종료: 클래스 제거
-            if (containerRef.current) {
-                containerRef.current.classList.remove('capturing');
-            }
+
 
             canvas.toBlob(async (blob) => {
                 if (!blob) {
