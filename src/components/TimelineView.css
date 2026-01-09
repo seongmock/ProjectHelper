@@ -123,11 +123,13 @@
     flex: 1;
     overflow: auto;
     position: relative;
+    background-color: var(--color-bg-primary);
 }
 
 .timeline-content {
     position: relative;
     min-height: 400px;
+    background-color: var(--color-bg-primary);
 }
 
 .empty-timeline {

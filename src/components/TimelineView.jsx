@@ -633,11 +633,27 @@ const TimelineView = forwardRef(({
                 taskNamesContainer.style.height = 'auto';
             }
 
+            // 실제 콘텐츠 높이 계산 (여백 제거)
+            const rowHeight = isCompact ? 28 : 40;
+            const headerHeight = isCompact ? 50 : 70;
+            const contentHeight = (flatTasks.length * rowHeight) + headerHeight;
+
+            // 여분을 조금 두거나 딱 맞게 설정 (보더 고려 + 2px)
+            const captureHeight = `${contentHeight + 2}px`;
+
             const captureContainer = captureRef.current;
             const originalCaptureWidth = captureContainer.style.width;
             const originalCaptureHeight = captureContainer.style.height;
             captureContainer.style.width = 'max-content';
-            captureContainer.style.height = 'max-content';
+            captureContainer.style.height = captureHeight; // max-content 대신 실제 높이 사용
+
+            // timeline-content의 min-height 무력화
+            const timelineContent = captureContainer.querySelector('.timeline-content');
+            let originalMinHeight = '';
+            if (timelineContent) {
+                originalMinHeight = timelineContent.style.minHeight;
+                timelineContent.style.minHeight = '0';
+            }
 
             const canvas = await html2canvas(captureRef.current, {
                 scale: 2, // 고해상도
@@ -664,7 +680,12 @@ const TimelineView = forwardRef(({
             captureContainer.style.width = originalCaptureWidth;
             captureContainer.style.height = originalCaptureHeight;
 
-            // 캡처 종료: 클래스 제거
+            // min-height 복구
+            if (timelineContent) {
+                timelineContent.style.minHeight = originalMinHeight;
+            }
+
+            // 컨테이너 클래스 제거
             if (containerRef.current) {
                 containerRef.current.classList.remove('capturing');
             }
