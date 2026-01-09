@@ -346,16 +346,26 @@ function TimelineBar({
                     // 3rd item (2 overlaps) -> Right
                     // 4th item (3 overlaps) -> Top
 
+                    // Count overlaps based on DYNAMIC label width
                     let overlappingPredecessors = 0;
+                    const currLabelWidth = (milestone.label.length * 14) + 20; // Approx 14px/char + padding (Safe est)
+
                     for (let i = currentIndex - 1; i >= 0; i--) {
                         const prevMilestone = sortedMilestones[i];
                         const prevDate = new Date(prevMilestone.date);
                         const daysDiff = dateUtils.getDaysBetween(prevDate, currDate);
                         const pixelDist = (daysDiff / totalDays) * containerWidth;
 
-                        if (pixelDist < 60) {
+                        // Calculate dynamic threshold based on both labels
+                        const prevLabelWidth = (prevMilestone.label.length * 14) + 20;
+                        const collisionThreshold = (prevLabelWidth / 2) + (currLabelWidth / 2) + 10; // +10px margin
+
+                        if (pixelDist < collisionThreshold) {
                             overlappingPredecessors++;
                         } else {
+                            // If far enough, check if previous was FAR enough.
+                            // But wait, sorted by date doesn't mean sorted by position if overlap logic is involved?
+                            // No, sorted by date = sorted by X position.
                             break;
                         }
                     }
