@@ -633,44 +633,42 @@ const TimelineView = forwardRef(({
                 taskNamesContainer.style.height = 'auto';
             }
 
-            // 실제 콘텐츠 높이 계산 (여백 제거)
-            const rowHeight = isCompact ? 28 : 40;
-            const headerHeight = isCompact ? 50 : 70;
-            const contentHeight = (flatTasks.length * rowHeight) + headerHeight;
+            // timeline-content의 min-height 무력화 (측정 전 실행)
+            const timelineContent = captureContainer.querySelector('.timeline-content');
+            let originalMinHeight = '';
+            let originalContentHeight = '';
+            if (timelineContent) {
+                originalMinHeight = timelineContent.style.minHeight;
+                originalContentHeight = timelineContent.style.height;
+                timelineContent.style.minHeight = '0';
+                timelineContent.style.height = 'fit-content'; // 콘텐츠에 맞게 조절
+            }
 
-            // 여분을 조금 두거나 딱 맞게 설정 (보더 고려 + 2px)
-            const captureHeight = `${contentHeight + 2}px`;
+            // DOM 측정 
+            const measuredHeight = scrollContainer.scrollHeight;
+            const captureHeight = `${measuredHeight}px`;
 
             const captureContainer = captureRef.current;
             const originalCaptureWidth = captureContainer.style.width;
             const originalCaptureHeight = captureContainer.style.height;
             captureContainer.style.width = 'max-content';
-            captureContainer.style.height = captureHeight; // max-content 대신 실제 높이 사용
+            captureContainer.style.height = captureHeight;
 
-            // timeline-content의 min-height 무력화
-            const timelineContent = captureContainer.querySelector('.timeline-content');
-            let originalMinHeight = '';
-            if (timelineContent) {
-                originalMinHeight = timelineContent.style.minHeight;
-                timelineContent.style.minHeight = '0';
-            }
-
-            // html2canvas 옵션에 계산된 높이 적용
+            // html2canvas 옵션 적용
             const canvas = await html2canvas(captureRef.current, {
                 scale: 2, // 고해상도
                 useCORS: true,
                 logging: false,
                 backgroundColor: darkMode ? '#1E1E1E' : '#FFFFFF',
                 width: captureContainer.scrollWidth,
-                height: contentHeight + 2, // scrollHeight 대신 계산된 높이 사용
+                height: measuredHeight, // 측정된 높이 사용
                 windowWidth: captureContainer.scrollWidth,
-                windowHeight: contentHeight + 2,
+                windowHeight: measuredHeight,
                 onclone: (clonedDoc) => {
-                    // 클론된 문서에서 추가적인 스타일 조정이 필요할 경우 여기서 처리
                     const clonedContent = clonedDoc.querySelector('.timeline-content');
                     if (clonedContent) {
                         clonedContent.style.minHeight = '0';
-                        clonedContent.style.height = 'auto';
+                        clonedContent.style.height = 'fit-content';
                     }
                 }
             });
@@ -690,6 +688,7 @@ const TimelineView = forwardRef(({
             // min-height 복구
             if (timelineContent) {
                 timelineContent.style.minHeight = originalMinHeight;
+                timelineContent.style.height = originalContentHeight;
             }
 
             // 컨테이너 클래스 제거
