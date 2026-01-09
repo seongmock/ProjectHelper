@@ -649,8 +649,8 @@ const TimelineView = forwardRef(({
                 rowCount = bars.length;
             }
 
-            // 여유 버퍼 최소화 (0px에 가깝게) - 여백 제거 요청 반영
-            let contentHeight = headerHeight + (rowCount * rowHeightVal) + 2;
+            // 여유 버퍼 완전 제거 (0px) - 사용자 요청 (흰색 여백 제거)
+            let contentHeight = headerHeight + (rowCount * rowHeightVal);
 
             // 만약 여전히 0이면 기존 방식으로 fallback
             if (contentHeight <= headerHeight + 5) { // 헤더만 있는 수준이면
