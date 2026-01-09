@@ -713,7 +713,7 @@ function App() {
             timelineRef.current.copyToClipboard();
         } else {
             console.error('Timeline ref is null');
-            // alert('Timeline ref is null'); // 디버깅용 (필요시 주석 해제)
+            alert('Timeline ref is null (Debug)'); // 디버깅용 활성화
         }
     };
 
