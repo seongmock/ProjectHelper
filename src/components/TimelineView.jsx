@@ -635,55 +635,47 @@ const TimelineView = forwardRef(({
                 taskNamesContainer.style.height = 'auto';
             }
 
-            // 실제 콘텐츠의 '끝' 위치를 찾아 높이 결정 (컨테이너 크기 무시)
+            // 높이 결정: DOM 요소 개수 * 행 높이 방식으로 변경 (오차 최소화)
             const header = captureContainer.querySelector('.timeline-header');
             const headerHeight = header ? header.offsetHeight : (isCompact ? 50 : 70);
+            const rowHeightVal = isCompact ? 28 : 40;
 
             const timelineContent = captureContainer.querySelector('.timeline-content');
-            let contentBottom = 0;
+            let contentHeight = 0;
 
-            if (timelineContent && timelineContent.lastElementChild) {
-                // timeline-content 내부의 마지막 요소(Task Bar) 찾기
-                // timeline-bar 클래스를 가진 마지막 요소 찾기 (혹시 다른 게 있을 수 있으므로)
-                const bars = timelineContent.querySelectorAll('.timeline-bar');
+            if (timelineContent) {
+                // 실제 렌더링된 바 개수 카운트
+                const bars = timelineContent.querySelectorAll('.timeline-bar'); // 혹시 클래스명이 다르면 수정 필요
+                // 만약 bars가 안 잡히면 task-name-item 개수로 백업
                 if (bars.length > 0) {
-                    const lastBar = bars[bars.length - 1];
-                    // timeline-content 내에서의 상대 위치 + timeline-content 자체의 시작 위치(헤더 아래)에 대한 고려 필요
-                    // timeline-content는 헤더 형제 요소라고 가정 (scrollContainer 내부)
-                    // 따라서 총 높이는 headerHeight + lastBar.offsetTop + lastBar.offsetHeight
-                    contentBottom = headerHeight + lastBar.offsetTop + lastBar.offsetHeight;
+                    contentHeight = headerHeight + (bars.length * rowHeightVal);
+                    // 마지막 바의 여유공간 (보더 등) 확인
+                    contentHeight += 2;
                 } else {
-                    // 바가 없으면 min-height 0 이후의 높이 (거의 0)
-                    contentBottom = headerHeight + timelineContent.offsetHeight;
+                    // Task Names 개수로 시도
+                    const namesList = captureContainer.querySelector('.task-names-list');
+                    if (namesList) {
+                        const nameItems = namesList.querySelectorAll('.task-name-item');
+                        if (nameItems.length > 0) {
+                            contentHeight = headerHeight + (nameItems.length * rowHeightVal) + 2;
+                        }
+                    }
                 }
+            }
+
+            // 만약 여전히 0이면 기존 방식으로 fallback
+            if (contentHeight === 0) {
+                const scrollContainer = timelineScrollRef.current;
+                contentHeight = scrollContainer.scrollHeight;
             } else {
-                contentBottom = scrollContainer.scrollHeight; // fallback
+                // 정확히 계산된 높이 사용 (불필요한 공백 제거)
+                // 너무 작지 않게 최소값 보정 (헤더만 찍히는 경우 방지)
+                contentHeight = Math.max(contentHeight, headerHeight + 50);
             }
 
-            // Task Names 쪽도 확인 (혹시 더 길 수도 있음)
-            let namesBottom = 0;
-            const namesList = captureContainer.querySelector('.task-names-list');
-            if (namesList) {
-                const nameItems = namesList.querySelectorAll('.task-name-item');
-                if (nameItems.length > 0) {
-                    const lastItem = nameItems[nameItems.length - 1];
-                    const namesHeader = captureContainer.querySelector('.task-names-header');
-                    const namesHeaderH = namesHeader ? namesHeader.offsetHeight : 70;
-                    // task-names-list는 header 형제. items는 list 내부.
-                    namesBottom = namesHeaderH + lastItem.offsetTop + lastItem.offsetHeight;
-                }
-            }
-
-            // 더 큰 높이 사용 + 여백
-            const contentHeight = Math.max(contentBottom, namesBottom) + 2;
-
-            // console.log(`Debug Capture Height: Left=${namesBottom}, Right=${contentBottom}, Max=${contentHeight}`);
-            // alert(`Debug Capture Height: Left=${namesBottom}, Right=${contentBottom}, Max=${contentHeight}`); // 사용자 확인용 활성화
-
-            // 여분을 조금 두거나 딱 맞게 설정
             const captureHeight = `${contentHeight}px`;
 
-            // const captureContainer = captureRef.current; // Already declared above
+            const captureContainer = captureRef.current; // Already declared above
             const originalCaptureWidth = captureContainer.style.width;
             const originalCaptureHeight = captureContainer.style.height;
             captureContainer.style.width = 'max-content';
