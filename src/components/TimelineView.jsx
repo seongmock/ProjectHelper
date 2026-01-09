@@ -602,7 +602,12 @@ const TimelineView = forwardRef(({
 
     // 이미지 복사 핸들러
     const handleCopyToClipboard = async () => {
-        if (!captureRef.current) return;
+        console.log('handleCopyToClipboard called');
+        if (!captureRef.current) {
+            console.error('captureRef is null');
+            alert('캡처 영역을 찾을 수 없습니다.');
+            return;
+        }
 
         try {
             // 캡처 시작: 클래스 추가

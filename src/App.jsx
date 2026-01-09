@@ -711,6 +711,9 @@ function App() {
     const handleCopyTimeline = () => {
         if (timelineRef.current) {
             timelineRef.current.copyToClipboard();
+        } else {
+            console.error('Timeline ref is null');
+            // alert('Timeline ref is null'); // 디버깅용 (필요시 주석 해제)
         }
     };
 
