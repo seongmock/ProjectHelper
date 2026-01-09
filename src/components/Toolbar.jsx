@@ -86,7 +86,7 @@ function Toolbar({
                                 </button>
 
                                 <button
-                                    className={`icon-btn ${showToday ? 'active' : ''}`}
+                                    className={`icon-btn ${!showToday ? 'active' : ''}`}
                                     onClick={onToggleToday}
                                     title={showToday ? '오늘 날짜 숨기기' : '오늘 날짜 표시'}
                                 >

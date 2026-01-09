@@ -155,8 +155,8 @@
 .today-marker::before {
     content: '오늘';
     position: absolute;
-    top: -20px;
-    /* 헤더 위쪽 */
+    top: 2px;
+    /* 헤더 내부로 이동 */
     left: 50%;
     transform: translateX(-50%);
     background-color: var(--color-danger);
