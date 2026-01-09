@@ -415,9 +415,11 @@ const TimelineView = forwardRef(({
             }
         }
 
-        // 대상 작업 클리어
         setDragTargetTaskId(null);
     };
+
+    // 줌 레벨에 따른 컨텐츠 너비
+    const contentWidth = containerWidth * zoomLevel;
 
     // 오늘 날짜 마커 위치 계산
     const todayPosition = useMemo(() => {
@@ -702,8 +704,7 @@ const TimelineView = forwardRef(({
         }
     };
 
-    // 줌 레벨에 따른 컨텐츠 너비
-    const contentWidth = containerWidth * zoomLevel;
+
 
     // 의존성 선 렌더링
     const renderDependencies = () => {
