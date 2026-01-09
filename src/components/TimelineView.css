@@ -148,8 +148,8 @@
     background-color: rgba(220, 53, 69, 0.4);
     /* 투명도 적용된 빨간색 */
     pointer-events: none;
-    z-index: 100;
-    /* 헤더(일반적으로 z-index 10~20)보다 높게, 팝오버보다는 낮게 */
+    z-index: 200;
+    /* 헤더(z-index 100)보다 확실히 높게 설정 */
 }
 
 .today-marker::before {
