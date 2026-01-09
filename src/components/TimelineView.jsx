@@ -649,8 +649,8 @@ const TimelineView = forwardRef(({
                 rowCount = bars.length;
             }
 
-            // 여유 버퍼 추가 (50px = 약 1.5~2줄) - 하단 잘림 방지
-            let contentHeight = headerHeight + (rowCount * rowHeightVal) + 50;
+            // 여유 버퍼 최소화 (2px) - 정확한 계산이 되므로 불필요한 여백 제거
+            let contentHeight = headerHeight + (rowCount * rowHeightVal) + 2;
 
             // 만약 여전히 0이면 기존 방식으로 fallback
             if (contentHeight <= headerHeight + 5) { // 헤더만 있는 수준이면
