@@ -669,7 +669,11 @@ const TimelineView = forwardRef(({
                     // 클론된 문서에서 추가적인 스타일 조정이 필요할 경우 여기서 처리
                     const clonedContent = clonedDoc.querySelector('.timeline-content');
                     if (clonedContent) {
-                    });
+                        clonedContent.style.minHeight = '0';
+                        clonedContent.style.height = 'auto';
+                    }
+                }
+            });
 
             // 스타일 복구
             scrollContainer.style.overflow = originalScrollOverflow;
