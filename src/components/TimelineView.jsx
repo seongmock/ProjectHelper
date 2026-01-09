@@ -632,7 +632,6 @@ const TimelineView = forwardRef(({
                 taskNamesContainer.style.height = 'auto';
             }
 
-            // 캡처 대상(captureRef)도 확장 필요할 수 있음 (flex container)
             const captureContainer = captureRef.current;
             const originalCaptureWidth = captureContainer.style.width;
             const originalCaptureHeight = captureContainer.style.height;
@@ -643,7 +642,7 @@ const TimelineView = forwardRef(({
                 scale: 2, // 고해상도
                 useCORS: true,
                 logging: false,
-                backgroundColor: '#ffffff',
+                backgroundColor: darkMode ? '#1E1E1E' : '#FFFFFF',
                 width: captureContainer.scrollWidth,
                 height: captureContainer.scrollHeight,
                 windowWidth: captureContainer.scrollWidth,

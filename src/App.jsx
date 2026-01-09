@@ -746,8 +746,8 @@ function App() {
                 onToggleCompact={() => setIsCompact(!isCompact)}
                 showTaskNames={showTaskNames}
                 onToggleTaskNames={() => setShowTaskNames(!showTaskNames)}
-                onCopyImage={handleCopyTimeline}
                 snapEnabled={snapEnabled}
+                darkMode={darkMode}
                 onToggleSnap={() => setSnapEnabled(!snapEnabled)}
             />
 
