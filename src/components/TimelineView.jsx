@@ -189,11 +189,6 @@ const TimelineView = forwardRef(({
     const [isLinkingMode, setIsLinkingMode] = useState(false);
     const [linkSourceTaskId, setLinkSourceTaskId] = useState(null);
 
-    // Expose copyToClipboard to parent
-    useImperativeHandle(ref, () => ({
-        copyToClipboard: handleCopyToClipboard
-    }), [handleCopyToClipboard, flatTasks]); // flatTasks 의존성 추가 (중요)
-
     // 컨테이너 너비 감지 (타임라인 스크롤 영역 기준)
     useEffect(() => {
         if (!timelineScrollRef.current) return;
