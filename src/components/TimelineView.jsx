@@ -105,6 +105,7 @@ const TimelineView = forwardRef(({
     onSelectTask,
     onUpdateTask,
     onUpdateTasks, // 여러 작업 동시 업데이트용
+    onDeleteTask, // Add prop
     onMoveTask,
     onIndentTask, // Add prop
     onOutdentTask, // Add prop
@@ -1130,7 +1131,9 @@ const TimelineView = forwardRef(({
                         onUpdateTask(taskId, updates);
                     }}
                     onDelete={(taskId) => {
-                        onUpdateTask(taskId, { deleted: true });
+                        if (onDeleteTask) {
+                            onDeleteTask(taskId);
+                        }
                     }}
                     onAddMilestone={() => {
                         setMilestoneModalInfo({

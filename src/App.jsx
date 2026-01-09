@@ -778,6 +778,8 @@ function App() {
                         onSelectTask={setSelectedTaskId}
                         onUpdateTask={handleUpdateTask}
                         onUpdateTasks={handleUpdateMultipleTasks}
+                        onDeleteTask={handleDeleteTask}
+                        onAddTask={handleAddTask}
                         onMoveTask={handleMoveTask}
                         onIndentTask={handleIndentTask}
                         onOutdentTask={handleOutdentTask}
