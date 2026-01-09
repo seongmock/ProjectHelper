@@ -635,18 +635,18 @@ const TimelineView = forwardRef(({
             const headerHeight = header ? header.offsetHeight : (isCompact ? 50 : 70);
             const rowHeightVal = isCompact ? 28 : 40;
 
+            // timelineContent 요소 참조 (스타일 조작을 위해 필요)
+            const timelineContent = captureContainer.querySelector('.timeline-content');
+
             // DOM 쿼리 대신 현재 데이터(flatTasks) 개수 사용
             // flatTasks는 컴포넌트 렌더링에 사용되는 데이터이므로 가장 정확함
             let rowCount = 0;
             if (flatTasks && flatTasks.length > 0) {
                 rowCount = flatTasks.length;
-            } else {
+            } else if (timelineContent) {
                 // 혹시 flatTasks가 캡처 시점에 비어있다면(거의 없음) DOM fallback
-                const timelineContent = captureContainer.querySelector('.timeline-content');
-                if (timelineContent) {
-                    const bars = timelineContent.querySelectorAll('.timeline-bar');
-                    rowCount = bars.length;
-                }
+                const bars = timelineContent.querySelectorAll('.timeline-bar');
+                rowCount = bars.length;
             }
 
             let contentHeight = headerHeight + (rowCount * rowHeightVal) + 2;
