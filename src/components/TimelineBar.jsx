@@ -296,7 +296,7 @@ function TimelineBar({
                             borderLeft: '10px solid transparent',
                             borderRight: '10px solid transparent',
                             borderBottom: `18px solid ${milestone.color}`,
-                            filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3))',
+                            filter: 'drop-shadow(0 0 1px white) drop-shadow(0 0 1px white) drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3))',
                         }} />
                     );
                     break;
@@ -312,6 +312,7 @@ function TimelineBar({
                             fontSize: '20px',
                             filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3))',
                             lineHeight: 1,
+                            textShadow: '-1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff, 1px 1px 0 #fff',
                         }}>★</div>
                     );
                     break;
@@ -322,6 +323,7 @@ function TimelineBar({
                             fontSize: '20px',
                             filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3))',
                             lineHeight: 1,
+                            textShadow: '-1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff, 1px 1px 0 #fff',
                         }}>⚑</div>
                     );
                     break;
