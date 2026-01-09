@@ -256,7 +256,101 @@ function TimelineBar({
     const renderMilestones = () => {
         if (!task.milestones || task.milestones.length === 0) return null;
 
+        // --- Two-Pass Layout System for Collision-Free Labels --- 
+        // 1. Prepare data: Calculate X position and Label Width for all milestones
+        const preparedMilestones = task.milestones
+            .filter(m => {
+                const d = new Date(m.date);
+                return d >= new Date(startDate) && d <= new Date(endDate);
+            })
+            .map(m => {
+                const daysFromStart = dateUtils.getDaysBetween(startDate, m.date);
+                const x = (daysFromStart / totalDays) * containerWidth;
+                // Estimate label width: (chars * 14px) + 10px padding. 
+                const width = (m.label.length * 14) + 10;
+                return { ...m, x, width };
+            })
+            .sort((a, b) => a.x - b.x); // Sort by X position
+
+        // 2. Pass 1: Reserve Manual Positions
+        // Store occupied ranges: { start, end, type }
+        const occupied = [];
+
+        preparedMilestones.forEach(m => {
+            if (m.labelPosition && m.labelPosition !== 'auto') {
+                let start, end;
+                // Determine occupied range based on position type
+                if (m.labelPosition === 'right') {
+                    start = m.x + 10;
+                    end = m.x + 10 + m.width;
+                } else if (m.labelPosition === 'left') {
+                    start = m.x - 10 - m.width;
+                    end = m.x - 10;
+                } else { // Top or Bottom (Centered)
+                    start = m.x - (m.width / 2);
+                    end = m.x + (m.width / 2);
+                }
+                occupied.push({ start, end, type: m.labelPosition, id: m.id });
+            }
+        });
+
+        // Helper: Check collision
+        const checkCollision = (start, end, type) => {
+            return occupied.some(item => {
+                // strict collision check for same slot type
+                if (item.type !== type) return false;
+                return (start < item.end && end > item.start);
+            });
+        };
+
+        // 3. Pass 2: Resolve Auto Positions
+        const resolvedPositions = {}; // id -> position
+
+        preparedMilestones.forEach(m => {
+            // If already manual, just use it
+            if (m.labelPosition && m.labelPosition !== 'auto') {
+                resolvedPositions[m.id] = m.labelPosition;
+                return;
+            }
+
+            // It's Auto. Try priorities: Top -> Bottom -> Right
+            // Check Top
+            const topStart = m.x - (m.width / 2);
+            const topEnd = m.x + (m.width / 2);
+            if (!checkCollision(topStart, topEnd, 'top')) {
+                resolvedPositions[m.id] = 'top';
+                occupied.push({ start: topStart, end: topEnd, type: 'top', id: m.id });
+                return;
+            }
+
+            // Check Bottom
+            const bottomStart = m.x - (m.width / 2);
+            const bottomEnd = m.x + (m.width / 2);
+            if (!checkCollision(bottomStart, bottomEnd, 'bottom')) {
+                resolvedPositions[m.id] = 'bottom';
+                occupied.push({ start: bottomStart, end: bottomEnd, type: 'bottom', id: m.id });
+                return;
+            }
+
+            // Check Right
+            const rightStart = m.x + 10;
+            const rightEnd = m.x + 10 + m.width;
+            if (!checkCollision(rightStart, rightEnd, 'right')) {
+                resolvedPositions[m.id] = 'right';
+                occupied.push({ start: rightStart, end: rightEnd, type: 'right', id: m.id });
+                return;
+            }
+
+            // Fallback: Top (even if colliding)
+            resolvedPositions[m.id] = 'top';
+            occupied.push({ start: topStart, end: topEnd, type: 'top', id: m.id });
+        });
+
+        // 4. Render using resolved positions
         return task.milestones.map((milestone) => {
+            // Find the pre-calculated position logic if available (for exact alignment), 
+            // but we can trust the standard calculation since date is source of truth.
+
             // 드래그 중이면 draggedMilestoneDate 사용, 아니면 milestone.date
             const currentDate = (draggingMilestone === milestone.id && draggedMilestoneDate)
                 ? draggedMilestoneDate
@@ -271,6 +365,9 @@ function TimelineBar({
             const position = (daysFromStart / totalDays) * containerWidth;
 
             const shape = milestone.shape || 'diamond';
+
+            // Use resolved position
+            const finalLabelPos = resolvedPositions[milestone.id] || 'top';
 
             // 모양별 스타일
             let shapeElement;
@@ -325,61 +422,7 @@ function TimelineBar({
                     break;
             }
 
-            // 레이블 위치 결정 로직 (Auto 포함)
-            let finalLabelPos = milestone.labelPosition || 'top'; // 기본값은 'top' (명시되지 않았거나 auto일 경우 초기값)
-
-            if (finalLabelPos === 'auto') {
-                // Auto Positioning Logic Refined (Multi-lookback)
-
-                const sortedMilestones = [...task.milestones].sort((a, b) => new Date(a.date) - new Date(b.date));
-                const currentIndex = sortedMilestones.findIndex(m => m.id === milestone.id);
-
-                if (currentIndex > 0) {
-                    const currDate = new Date(milestone.date);
-
-                    // Count overlaps in the sequence 0..currentIndex-1
-                    // This "Cluster Index" strategy simply counts how many preceding milestones
-                    // are within the collision threshold (60px) of the CURRENT milestone.
-                    // This creates a deterministic, robust positioning:
-                    // 1st item (0 overlaps) -> Top
-                    // 2nd item (1 overlap) -> Bottom
-                    // 3rd item (2 overlaps) -> Right
-                    // 4th item (3 overlaps) -> Top
-
-                    // Count overlaps based on DYNAMIC label width
-                    let overlappingPredecessors = 0;
-                    const currLabelWidth = (milestone.label.length * 14) + 20; // Approx 14px/char + padding (Safe est)
-
-                    for (let i = currentIndex - 1; i >= 0; i--) {
-                        const prevMilestone = sortedMilestones[i];
-                        const prevDate = new Date(prevMilestone.date);
-                        const daysDiff = dateUtils.getDaysBetween(prevDate, currDate);
-                        const pixelDist = (daysDiff / totalDays) * containerWidth;
-
-                        // Calculate dynamic threshold based on both labels
-                        const prevLabelWidth = (prevMilestone.label.length * 14) + 20;
-                        const collisionThreshold = (prevLabelWidth / 2) + (currLabelWidth / 2) + 10; // +10px margin
-
-                        if (pixelDist < collisionThreshold) {
-                            overlappingPredecessors++;
-                        } else {
-                            // If far enough, check if previous was FAR enough.
-                            // But wait, sorted by date doesn't mean sorted by position if overlap logic is involved?
-                            // No, sorted by date = sorted by X position.
-                            break;
-                        }
-                    }
-
-                    // Assign based on count (Cluster Index Strategy)
-                    const slots = ['top', 'bottom', 'right'];
-                    // Cycle: 0->Top, 1->Bottom, 2->Right, 3->Top...
-                    const slotIndex = overlappingPredecessors % 3;
-                    finalLabelPos = slots[slotIndex];
-                }
-            }
-
             let labelStyle = {};
-            // const labelPos = milestone.labelPosition || 'top'; // 기존 코드 (제거됨)
 
             switch (finalLabelPos) {
                 case 'top':
