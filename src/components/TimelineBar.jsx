@@ -329,12 +329,9 @@ function TimelineBar({
             let finalLabelPos = milestone.labelPosition || 'top'; // 기본값은 'top' (명시되지 않았거나 auto일 경우 초기값)
 
             if (finalLabelPos === 'auto') {
-                // Auto Positioning Logic
-                // 1. 같은 태스크 내의 다른 마일스톤들과의 거리 계산
-                // 2. 날짜순 정렬된 마일스톤 리스트 필요 (이미 렌더링 시 map을 돌고 있지만, 전체 컨텍스트 필요)
-                // 단순히 이전 마일스톤과의 거리만 체크해도 꽤 효과적임.
+                // Auto Positioning Logic Refined
+                // Strategy: Top (Default) -> Bottom -> Right -> Top (Fallback)
 
-                // 현재 마일스톤의 인덱스 찾기
                 const sortedMilestones = [...task.milestones].sort((a, b) => new Date(a.date) - new Date(b.date));
                 const currentIndex = sortedMilestones.findIndex(m => m.id === milestone.id);
 
@@ -343,69 +340,29 @@ function TimelineBar({
                     const prevDate = new Date(prevMilestone.date);
                     const currDate = new Date(milestone.date);
 
-                    // 날짜 차이 일수
                     const daysDiff = dateUtils.getDaysBetween(prevDate, currDate);
-                    // 픽셀 거리 근사치 (대략적인 계산, containerWidth와 totalDays 사용)
                     const pixelDist = (daysDiff / totalDays) * containerWidth;
 
-                    // 거리가 너무 가까우면 (예: 60px 미만) 위치 조정
+                    // Collision Threshold (60px)
                     if (pixelDist < 60) {
-                        // 이전 마일스톤의 위치를 알면 좋겠지만, 'auto'인 경우 동적으로 결정되므로
-                        // 단순하게 인덱스 홀/짝 등으로 교차 배치하거나
-                        // 이전 마일스톤과 겹치지 않는 방향으로 설정
-
-                        // 전략: Top(기본) -> Bottom -> Right 순서
-                        // 만약 이전 마일스톤이 Top(또는 Auto->Top)이라면, 나는 Bottom 시도
-                        // 이전 마일스톤이 Bottom이라면, 나는 Top? 
-
-                        // 더 단순한 전략: 인덱스가 홀수면 Top, 짝수면 Bottom (지그재그)
-                        // 하지만 사용자가 명시적으로 설정한 경우랑 섞이면 복잡함.
-
-                        // 충돌 감지 기반:
-                        // 이전 마일스톤이 나와 매우 가깝다.
-                        // 이전 마일스톤의 *결정된* 위치를 알아야 완벽하지만, React 렌더링 사이클 상 알기 어려움.
-                        // 따라서 결정론적(Deterministic) 알고리즘 사용.
-
-                        // 알고리즘:
-                        // 내 앞의 가까운 마일스톤들(60px 이내)을 찾는다.
-                        // 그들이 점유하고 있을 가능성이 높은 위치를 피한다.
-                        // 기본적으로 Top을 선호.
-
                         const occupied = new Set();
 
-                        // 바로 앞 마일스톤 체크
-                        if (pixelDist < 60) {
-                            // 앞 마일스톤의 명시적 위치 확인
-                            const prevPos = prevMilestone.labelPosition || 'auto';
-                            if (prevPos !== 'auto') {
-                                occupied.add(prevPos);
-                            } else {
-                                // 앞 마일스톤도 Auto라면? 재귀적으로 판단해야 하나?
-                                // 단순화: 앞 마일스톤이 Auto면 기본적으로 Top을 먹었을 거라 가정하고 Bottom 시도
-                                occupied.add('top');
-                            }
-                        }
+                        // Check previous milestone's position
+                        let prevPos = prevMilestone.labelPosition || 'auto';
+                        if (prevPos === 'auto') prevPos = 'top';
 
-                        if (occupied.has('top')) {
+                        occupied.add(prevPos);
+
+                        // Try sequence: Top -> Bottom -> Right
+                        if (!occupied.has('top')) {
+                            finalLabelPos = 'top';
+                        } else if (!occupied.has('bottom')) {
                             finalLabelPos = 'bottom';
-                            if (occupied.has('bottom')) { // 혹시 앞앞 마일스톤이랑 겹쳐서 앞놈이 Bottom일수도?
-                                finalLabelPos = 'right';
-                            }
-                        }
-
-                        // 더 정교하게: 앞의 마일스톤도 auto라서 bottom으로 갔다면?
-                        // 이건 2패스 알고리즘이 필요하지만, 여기서는 1패스(Greedy)로 근사.
-                        // 바로 앞 녀석과만 겹치지 않게 '지그재그' 패턴 유도.
-
-                        if (pixelDist < 40) { // 아주 가까우면
-                            if (currentIndex % 2 !== 0) { // 홀수 번째는 아래로
-                                finalLabelPos = 'bottom';
-                            }
-                        }
-
-                        // 너무 가까워서 Bottom도 겹칠 것 같으면 (예: 20px 미만) -> Right로 뺌
-                        if (pixelDist < 25) {
+                        } else if (!occupied.has('right')) {
                             finalLabelPos = 'right';
+                        } else {
+                            // All occupied? Fallback to Top as requested
+                            finalLabelPos = 'top';
                         }
                     }
                 }
