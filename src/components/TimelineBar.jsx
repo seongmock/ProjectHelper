@@ -290,14 +290,9 @@ function TimelineBar({
                     break;
                 case 'triangle':
                     shapeElement = (
-                        <div style={{
-                            width: 0,
-                            height: 0,
-                            borderLeft: '10px solid transparent',
-                            borderRight: '10px solid transparent',
-                            borderBottom: `18px solid ${milestone.color}`,
-                            filter: 'drop-shadow(0 0 1px white) drop-shadow(0 0 1px white) drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3))',
-                        }} />
+                        <svg width="20" height="20" viewBox="0 0 24 24" style={{ filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3))' }}>
+                            <path d="M12 2L22 22H2L12 2Z" fill={milestone.color} stroke="white" strokeWidth="2" strokeLinejoin="round" />
+                        </svg>
                     );
                     break;
                 case 'square':
@@ -307,24 +302,16 @@ function TimelineBar({
                     break;
                 case 'star':
                     shapeElement = (
-                        <div style={{
-                            color: milestone.color,
-                            fontSize: '20px',
-                            filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3))',
-                            lineHeight: 1,
-                            textShadow: '-1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff, 1px 1px 0 #fff',
-                        }}>★</div>
+                        <svg width="20" height="20" viewBox="0 0 24 24" style={{ filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3))' }}>
+                            <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" fill={milestone.color} stroke="white" strokeWidth="2" strokeLinejoin="round" />
+                        </svg>
                     );
                     break;
                 case 'flag':
                     shapeElement = (
-                        <div style={{
-                            color: milestone.color,
-                            fontSize: '20px',
-                            filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3))',
-                            lineHeight: 1,
-                            textShadow: '-1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff, 1px 1px 0 #fff',
-                        }}>⚑</div>
+                        <svg width="20" height="20" viewBox="0 0 24 24" style={{ filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3))' }}>
+                            <path d="M14.4 6L14 4H5V21H7V14H12L12.4 16H22V6H14.4Z" fill={milestone.color} stroke="white" strokeWidth="2" strokeLinejoin="round" />
+                        </svg>
                     );
                     break;
                 case 'diamond':

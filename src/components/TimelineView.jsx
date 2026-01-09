@@ -115,7 +115,8 @@ const TimelineView = forwardRef(({
     showToday = true,
     isCompact = false,
     showTaskNames = true,
-    snapEnabled = true // 기본값 true
+    snapEnabled = true, // 기본값 true
+    darkMode // 다크 모드
 }, ref) => {
     const containerRef = useRef(null);
     const timelineScrollRef = useRef(null);
