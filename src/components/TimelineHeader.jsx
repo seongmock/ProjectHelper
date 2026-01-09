@@ -107,10 +107,7 @@ function TimelineHeader({ startDate, endDate, timeScale, containerWidth, showTod
                 ))}
             </div>
 
-            {/* 오늘 날짜 마커 */}
-            {todayPosition !== null && (
-                <div className="today-marker" style={{ left: `${todayPosition}px` }} />
-            )}
+
         </div>
     );
 }

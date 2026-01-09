@@ -139,21 +139,24 @@
     font-size: var(--font-size-lg);
 }
 
-/* 오늘 날짜 마커 */
+/* 오늘 날짜 마커 (전체 높이 + 투명도) */
 .today-marker {
     position: absolute;
     top: 0;
     bottom: 0;
     width: 2px;
-    background-color: var(--color-danger);
+    background-color: rgba(220, 53, 69, 0.4);
+    /* 투명도 적용된 빨간색 */
     pointer-events: none;
     z-index: 50;
+    /* 그리드 위에, 작업바 아래 또는 겹치게 */
 }
 
 .today-marker::before {
     content: '오늘';
     position: absolute;
     top: -20px;
+    /* 헤더 위쪽 */
     left: 50%;
     transform: translateX(-50%);
     background-color: var(--color-danger);
@@ -163,6 +166,7 @@
     font-size: var(--font-size-xs);
     font-weight: 600;
     white-space: nowrap;
+    z-index: 60;
 }
 
 @media (max-width: 768px) {
