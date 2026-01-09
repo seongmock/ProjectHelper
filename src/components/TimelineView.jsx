@@ -675,7 +675,7 @@ const TimelineView = forwardRef(({
 
             const captureHeight = `${contentHeight}px`;
 
-            const captureContainer = captureRef.current; // Already declared above
+            // captureContainer는 상단에서 이미 선언됨
             const originalCaptureWidth = captureContainer.style.width;
             const originalCaptureHeight = captureContainer.style.height;
             captureContainer.style.width = 'max-content';
