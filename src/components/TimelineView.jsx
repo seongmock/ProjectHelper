@@ -677,22 +677,26 @@ const TimelineView = forwardRef(({
             // 더 큰 높이 사용 + 여백
             const contentHeight = Math.max(contentBottom, namesBottom) + 2;
 
-            console.log(`Debug Capture Height: Left=${namesBottom}, Right=${contentBottom}, Max=${contentHeight}`);
-            // alert(`Debug Capture Height: Left=${namesBottom}, Right=${contentBottom}, Max=${contentHeight}`); // 사용자 확인용
+            // console.log(`Debug Capture Height: Left=${namesBottom}, Right=${contentBottom}, Max=${contentHeight}`);
+            // alert(`Debug Capture Height: Left=${namesBottom}, Right=${contentBottom}, Max=${contentHeight}`); // 사용자 확인용 활성화
 
             // 여분을 조금 두거나 딱 맞게 설정
             const captureHeight = `${contentHeight}px`;
 
+            // const captureContainer = captureRef.current; // Already declared above
             const originalCaptureWidth = captureContainer.style.width;
             const originalCaptureHeight = captureContainer.style.height;
             captureContainer.style.width = 'max-content';
             captureContainer.style.height = captureHeight; // max-content 대신 측정된 높이 사용
 
-            // timeline-content의 min-height 무력화
+            // timeline-content의 min-height 무력화 및 높이 강제 설정 (배경색 끊김 방지)
             let originalMinHeight = '';
+            let originalHeight = '';
             if (timelineContent) {
                 originalMinHeight = timelineContent.style.minHeight;
+                originalHeight = timelineContent.style.height;
                 timelineContent.style.minHeight = '0';
+                timelineContent.style.height = '100%'; // 컨테이너 높이에 맞춤
             }
 
             // html2canvas 옵션에 측정된 높이 적용
@@ -727,9 +731,10 @@ const TimelineView = forwardRef(({
             captureContainer.style.width = originalCaptureWidth;
             captureContainer.style.height = originalCaptureHeight;
 
-            // min-height 복구
+            // min-height 및 height 복구
             if (timelineContent) {
                 timelineContent.style.minHeight = originalMinHeight;
+                timelineContent.style.height = originalHeight;
             }
 
             // 컨테이너 클래스 제거
