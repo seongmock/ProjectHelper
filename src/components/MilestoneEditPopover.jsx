@@ -87,11 +87,7 @@ function MilestoneEditPopover({ position, milestone, predecessors = [], successo
 
 
 
-    const positions = [
-        { id: 'bottom', label: '하단' },
-        { id: 'top', label: '상단' },
-        { id: 'right', label: '우측' },
-    ];
+
 
     return (
         <div
@@ -165,19 +161,33 @@ function MilestoneEditPopover({ position, milestone, predecessors = [], successo
 
                 {/* 레이블 위치 */}
                 <div className="form-group">
-                    <label>레이블 위치</label>
-                    <select
-                        value={milestone.labelPosition || 'bottom'}
-                        onChange={(e) => onUpdate(milestone.id, { labelPosition: e.target.value })}
-                        onKeyDown={(e) => e.stopPropagation()}
-                        onKeyUp={(e) => e.stopPropagation()}
-                        onPointerDown={(e) => e.stopPropagation()}
-                        style={{ width: '100%', padding: '6px', border: '1px solid #ddd', borderRadius: '4px' }}
-                    >
-                        {positions.map(pos => (
-                            <option key={pos.id} value={pos.id}>{pos.label}</option>
+                    <div className="position-buttons" style={{ display: 'flex', gap: '4px' }}>
+                        {[
+                            { id: 'auto', label: '자동 ✨' },
+                            { id: 'top', label: '상 ⬆️' },
+                            { id: 'bottom', label: '하 ⬇️' },
+                            { id: 'right', label: '우 ➡️' }
+                        ].map(pos => (
+                            <button
+                                key={pos.id}
+                                className={`position-btn ${milestone.labelPosition === pos.id || (!milestone.labelPosition && pos.id === 'auto') ? 'active' : ''}`}
+                                onClick={() => onUpdate(milestone.id, { labelPosition: pos.id })}
+                                style={{
+                                    flex: 1,
+                                    padding: '6px 4px',
+                                    fontSize: '11px',
+                                    border: '1px solid #ddd',
+                                    borderRadius: '4px',
+                                    background: (milestone.labelPosition === pos.id || (!milestone.labelPosition && pos.id === 'auto')) ? '#007bff' : 'white',
+                                    color: (milestone.labelPosition === pos.id || (!milestone.labelPosition && pos.id === 'auto')) ? 'white' : '#333',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.2s'
+                                }}
+                            >
+                                {pos.label}
+                            </button>
                         ))}
-                    </select>
+                    </div>
                 </div>
             </div>
 
