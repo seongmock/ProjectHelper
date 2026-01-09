@@ -13,9 +13,11 @@ services:
     container_name: caddy-https
     restart: unless-stopped
     ports:
-      - "8080:8080"
+      - "80:80" # HTTP Redirect
+      - "443:443" # HTTPS
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile
+      - ./certs:/etc/caddy/certs
       - caddy_data:/data
       - caddy_config:/config
     depends_on:

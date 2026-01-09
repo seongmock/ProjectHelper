@@ -24,3 +24,11 @@ dist-ssr
 *.sw?
 
 example_schedule.json
+
+# Certificates & Docker Data
+certs/
+npm_data/
+npm_letsencrypt/
+caddy_data/
+caddy_config/
+

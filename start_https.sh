@@ -33,8 +33,8 @@ if [ -n "$COMPOSE_CMD" ] && command -v docker &> /dev/null; then
         
         if [ $? -eq 0 ]; then
             echo -e "${GREEN}Deployment successful!${NC}"
-            echo -e "App is running at: ${GREEN}https://localhost:8080${NC} (or https://SERVER_IP:8080)"
-            echo "Note: Accept the security warning as this uses a self-signed certificate."
+            echo -e "App is running at: ${GREEN}https://YOUR_SERVER_IP${NC} (Port 443)"
+            echo "Note: Accept the security warning as this uses a self-signed internal certificate."
             exit 0
         fi
     fi
