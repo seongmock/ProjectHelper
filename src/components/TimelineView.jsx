@@ -649,8 +649,8 @@ const TimelineView = forwardRef(({
                 rowCount = bars.length;
             }
 
-            // 여유 버퍼 최소화 (2px) - 정확한 계산이 되므로 불필요한 여백 제거
-            let contentHeight = headerHeight + (rowCount * rowHeightVal) + 2;
+            // 여유 버퍼 (20px) - 여백을 주되 배경색과 맞춰서 자연스럽게 처리
+            let contentHeight = headerHeight + (rowCount * rowHeightVal) + 20;
 
             // 만약 여전히 0이면 기존 방식으로 fallback
             if (contentHeight <= headerHeight + 5) { // 헤더만 있는 수준이면
@@ -667,11 +667,13 @@ const TimelineView = forwardRef(({
             // captureContainer는 상단에서 이미 선언됨
             const originalCaptureWidth = captureContainer.style.width;
             const originalCaptureHeight = captureContainer.style.height;
-            const originalCaptureOverflow = captureContainer.style.overflow; // 백업
+            const originalCaptureOverflow = captureContainer.style.overflow;
+            const originalCaptureBg = captureContainer.style.backgroundColor; // 백업
 
             captureContainer.style.width = 'max-content';
             captureContainer.style.height = captureHeight; // max-content 대신 측정된 높이 사용
             captureContainer.style.overflow = 'visible'; // 캡처 시 overflow 해제
+            captureContainer.style.backgroundColor = darkMode ? '#1E1E1E' : '#FFFFFF'; // 배경색 강제 적용 (여백 포함)
 
             // timeline-content의 min-height 무력화 및 높이 강제 설정 (배경색 끊김 방지)
             let originalMinHeight = '';
@@ -714,7 +716,8 @@ const TimelineView = forwardRef(({
 
             captureContainer.style.width = originalCaptureWidth;
             captureContainer.style.height = originalCaptureHeight;
-            captureContainer.style.overflow = originalCaptureOverflow; // 복구
+            captureContainer.style.overflow = originalCaptureOverflow;
+            captureContainer.style.backgroundColor = originalCaptureBg; // 복구
 
             // min-height 및 height 복구
             if (timelineContent) {
