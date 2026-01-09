@@ -711,9 +711,6 @@ function App() {
     const handleCopyTimeline = () => {
         if (timelineRef.current) {
             timelineRef.current.copyToClipboard();
-        } else {
-            console.error('Timeline ref is null');
-            alert('Timeline ref is null (Debug)'); // 디버깅용 활성화
         }
     };
 
@@ -749,6 +746,7 @@ function App() {
                 onToggleCompact={() => setIsCompact(!isCompact)}
                 showTaskNames={showTaskNames}
                 onToggleTaskNames={() => setShowTaskNames(!showTaskNames)}
+                onCopyImage={handleCopyTimeline}
                 snapEnabled={snapEnabled}
                 darkMode={darkMode}
                 onToggleSnap={() => setSnapEnabled(!snapEnabled)}

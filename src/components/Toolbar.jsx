@@ -129,12 +129,7 @@ function Toolbar({
                                 </button>
                                 <button
                                     className="icon-btn"
-                                    onClick={() => {
-                                        console.log('Capture button clicked');
-                                        alert('Capture button clicked (Toolbar)');
-                                        if (onCopyImage) onCopyImage();
-                                        else alert('onCopyImage function is missing!');
-                                    }}
+                                    onClick={onCopyImage}
                                     title="이미지로 복사"
                                     style={{ marginLeft: '4px' }}
                                 >
