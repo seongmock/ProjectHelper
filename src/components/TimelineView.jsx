@@ -633,13 +633,47 @@ const TimelineView = forwardRef(({
                 taskNamesContainer.style.height = 'auto';
             }
 
-            // 실제 콘텐츠 높이를 DOM에서 측정 (계산 오류 방지)
-            const leftColumnHeight = (taskNamesContainer ? taskNamesContainer.scrollHeight : 0) + (isCompact ? 50 : 70); // 리스트 + 헤더 추정치 (또는 헤더 요소 측정)
-            // timelineScrollRef는 헤더와 콘텐츠를 모두 포함함
-            const rightColumnHeight = scrollContainer.scrollHeight;
+            // 실제 콘텐츠의 '끝' 위치를 찾아 높이 결정 (컨테이너 크기 무시)
+            const header = captureContainer.querySelector('.timeline-header');
+            const headerHeight = header ? header.offsetHeight : (isCompact ? 50 : 70);
 
-            // 더 큰 높이 사용
-            const contentHeight = Math.max(leftColumnHeight, rightColumnHeight);
+            const timelineContent = captureContainer.querySelector('.timeline-content');
+            let contentBottom = 0;
+
+            if (timelineContent && timelineContent.lastElementChild) {
+                // timeline-content 내부의 마지막 요소(Task Bar) 찾기
+                // timeline-bar 클래스를 가진 마지막 요소 찾기 (혹시 다른 게 있을 수 있으므로)
+                const bars = timelineContent.querySelectorAll('.timeline-bar');
+                if (bars.length > 0) {
+                    const lastBar = bars[bars.length - 1];
+                    // timeline-content 내에서의 상대 위치 + timeline-content 자체의 시작 위치(헤더 아래)에 대한 고려 필요
+                    // timeline-content는 헤더 형제 요소라고 가정 (scrollContainer 내부)
+                    // 따라서 총 높이는 headerHeight + lastBar.offsetTop + lastBar.offsetHeight
+                    contentBottom = headerHeight + lastBar.offsetTop + lastBar.offsetHeight;
+                } else {
+                    // 바가 없으면 min-height 0 이후의 높이 (거의 0)
+                    contentBottom = headerHeight + timelineContent.offsetHeight;
+                }
+            } else {
+                contentBottom = scrollContainer.scrollHeight; // fallback
+            }
+
+            // Task Names 쪽도 확인 (혹시 더 길 수도 있음)
+            let namesBottom = 0;
+            const namesList = captureContainer.querySelector('.task-names-list');
+            if (namesList) {
+                const nameItems = namesList.querySelectorAll('.task-name-item');
+                if (nameItems.length > 0) {
+                    const lastItem = nameItems[nameItems.length - 1];
+                    const namesHeader = captureContainer.querySelector('.task-names-header');
+                    const namesHeaderH = namesHeader ? namesHeader.offsetHeight : 70;
+                    // task-names-list는 header 형제. items는 list 내부.
+                    namesBottom = namesHeaderH + lastItem.offsetTop + lastItem.offsetHeight;
+                }
+            }
+
+            // 더 큰 높이 사용 + 여백
+            const contentHeight = Math.max(contentBottom, namesBottom) + 2;
 
             // 여분을 조금 두거나 딱 맞게 설정
             const captureHeight = `${contentHeight}px`;
