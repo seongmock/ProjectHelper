@@ -952,6 +952,11 @@ const TimelineView = forwardRef(({
         }
     };
 
+    // Expose copyToClipboard to parent
+    useImperativeHandle(ref, () => ({
+        copyToClipboard: handleCopyToClipboard
+    }), [handleCopyToClipboard, flatTasks]);
+
     return (
         <div className={`timeline-view ${viewMode === 'split' ? 'split-mode' : ''} ${isCompact ? 'compact-mode' : ''}`} ref={containerRef}>
             <div className={`timeline-container ${showTaskNames ? 'with-names' : ''}`} ref={captureRef}>
