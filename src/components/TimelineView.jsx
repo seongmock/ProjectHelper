@@ -633,42 +633,47 @@ const TimelineView = forwardRef(({
                 taskNamesContainer.style.height = 'auto';
             }
 
-            // timeline-content의 min-height 무력화 (측정 전 실행)
-            const timelineContent = captureContainer.querySelector('.timeline-content');
-            let originalMinHeight = '';
-            let originalContentHeight = '';
-            if (timelineContent) {
-                originalMinHeight = timelineContent.style.minHeight;
-                originalContentHeight = timelineContent.style.height;
-                timelineContent.style.minHeight = '0';
-                timelineContent.style.height = 'fit-content'; // 콘텐츠에 맞게 조절
-            }
+            // 실제 콘텐츠 높이를 DOM에서 측정 (계산 오류 방지)
+            const leftColumnHeight = (taskNamesContainer ? taskNamesContainer.scrollHeight : 0) + (isCompact ? 50 : 70); // 리스트 + 헤더 추정치 (또는 헤더 요소 측정)
+            // timelineScrollRef는 헤더와 콘텐츠를 모두 포함함
+            const rightColumnHeight = scrollContainer.scrollHeight;
 
-            // DOM 측정 
-            const measuredHeight = scrollContainer.scrollHeight;
-            const captureHeight = `${measuredHeight}px`;
+            // 더 큰 높이 사용
+            const contentHeight = Math.max(leftColumnHeight, rightColumnHeight);
+
+            // 여분을 조금 두거나 딱 맞게 설정
+            const captureHeight = `${contentHeight}px`;
 
             const captureContainer = captureRef.current;
             const originalCaptureWidth = captureContainer.style.width;
             const originalCaptureHeight = captureContainer.style.height;
             captureContainer.style.width = 'max-content';
-            captureContainer.style.height = captureHeight;
+            captureContainer.style.height = captureHeight; // max-content 대신 측정된 높이 사용
 
-            // html2canvas 옵션 적용
+            // timeline-content의 min-height 무력화
+            const timelineContent = captureContainer.querySelector('.timeline-content');
+            let originalMinHeight = '';
+            if (timelineContent) {
+                originalMinHeight = timelineContent.style.minHeight;
+                timelineContent.style.minHeight = '0';
+            }
+
+            // html2canvas 옵션에 측정된 높이 적용
             const canvas = await html2canvas(captureRef.current, {
                 scale: 2, // 고해상도
                 useCORS: true,
                 logging: false,
                 backgroundColor: darkMode ? '#1E1E1E' : '#FFFFFF',
                 width: captureContainer.scrollWidth,
-                height: measuredHeight, // 측정된 높이 사용
+                height: contentHeight,
                 windowWidth: captureContainer.scrollWidth,
-                windowHeight: measuredHeight,
+                windowHeight: contentHeight,
                 onclone: (clonedDoc) => {
+                    // 클론된 문서에서 추가적인 스타일 조정이 필요할 경우 여기서 처리
                     const clonedContent = clonedDoc.querySelector('.timeline-content');
                     if (clonedContent) {
                         clonedContent.style.minHeight = '0';
-                        clonedContent.style.height = 'fit-content';
+                        clonedContent.style.height = 'auto';
                     }
                 }
             });
@@ -688,7 +693,6 @@ const TimelineView = forwardRef(({
             // min-height 복구
             if (timelineContent) {
                 timelineContent.style.minHeight = originalMinHeight;
-                timelineContent.style.height = originalContentHeight;
             }
 
             // 컨테이너 클래스 제거
