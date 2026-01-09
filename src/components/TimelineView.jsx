@@ -677,6 +677,9 @@ const TimelineView = forwardRef(({
             // 더 큰 높이 사용 + 여백
             const contentHeight = Math.max(contentBottom, namesBottom) + 2;
 
+            console.log(`Debug Capture Height: Left=${namesBottom}, Right=${contentBottom}, Max=${contentHeight}`);
+            // alert(`Debug Capture Height: Left=${namesBottom}, Right=${contentBottom}, Max=${contentHeight}`); // 사용자 확인용
+
             // 여분을 조금 두거나 딱 맞게 설정
             const captureHeight = `${contentHeight}px`;
 
