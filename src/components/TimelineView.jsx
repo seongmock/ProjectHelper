@@ -611,6 +611,8 @@ const TimelineView = forwardRef(({
             }
 
             // 전체 스크롤 영역 확보를 위한 임시 스타일 적용
+            const captureContainer = captureRef.current; // captureContainer 선언을 최상단으로 이동
+
             const scrollContainer = timelineScrollRef.current;
             const taskNamesContainer = taskNamesScrollRef.current;
 
@@ -678,7 +680,6 @@ const TimelineView = forwardRef(({
             // 여분을 조금 두거나 딱 맞게 설정
             const captureHeight = `${contentHeight}px`;
 
-            const captureContainer = captureRef.current;
             const originalCaptureWidth = captureContainer.style.width;
             const originalCaptureHeight = captureContainer.style.height;
             captureContainer.style.width = 'max-content';
