@@ -764,7 +764,7 @@ const TimelineView = forwardRef(({
             });
         } catch (err) {
             console.error('이미지 캡처 실패:', err);
-            alert('이미지 캡처 중 오류가 발생했습니다.');
+            alert(`이미지 캡처 중 오류가 발생했습니다: ${err.message}`);
         }
     };
 
