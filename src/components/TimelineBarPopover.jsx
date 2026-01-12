@@ -61,6 +61,26 @@ function TimelineBarPopover({ position, task, clickedDate, successors = [], pred
                 <button className="close-btn" onClick={onClose}>&times;</button>
             </div>
 
+            {/* 설명 (Description) */}
+            <div className="popover-section">
+                <textarea
+                    placeholder="작업 설명 (Description)"
+                    value={task.description || ''}
+                    onChange={(e) => onUpdate(task.id, { description: e.target.value })}
+                    style={{
+                        width: '100%',
+                        minHeight: '60px',
+                        padding: '8px',
+                        border: '1px solid var(--color-border)',
+                        borderRadius: '4px',
+                        fontSize: '13px',
+                        resize: 'vertical',
+                        backgroundColor: 'var(--color-bg-secondary)',
+                        color: 'var(--color-text-primary)'
+                    }}
+                />
+            </div>
+
             {/* [NEW] 기간 추가 버튼: 주 메뉴로 이동 권장 */}
             <div className="popover-section" style={{ paddingBottom: '0' }}>
                 <button

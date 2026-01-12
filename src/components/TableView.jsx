@@ -21,7 +21,7 @@ import { flattenTasks } from '../utils/dataModel';
 import './TableView.css';
 
 // Sortable Wrapper for TaskRow
-function SortableTaskRow({ task, ...props }) {
+function SortableTaskRow({ task, onContextMenu, ...props }) {
     const {
         attributes,
         listeners,
@@ -40,7 +40,15 @@ function SortableTaskRow({ task, ...props }) {
     };
 
     return (
-        <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
+        <div
+            ref={setNodeRef}
+            style={style}
+            {...attributes}
+            {...listeners}
+            onContextMenu={(e) => {
+                if (onContextMenu) onContextMenu(e, task.id);
+            }}
+        >
             <TaskRow task={task} {...props} />
         </div>
     );
@@ -57,6 +65,7 @@ function TableView({
     onIndentTask,
     onOutdentTask,
     onMoveTask,
+    onContextMenu, // Add prop
     viewMode
 }) {
     // 트리 구조를 평탄화하여 DnD에 사용
@@ -160,6 +169,7 @@ function TableView({
                                         onAddTask={onAddTask}
                                         onIndentTask={onIndentTask}
                                         onOutdentTask={onOutdentTask}
+                                        onContextMenu={onContextMenu} // Pass prop
                                         renderChildren={false} // 평탄화된 리스트이므로 자식 렌더링 방지
                                     />
                                 ))}

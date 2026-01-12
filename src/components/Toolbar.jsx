@@ -82,7 +82,7 @@ function Toolbar({
                                     onClick={onToggleTaskNames}
                                     title={showTaskNames ? '작업명 숨기기' : '작업명 표시'}
                                 >
-                                    {showTaskNames ? '📄 숨기기' : '📄 표시'}
+                                    📄 작업명
                                 </button>
 
                                 <button

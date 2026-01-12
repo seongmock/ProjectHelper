@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useEffect, useState, forwardRef, useImperativeHandle } from 'react';
+import React, { useMemo, useRef, useEffect, useState, forwardRef, useImperativeHandle, useCallback } from 'react';
 import {
     DndContext,
     closestCenter,
@@ -109,6 +109,7 @@ const TimelineView = forwardRef(({
     onMoveTask,
     onIndentTask, // Add prop
     onOutdentTask, // Add prop
+    onContextMenu, // Add prop
     timeScale,
     viewMode,
     // Props from App
@@ -127,9 +128,14 @@ const TimelineView = forwardRef(({
 
     const [editingTaskId, setEditingTaskId] = useState(null);
     const [editingName, setEditingName] = useState('');
-    const [popoverInfo, setPopoverInfo] = useState(null); // { x, y, taskId, date }
+    // Remove local popoverInfo
     const [milestoneModalInfo, setMilestoneModalInfo] = useState(null); // { task, date }
     const [milestoneEditInfo, setMilestoneEditInfo] = useState(null); // { x, y, task, milestone }
+
+    // Sidebar Resize State
+    const [sidebarWidth, setSidebarWidth] = useState(240);
+    const [isResizingSidebar, setIsResizingSidebar] = useState(false);
+    const sidebarRef = useRef(null); // To track mouse move globally when resizing
 
     const sensors = useSensors(
         useSensor(PointerSensor, {
@@ -342,62 +348,196 @@ const TimelineView = forwardRef(({
         return map;
     }, [flatTasks]);
 
-    // 드래그로 날짜 변경 - 드래그 중에는 호출하지 않음 (시각적 피드백은 로컬 상태로)
-    const handleDragUpdate = (taskId, newStartDate, newEndDate, rangeId) => {
-        // 드래그 중에는 아무것도 하지 않음 (로컬 상태만 업데이트)
-    };
-
-    // 타임라인 바 드래그 완료 시 최종 상태를 히스토리에 기록
-    const handleTimelineBarDragEnd = (taskId, finalStart, finalEnd, rangeId) => {
-        const task = flatTasks.find(t => t.id === taskId);
-        if (!task) return;
-
-        if (rangeId && task.timeRanges) {
-            // 특정 범위 업데이트
-            const updatedRanges = task.timeRanges.map(r =>
-                r.id === rangeId
-                    ? { ...r, startDate: dateUtils.formatDate(finalStart), endDate: dateUtils.formatDate(finalEnd) }
-                    : r
-            );
-            onUpdateTask(taskId, { timeRanges: updatedRanges }, true);
-        } else {
-            // Legacy fallback (단일 기간)
-            onUpdateTask(taskId, {
-                startDate: dateUtils.formatDate(finalStart),
-                endDate: dateUtils.formatDate(finalEnd),
-            }, true);
-        }
-    };
-
-
     // 가이드라인 상태
     const [guideLineX, setGuideLineX] = useState(null);
+    // 드래그 타겟 작업 ID (하이라이트용)
+    const [dragTargetTaskId, setDragTargetTaskId] = useState(null);
 
-    // 가이드라인 이동 핸들러 (이제 clientX가 아닌 상대적 offset을 받음)
+    // Helper to get task from Y coordinate
+    const getTaskFromY = useCallback((clientY) => {
+        const timelineRows = document.querySelectorAll('.timeline-row[data-task-id]');
+        for (let row of timelineRows) {
+            const rect = row.getBoundingClientRect();
+            if (clientY >= rect.top && clientY <= rect.bottom) {
+                const taskId = row.getAttribute('data-task-id');
+                return flatTasks.find(t => t.id === taskId);
+            }
+        }
+        return null; // Not over any row
+    }, [flatTasks]);
+
+    // 드래그로 날짜 변경 & 타겟 찾기
+    const handleDragUpdate = useCallback((taskId, newStartDate, newEndDate, rangeId, clientY) => {
+        // Highlight logic
+        if (clientY !== undefined) {
+            const targetTask = getTaskFromY(clientY);
+            if (targetTask) {
+                setDragTargetTaskId(targetTask.id);
+            }
+        }
+
+        // Silent update for global state is NOT needed as TimelineBar handles local visual state.
+        // Removed `setTasksSilent` block which caused ReferenceError.
+    }, [getTaskFromY]);
+
+    // 타임라인 바 드래그 완료 시 최종 상태를 히스토리에 기록
+    const handleTimelineBarDragEnd = useCallback((taskId, finalStart, finalEnd, rangeId, clientY, isCopyMode) => {
+        setDragTargetTaskId(null); // Clear highlight
+
+        let targetTask = null;
+        if (clientY !== undefined) {
+            targetTask = getTaskFromY(clientY);
+        }
+
+        const sourceTask = flatTasks.find(t => t.id === taskId);
+        if (!sourceTask) return;
+
+        // Determine effective target
+        const effectiveTargetTask = (targetTask && targetTask.id !== taskId) ? targetTask : null;
+
+        // If copy mode (Ctrl pressed) OR moving to another task
+        if (isCopyMode || effectiveTargetTask) {
+            const rangeMoving = (sourceTask.timeRanges || []).find(r => r.id === rangeId) ||
+                (rangeId === 'legacy' ? { id: generateId(), startDate: sourceTask.startDate, endDate: sourceTask.endDate } : null);
+
+            if (!rangeMoving) return;
+
+            const updates = [];
+
+            // 1. Handle Source (Remove only if NOT copy mode)
+            if (!isCopyMode) {
+                const newSourceRanges = (sourceTask.timeRanges || []).filter(r => String(r.id) !== String(rangeId));
+
+                let sourceStart = sourceTask.startDate;
+                let sourceEnd = sourceTask.endDate;
+                if (newSourceRanges.length > 0) {
+                    const dates = newSourceRanges.flatMap(r => [new Date(r.startDate), new Date(r.endDate)]);
+                    sourceStart = dateUtils.formatDate(new Date(Math.min(...dates)));
+                    sourceEnd = dateUtils.formatDate(new Date(Math.max(...dates)));
+                } else {
+                    sourceStart = null;
+                    sourceEnd = null;
+                }
+
+                updates.push({
+                    taskId: taskId,
+                    updates: {
+                        timeRanges: newSourceRanges,
+                        startDate: sourceStart,
+                        endDate: sourceEnd
+                    }
+                });
+            }
+
+            // 2. Add to Target (Effective Target or Source if Copying to Self)
+            const destTask = effectiveTargetTask || sourceTask;
+
+            const newRange = {
+                ...rangeMoving,
+                id: isCopyMode ? generateId() : rangeMoving.id, // Generate new ID if copying
+                startDate: dateUtils.formatDate(finalStart),
+                endDate: dateUtils.formatDate(finalEnd),
+                color: rangeMoving.color || sourceTask.color // Preserve color
+            };
+
+            // Calculate destination ranges
+            // If dest is source (Copy to self), we need to append to *current* ranges (but care for simultaneous updates if we removed above? No, we prepare `updates` list).
+            // Actually if dest == source (Copy Self), `updates` list might conflict if we push two updates for same task?
+            // `onUpdateTasks` handles array.
+            // If we have two entries for one task, it might be issue.
+            // So we should merge logic.
+
+            let destRanges = [];
+            if (destTask.id === taskId && !isCopyMode) {
+                // Should not reach here because `effectiveTargetTask` is null.
+                // Logic falls through to "else" block below for standard move.
+                // BUT what if `isCopyMode` is true and `effectiveTargetTask` is null? (Copy to self)
+                // We are in this block.
+                destRanges = [...(sourceTask.timeRanges || [])]; // Original ranges
+            } else if (destTask.id === taskId && isCopyMode) {
+                // Copy to self. Source ranges are NOT removed.
+                destRanges = [...(sourceTask.timeRanges || [])];
+            } else {
+                // Moving/Copying to another task
+                destRanges = [...(destTask.timeRanges || [])];
+            }
+
+            // Add new range
+            destRanges.push(newRange);
+
+            // Recalc Dest Min/Max
+            const destDates = destRanges.flatMap(r => [new Date(r.startDate), new Date(r.endDate)]);
+            const destStart = dateUtils.formatDate(new Date(Math.min(...destDates)));
+            const destEnd = dateUtils.formatDate(new Date(Math.max(...destDates)));
+
+            // If Copying to Self (destTask.id === taskId), we only need ONE update entry.
+            if (destTask.id === taskId && isCopyMode) {
+                updates.push({
+                    taskId: taskId,
+                    updates: {
+                        timeRanges: destRanges,
+                        startDate: destStart,
+                        endDate: destEnd
+                    }
+                });
+            } else if (destTask.id !== taskId) {
+                // Target update
+                updates.push({
+                    taskId: destTask.id,
+                    updates: {
+                        timeRanges: destRanges,
+                        startDate: destStart,
+                        endDate: destEnd
+                    }
+                });
+            }
+
+            if (onUpdateTasks) {
+                onUpdateTasks(updates, true);
+            } else {
+                updates.forEach(u => onUpdateTask(u.taskId, u.updates, true));
+            }
+
+        } else {
+            // Standard Move (Same Task, No Copy)
+            let newRanges = sourceTask.timeRanges ? [...sourceTask.timeRanges] : [{ id: 'legacy', startDate: sourceTask.startDate, endDate: sourceTask.endDate }];
+            const rangeIndex = newRanges.findIndex(r => r.id === rangeId);
+
+            if (rangeIndex >= 0) {
+                newRanges[rangeIndex] = {
+                    ...newRanges[rangeIndex],
+                    startDate: dateUtils.formatDate(finalStart),
+                    endDate: dateUtils.formatDate(finalEnd)
+                };
+            } else if (rangeId === 'legacy') {
+                newRanges = [{ id: generateId(), startDate: dateUtils.formatDate(finalStart), endDate: dateUtils.formatDate(finalEnd) }];
+            }
+
+            const allDates = newRanges.flatMap(r => [new Date(r.startDate), new Date(r.endDate)]);
+            const minDate = new Date(Math.min(...allDates));
+            const maxDate = new Date(Math.max(...allDates));
+
+            onUpdateTask(taskId, {
+                timeRanges: newRanges,
+                startDate: dateUtils.formatDate(minDate),
+                endDate: dateUtils.formatDate(maxDate)
+            }, true);
+        }
+    }, [flatTasks, onUpdateTask, onUpdateTasks, getTaskFromY]);
+
+    // 가이드라인 이동 핸들러
     const handleGuideMove = (offset) => {
         setGuideLineX(offset);
     };
 
-    // 마일스톤 드래그 완료 시 날짜 업데이트
-    const [dragTargetTaskId, setDragTargetTaskId] = useState(null);
-
     const handleMilestoneDragMove = (mouseY) => {
-        // 마우스 Y 위치로 대상 작업 찾기
-        const timelineRows = document.querySelectorAll('.timeline-row[data-task-id]');
-        let targetTask = null;
-
-        timelineRows.forEach((row) => {
-            const rect = row.getBoundingClientRect();
-            if (mouseY >= rect.top && mouseY <= rect.bottom) {
-                const taskId = row.getAttribute('data-task-id');
-                targetTask = taskId;
-            }
-        });
-
-        setDragTargetTaskId(targetTask);
+        const targetTask = getTaskFromY(mouseY);
+        setDragTargetTaskId(targetTask ? targetTask.id : null);
     };
 
-    const handleMilestoneDragEnd = (sourceTaskId, milestoneId, newDate) => {
+    const handleMilestoneDragEnd = (sourceTaskId, milestoneId, newDate, isCopyMode) => {
+        setDragTargetTaskId(null); // Clear highlight immediately
+
         // 대상 작업 결정 (세로 드래그 했으면 dragTargetTaskId, 아니면 원래 작업)
         const targetTaskId = dragTargetTaskId || sourceTaskId;
 
@@ -408,40 +548,81 @@ const TimelineView = forwardRef(({
         const milestone = sourceTask.milestones.find(m => m.id === milestoneId);
         if (!milestone) return;
 
-        // 같은 작업이면 날짜만 업데이트
-        if (targetTaskId === sourceTaskId) {
+        // Effective Target
+        const targetTask = flatTasks.find(t => t.id === targetTaskId);
+        if (!targetTask) return;
+
+        // Check if we are really moving/copying to a different task OR same task
+        const isSameTask = (targetTaskId === sourceTaskId);
+
+        // Case 1: Same Task Update (Move) or Copy to Self
+        if (isSameTask && !isCopyMode) {
             const updatedMilestones = sourceTask.milestones.map(m =>
                 m.id === milestoneId
                     ? { ...m, date: newDate }
                     : m
             );
-            onUpdateTask(sourceTaskId, {
-                milestones: updatedMilestones
-            }, true);
+            onUpdateTask(sourceTaskId, { milestones: updatedMilestones }, true);
+            setDragTargetTaskId(null);
+            return;
+        }
+
+        // Case 2: Cross Task Move/Copy OR Same Task Copy
+
+        // 1. Handle Source (Remove only if NOT copy mode)
+        let updatedSourceMilestones = sourceTask.milestones;
+        if (!isCopyMode) {
+            updatedSourceMilestones = sourceTask.milestones.filter(m => m.id !== milestoneId);
+        }
+
+        // 2. Handle Target (Add)
+        // If Copying, generate new ID. If Moving, keep ID (unless conflict? IDs are UUIDs usually).
+        const newMilestone = {
+            ...milestone,
+            id: isCopyMode ? generateId() : milestone.id,
+            date: newDate
+        };
+
+        // Special Case: Copy to Self
+        // If Copy to Self, `targetTask` IS `sourceTask`.
+        // `updatedSourceMilestones` ALREADY contains the original (because we didn't filter).
+        // So we appending `newMilestone` to `updatedSourceMilestones` is correct.
+        // BUT if `!isCopyMode`, we filtered it out. So appending `newMilestone` to `updatedSourceMilestones` (which is filtered) is effectively a Move (Update).
+
+        let finalTargetMilestones = [];
+
+        if (isSameTask) {
+            // Same Task: Source and Target are same.
+            // `updatedSourceMilestones` holds state after removal (if move).
+            finalTargetMilestones = [...updatedSourceMilestones, newMilestone];
+
+            // Single Update
+            onUpdateTask(sourceTaskId, { milestones: finalTargetMilestones }, true);
         } else {
-            // 다른 작업으로 이동 - 두 작업을 동시에 업데이트
-            const targetTask = flatTasks.find(t => t.id === targetTaskId);
-            if (!targetTask) return;
+            // Cross Task
+            // Source Update (if changed)
+            const updates = [];
 
-            // 1. 원본에서 제거
-            const updatedSourceMilestones = sourceTask.milestones.filter(m => m.id !== milestoneId);
+            if (!isCopyMode) {
+                updates.push({
+                    taskId: sourceTaskId,
+                    updates: { milestones: updatedSourceMilestones }
+                });
+            }
 
-            // 2. 대상에 추가 (with new date)
-            const updatedTargetMilestones = [
-                ...(targetTask.milestones || []),
-                { ...milestone, date: newDate }
-            ];
+            // Target Update
+            const currentTargetMilestones = targetTask.milestones || [];
+            finalTargetMilestones = [...currentTargetMilestones, newMilestone];
 
-            // 3. 원자적 업데이트 (Undo 시 한 번에 되돌리기 위함)
+            updates.push({
+                taskId: targetTaskId,
+                updates: { milestones: finalTargetMilestones }
+            });
+
             if (onUpdateTasks) {
-                onUpdateTasks([
-                    { taskId: sourceTaskId, updates: { milestones: updatedSourceMilestones } },
-                    { taskId: targetTaskId, updates: { milestones: updatedTargetMilestones } }
-                ], true);
+                onUpdateTasks(updates, true);
             } else {
-                // Fallback (기존 방식 - 문제점: undo 시 마일스톤 증발 가능성)
-                onUpdateTask(sourceTaskId, { milestones: updatedSourceMilestones }, false);
-                onUpdateTask(targetTaskId, { milestones: updatedTargetMilestones }, true);
+                updates.forEach(u => onUpdateTask(u.taskId, u.updates, true));
             }
         }
 
@@ -548,16 +729,46 @@ const TimelineView = forwardRef(({
         }
     };
 
+    // Sidebar Resize Handler
+    useEffect(() => {
+        if (!isResizingSidebar) return;
+
+        const handleMouseMove = (e) => {
+            if (containerRef.current) {
+                const containerRect = containerRef.current.getBoundingClientRect();
+                let newWidth = e.clientX - containerRect.left;
+
+                // Constraints
+                if (newWidth < 100) newWidth = 100;
+                if (newWidth > 600) newWidth = 600;
+
+                setSidebarWidth(newWidth);
+            }
+        };
+
+        const handleMouseUp = () => {
+            setIsResizingSidebar(false);
+            document.body.style.cursor = 'default';
+        };
+
+        document.addEventListener('mousemove', handleMouseMove);
+        document.addEventListener('mouseup', handleMouseUp);
+        document.body.style.cursor = 'col-resize';
+
+        return () => {
+            document.removeEventListener('mousemove', handleMouseMove);
+            document.removeEventListener('mouseup', handleMouseUp);
+            document.body.style.cursor = 'default';
+        };
+    }, [isResizingSidebar]);
+
     // 우클릭 핸들러
     const handleContextMenu = (e, task, date) => {
         e.preventDefault();
         setMilestoneEditInfo(null); // 마일스톤 팝오버 닫기
-        setPopoverInfo({
-            x: e.clientX,
-            y: e.clientY,
-            taskId: task.id, // ID만 저장
-            date // 클릭한 날짜 정보 추가
-        });
+        if (onContextMenu) {
+            onContextMenu(e, task.id, date);
+        }
     };
 
     // 마일스톤 우클릭 핸들러
@@ -915,14 +1126,7 @@ const TimelineView = forwardRef(({
         );
     };
 
-    // 팝오버를 위한 현재 작업 찾기
-    const popoverTask = popoverInfo ? flatTasks.find(t => t.id === popoverInfo.taskId) : null;
 
-    // 후행 작업(Successors) 찾기 (작업용)
-    const successors = popoverTask ? flatTasks.filter(t => t.dependencies && t.dependencies.includes(popoverTask.id)) : [];
-
-    // 선행 작업(Predecessors) 찾기 (작업용)
-    const predecessors = popoverTask ? flatTasks.filter(t => popoverTask.dependencies && popoverTask.dependencies.includes(t.id)) : [];
 
     // 마일스톤용 선행/후행 찾기
     const milestonePredecessors = useMemo(() => {
@@ -1004,8 +1208,11 @@ const TimelineView = forwardRef(({
             <div className={`timeline-container ${showTaskNames ? 'with-names' : ''}`} ref={captureRef}>
                 {/* ... (Existing JSX) ... */}
                 {/* 왼쪽 작업명 컬럼 */}
-                {showTaskNames && (
-                    <div className="task-names-column">
+                {showTaskNames && (<>
+                    <div
+                        className="task-names-column"
+                        style={{ width: `${sidebarWidth}px`, flex: `0 0 ${sidebarWidth}px` }}
+                    >
                         <div className="task-names-header" onClick={() => onSelectTask(null)}>작업명</div>
                         <div className="task-names-list" ref={taskNamesScrollRef}>
                             {tasks.length === 0 ? (
@@ -1059,7 +1266,28 @@ const TimelineView = forwardRef(({
                             )}
                         </div>
                     </div>
-                )}
+                    {/* Resize Handle */}
+                    <div
+                        className="sidebar-resize-handle"
+                        onMouseDown={(e) => {
+                            e.preventDefault();
+                            setIsResizingSidebar(true);
+                            if (containerRef.current) {
+                                sidebarRef.current = e.clientX;
+                            }
+                        }}
+                        style={{
+                            width: '4px',
+                            cursor: 'col-resize',
+                            backgroundColor: isResizingSidebar ? 'var(--color-primary)' : 'transparent',
+                            zIndex: 10,
+                            position: 'relative',
+                            marginLeft: '-2px', // Overlap slightly for easier grabbing? Or just put it between.
+                            // Flex layout handles position.
+                            flex: '0 0 4px',
+                        }}
+                    />
+                </>)}
 
                 {/* 타임라인 스크롤 컨테이너 */}
                 <div className="timeline-scroll-container" ref={timelineScrollRef}>
@@ -1099,6 +1327,21 @@ const TimelineView = forwardRef(({
                                 const totalDays = dateUtils.getDaysBetween(dateRange.start, dateRange.end);
                                 const daysFromStart = Math.round((x / contentWidth) * totalDays);
                                 const clickedDate = dateUtils.addDays(dateRange.start, daysFromStart);
+
+                                // Use new context menu prop for empty space too?
+                                // User request was "Right click on TableView".
+                                // For Timeline empty space "Add Milestone" is existing feature.
+                                // I should preserve "Add Milestone" logic here if I can't pass it to App easily.
+                                // NOTE: I am moving 'Context Menu' logic to App, but 'Add Milestone' modal logic is still local.
+                                // So I will keep this logic but maybe invoke it differently?
+                                // Actually user didn't ask to change Timeline Empty Space behavior.
+                                // But `TimelineBar` right click behaviour WAS changed to use `handleContextMenu`.
+                                // Let's keep empty space behavior as is (Milestone Add), OR unify?
+                                // User said "Support context menu in TableView".
+                                // TimelineView already had context menu on Tasks.
+                                // I moved the 'Task Settings' popover to App.
+                                // So TimelineBar right click triggers App's popover.
+                                // Empty space right click triggers... Milestone Modal (local state). This is fine.
 
                                 const targetTask = flatTasks.find(t => t.id === selectedTaskId) || flatTasks[0];
 
@@ -1152,76 +1395,39 @@ const TimelineView = forwardRef(({
                 </div>
             </div>
 
-            {/* 컨텍스트 메뉴 팝오버 */}
-            {popoverInfo && popoverTask && (
-                <TimelineBarPopover
-                    position={{ x: popoverInfo.x, y: popoverInfo.y }}
-                    task={popoverTask}
-                    clickedDate={popoverInfo.date} // 클릭 날짜 전달
-                    successors={successors}
-                    predecessors={predecessors}
-                    onClose={() => setPopoverInfo(null)}
-                    onUpdate={(taskId, updates) => {
-                        onUpdateTask(taskId, updates);
-                    }}
-                    onDelete={(taskId) => {
-                        if (onDeleteTask) {
-                            onDeleteTask(taskId);
-                        }
-                    }}
-                    onAddTimeRange={(taskId, date) => {
-                        const task = flatTasks.find(t => t.id === taskId);
-                        if (task) {
-                            const startDate = dateUtils.formatDate(date);
-                            const endDate = dateUtils.formatDate(dateUtils.addDays(date, 7)); // 기본 7일
-                            const newRange = {
-                                id: generateId(),
-                                startDate,
-                                endDate
-                            };
-                            // 기존 timeRanges가 없으면 빈 배열로 취급
-                            const newRanges = [...(task.timeRanges || []), newRange];
-                            onUpdateTask(taskId, { timeRanges: newRanges }, true);
-                        }
-                        setPopoverInfo(null);
-                    }}
-                    onAddMilestone={() => {
-                        setMilestoneModalInfo({
-                            task: popoverTask,
-                            date: popoverInfo.date,
-                            labelPosition: 'auto' // Default to auto
-                        });
-                        setPopoverInfo(null);
-                    }}
-                    onStartLinking={() => startLinking(popoverTask.id)}
-                />
-            )}
+            {/* Remove TimelineBarPopover as it is now in App.jsx */}
+
+
 
             {/* 마일스톤 편집 팝오버 */}
-            {milestoneEditInfo && (
-                <MilestoneEditPopover
-                    position={{ x: milestoneEditInfo.x, y: milestoneEditInfo.y }}
-                    milestone={milestoneEditInfo.milestone}
-                    predecessors={milestonePredecessors}
-                    successors={milestoneSuccessors}
-                    onClose={() => setMilestoneEditInfo(null)}
-                    onUpdate={handleUpdateMilestone}
-                    onDelete={handleDeleteMilestone}
-                    onStartLinking={() => startLinking(milestoneEditInfo.milestone.id)}
-                    onRemoveDependency={handleRemoveDependency}
-                />
-            )}
+            {
+                milestoneEditInfo && (
+                    <MilestoneEditPopover
+                        position={{ x: milestoneEditInfo.x, y: milestoneEditInfo.y }}
+                        milestone={milestoneEditInfo.milestone}
+                        predecessors={milestonePredecessors}
+                        successors={milestoneSuccessors}
+                        onClose={() => setMilestoneEditInfo(null)}
+                        onUpdate={handleUpdateMilestone}
+                        onDelete={handleDeleteMilestone}
+                        onStartLinking={() => startLinking(milestoneEditInfo.milestone.id)}
+                        onRemoveDependency={handleRemoveDependency}
+                    />
+                )
+            }
 
             {/* 마일스톤 추가 모달 */}
-            {milestoneModalInfo && (
-                <MilestoneQuickAdd
-                    task={milestoneModalInfo.task}
-                    date={milestoneModalInfo.date}
-                    onClose={() => setMilestoneModalInfo(null)}
-                    onAdd={handleAddMilestone}
-                />
-            )}
-        </div>
+            {
+                milestoneModalInfo && (
+                    <MilestoneQuickAdd
+                        task={milestoneModalInfo.task}
+                        date={milestoneModalInfo.date}
+                        onClose={() => setMilestoneModalInfo(null)}
+                        onAdd={handleAddMilestone}
+                    />
+                )
+            }
+        </div >
     );
 });
 

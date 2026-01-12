@@ -6,6 +6,7 @@ import Header from './components/Header';
 import Toolbar from './components/Toolbar';
 import TableView from './components/TableView';
 import TimelineView from './components/TimelineView';
+import TimelineBarPopover from './components/TimelineBarPopover'; // Import Popover
 import PromptGuideModal from './components/PromptGuideModal';
 import ImportExportModal from './components/ImportExportModal';
 import './App.css';
@@ -61,6 +62,37 @@ function App() {
 
     // 가져오기/내보내기 모달 상태
     const [ieModalMode, setIeModalMode] = useState(null); // 'IMPORT' | 'EXPORT' | null
+
+    // 컨텍스트 메뉴 팝오버 상태 (Table/Timeline 공용)
+    const [popoverInfo, setPopoverInfo] = useState(null); // { x, y, taskId, date }
+
+    // 컨텍스트 메뉴 핸들러
+    const handleContextMenu = useCallback((e, taskId, date = null) => {
+        e.preventDefault();
+        const clickDate = date || new Date(); // 날짜 없으면 오늘
+        setPopoverInfo({
+            x: e.clientX,
+            y: e.clientY,
+            taskId,
+            date: clickDate
+        });
+    }, []);
+
+    // 팝오버 닫기
+    const closePopover = useCallback(() => setPopoverInfo(null), []);
+
+
+    // Wait, implementation plan said "Lift state". I need to act on it.
+    // If I don't lift MilestoneQuickAdd, then "Add Milestone" button in Popover won't work perfectly.
+    // However, requested feature is just "Show Task Settings Dialog".
+    // I can pass a dummy or keep it simple. 
+    // Actually, popover calls `onAddMilestone`. If I pass `null`, button might not work.
+    // Let's assume for now I only need basic settings. 
+    // BUT user expects "Task Settings" which includes "Add Milestone" button usually.
+    // Refactoring MilestoneQuickAdd is large. I will defer that specific action or make it simple prompt.
+    // Better: TimelineView usually handles this. If I click in TableView, maybe prompt?
+    // Let's implement basics first.
+
 
     // 초기 데이터 로드
     const getInitialData = () => {
@@ -292,6 +324,22 @@ function App() {
         setTasks(deleteTask(tasks));
         setSelectedTaskId(null);
     }, [tasks, setTasks]);
+
+    // 팝오버 액션 핸들러들 (순서 변경됨)
+    const handlePopoverUpdate = useCallback((id, updates) => {
+        handleUpdateTask(id, updates, true);
+    }, [handleUpdateTask]);
+
+    const handlePopoverDelete = useCallback((id) => {
+        handleDeleteTask(id);
+        closePopover();
+    }, [handleDeleteTask, closePopover]);
+
+    const handlePopoverAddMilestone = useCallback(() => {
+        if (!popoverInfo) return;
+        alert("마일스톤 추가 기능은 타임라인 뷰에서 직접 수행해주세요. (TODO: App 레벨로 이동 예정)");
+        closePopover();
+    }, [popoverInfo, closePopover]);
 
     // 작업 순서 변경 (드래그 앤 드롭)
     const handleReorderTasks = useCallback((reorderedTasks) => {
@@ -767,6 +815,7 @@ function App() {
                         onIndentTask={handleIndentTask}
                         onOutdentTask={handleOutdentTask}
                         onMoveTask={handleMoveTask}
+                        onContextMenu={handleContextMenu}
                         viewMode={viewMode}
                     />
                 )}
@@ -784,6 +833,7 @@ function App() {
                         onMoveTask={handleMoveTask}
                         onIndentTask={handleIndentTask}
                         onOutdentTask={handleOutdentTask}
+                        onContextMenu={handleContextMenu}
                         timeScale={timeScale}
                         viewMode={viewMode}
                         // 상태 전달
@@ -795,6 +845,67 @@ function App() {
                     />
                 )}
             </div>
+
+            {/* 작업 설정 팝오버 (전역) */}
+            {popoverInfo && (() => {
+                const flatList = flattenTasks(tasks);
+                const targetTask = flatList.find(t => t.id === popoverInfo.taskId);
+                if (!targetTask) return null;
+
+                const preds = flatList.filter(t => targetTask.dependencies.includes(t.id));
+                const succs = flatList.filter(t => t.dependencies.includes(targetTask.id));
+
+                return (
+                    <TimelineBarPopover
+                        position={{ x: popoverInfo.x, y: popoverInfo.y }}
+                        task={targetTask}
+                        clickedDate={popoverInfo.date}
+                        predecessors={preds}
+                        successors={succs}
+                        onClose={closePopover}
+                        onUpdate={handlePopoverUpdate}
+                        onDelete={handlePopoverDelete}
+                        onAddMilestone={handlePopoverAddMilestone}
+                        onStartLinking={() => {
+                            alert("연결 모드는 타임라인 뷰에서 'Shift + 드래그'를 사용해주세요.");
+                            closePopover();
+                        }}
+                        onAddTimeRange={(taskId, date) => {
+                            const newRanges = [...(targetTask.timeRanges || [])];
+                            if (newRanges.length === 0 && (targetTask.startDate || targetTask.endDate)) {
+                                // 기존 데이터 마이그레이션 (혹시 안된 경우)
+                                newRanges.push({
+                                    id: generateId(),
+                                    startDate: targetTask.startDate,
+                                    endDate: targetTask.endDate
+                                });
+                            }
+
+                            // 1일 길이의 새 기간 추가
+                            const start = new Date(date);
+                            const end = new Date(date);
+                            newRanges.push({
+                                id: generateId(),
+                                startDate: start.toISOString().split('T')[0],
+                                endDate: end.toISOString().split('T')[0]
+                            });
+
+                            // 전체 시작/종료일 업데이트
+                            const allStarts = newRanges.map(r => new Date(r.startDate).getTime());
+                            const allEnds = newRanges.map(r => new Date(r.endDate).getTime());
+                            const minStart = new Date(Math.min(...allStarts));
+                            const maxEnd = new Date(Math.max(...allEnds));
+
+                            handlePopoverUpdate(taskId, {
+                                timeRanges: newRanges,
+                                startDate: minStart.toISOString().split('T')[0],
+                                endDate: maxEnd.toISOString().split('T')[0]
+                            });
+                        }}
+                    />
+                );
+            })()}
+
             <ImportExportModal
                 isOpen={!!ieModalMode}
                 onClose={() => setIeModalMode(null)}

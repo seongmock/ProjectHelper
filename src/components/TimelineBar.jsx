@@ -26,7 +26,8 @@ function TimelineBar({
 }) {
     const [activeRangeId, setActiveRangeId] = useState(null); // ID of range being dragged
     const [dragType, setDragType] = useState(null); // 'move', 'resize-start', 'resize-end'
-    const [dragStart, setDragStart] = useState({ x: 0, rangeStart: null, rangeEnd: null });
+    const [dragStart, setDragStart] = useState({ x: 0, y: 0, rangeStart: null, rangeEnd: null });
+    const [draggedRangeY, setDraggedRangeY] = useState(0);
 
     // Local state for visual feedback during drag
     const [draggedDates, setDraggedDates] = useState(null);
@@ -36,6 +37,9 @@ function TimelineBar({
     const [milestoneDragStart, setMilestoneDragStart] = useState({ x: 0, y: 0, originalDate: null });
     const [draggedMilestoneDate, setDraggedMilestoneDate] = useState(null);
     const [draggedMilestoneY, setDraggedMilestoneY] = useState(0);
+
+    // Copy Mode State
+    const [isCopyMode, setIsCopyMode] = useState(false);
 
     const barRefs = useRef({}); // Refs for each range bar
     const totalDays = dateUtils.getDaysBetween(startDate, endDate);
@@ -52,6 +56,7 @@ function TimelineBar({
         setDragType(type);
         setDragStart({
             x: e.clientX,
+            y: e.clientY,
             rangeStart: new Date(range.startDate),
             rangeEnd: new Date(range.endDate),
         });
@@ -72,7 +77,12 @@ function TimelineBar({
 
         const handleMouseMove = (e) => {
             const deltaX = e.clientX - dragStart.x;
+            const deltaY = e.clientY - dragStart.y;
             const deltaDays = Math.round((deltaX / containerWidth) * totalDays);
+
+            setIsCopyMode(e.ctrlKey);
+
+            setDraggedRangeY(deltaY);
 
             const applySnapping = (date, type) => {
                 if (snapEnabled) {
@@ -96,7 +106,7 @@ function TimelineBar({
                     endDate: dateUtils.formatDate(snappedEnd)
                 });
                 // Update specific range locally
-                onDragUpdate(task.id, snappedStart, snappedEnd, activeRangeId);
+                onDragUpdate(task.id, snappedStart, snappedEnd, activeRangeId, e.clientY);
                 guideDate = snappedStart;
 
             } else if (dragType === 'resize-start') {
@@ -109,7 +119,7 @@ function TimelineBar({
                         startDate: dateUtils.formatDate(snappedStart),
                         endDate: dateUtils.formatDate(dragStart.rangeEnd)
                     });
-                    onDragUpdate(task.id, snappedStart, dragStart.rangeEnd, activeRangeId);
+                    onDragUpdate(task.id, snappedStart, dragStart.rangeEnd, activeRangeId, e.clientY);
                     guideDate = snappedStart;
                 }
             } else if (dragType === 'resize-end') {
@@ -122,7 +132,7 @@ function TimelineBar({
                         startDate: dateUtils.formatDate(dragStart.rangeStart),
                         endDate: dateUtils.formatDate(snappedEnd)
                     });
-                    onDragUpdate(task.id, dragStart.rangeStart, snappedEnd, activeRangeId);
+                    onDragUpdate(task.id, dragStart.rangeStart, snappedEnd, activeRangeId, e.clientY);
                     guideDate = snappedEnd;
                 }
             }
@@ -134,24 +144,48 @@ function TimelineBar({
             }
         };
 
-        const handleMouseUp = () => {
+        const handleMouseUp = (e) => {
             if (onGuideMove) onGuideMove(null);
 
             if (onDragEnd && finalDragState.current.start && finalDragState.current.end) {
-                onDragEnd(task.id, finalDragState.current.start, finalDragState.current.end, activeRangeId);
+                onDragEnd(task.id, finalDragState.current.start, finalDragState.current.end, activeRangeId, e.clientY, e.ctrlKey);
             }
 
             setDraggedDates(null);
+            setDraggedRangeY(0);
             setActiveRangeId(null);
             setDragType(null);
         };
 
+        const handleKeyDown = (e) => {
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                e.stopPropagation();
+
+                // Cancel Drag
+                finalDragState.current = { start: null, end: null }; // Invalidate final state
+                if (onGuideMove) onGuideMove(null);
+
+                // Notify parent to clear highlight (pass null rangeId to ensure safe exit)
+                if (onDragEnd) {
+                    onDragEnd(task.id, null, null, null, null, false);
+                }
+
+                setDraggedDates(null);
+                setDraggedRangeY(0);
+                setActiveRangeId(null);
+                setDragType(null);
+            }
+        };
+
         document.addEventListener('mousemove', handleMouseMove);
         document.addEventListener('mouseup', handleMouseUp);
+        document.addEventListener('keydown', handleKeyDown);
 
         return () => {
             document.removeEventListener('mousemove', handleMouseMove);
             document.removeEventListener('mouseup', handleMouseUp);
+            document.removeEventListener('keydown', handleKeyDown);
         };
     }, [activeRangeId, dragType, dragStart, containerWidth, totalDays, task.id, onDragUpdate, onDragEnd, onGuideMove, snapEnabled, startDate]);
 
@@ -163,6 +197,9 @@ function TimelineBar({
         const handleMouseMove = (e) => {
             const deltaX = e.clientX - milestoneDragStart.x;
             const deltaDays = Math.round((deltaX / containerWidth) * totalDays);
+
+            setIsCopyMode(e.ctrlKey); // Update copy mode support
+
             const rawNewDate = dateUtils.addDays(milestoneDragStart.originalDate, deltaDays);
 
             let snappedDate;
@@ -188,11 +225,11 @@ function TimelineBar({
             }
         };
 
-        const handleMouseUp = () => {
+        const handleMouseUp = (e) => {
             if (onGuideMove) onGuideMove(null);
 
             if (onMilestoneDragEnd && draggedMilestoneDate) {
-                onMilestoneDragEnd(task.id, draggingMilestone, draggedMilestoneDate);
+                onMilestoneDragEnd(task.id, draggingMilestone, draggedMilestoneDate, e.ctrlKey);
             }
 
             setDraggingMilestone(null);
@@ -200,12 +237,32 @@ function TimelineBar({
             setDraggedMilestoneY(0);
         };
 
+        const handleKeyDown = (e) => {
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                e.stopPropagation();
+
+                if (onGuideMove) onGuideMove(null);
+
+                // Notify parent to clear highlight
+                if (onMilestoneDragEnd) {
+                    onMilestoneDragEnd(task.id, null, null, false);
+                }
+
+                setDraggingMilestone(null);
+                setDraggedMilestoneDate(null);
+                setDraggedMilestoneY(0);
+            }
+        };
+
         document.addEventListener('mousemove', handleMouseMove);
         document.addEventListener('mouseup', handleMouseUp);
+        document.addEventListener('keydown', handleKeyDown);
 
         return () => {
             document.removeEventListener('mousemove', handleMouseMove);
             document.removeEventListener('mouseup', handleMouseUp);
+            document.removeEventListener('keydown', handleKeyDown);
         };
     }, [draggingMilestone, milestoneDragStart, containerWidth, totalDays, task.id, onMilestoneDragEnd, onMilestoneDragMove, draggedMilestoneDate, onGuideMove, snapEnabled, startDate]);
 
@@ -427,7 +484,11 @@ function TimelineBar({
                         style={{
                             left: `${offset}px`,
                             width: `${width}px`,
-                            backgroundColor: task.color,
+                            backgroundColor: range.color || task.color,
+                            transform: isActive ? `translateY(calc(-50% + ${draggedRangeY}px))` : undefined,
+                            zIndex: isActive ? 100 : 1,
+                            boxShadow: isActive ? '0 4px 8px rgba(0,0,0,0.3)' : 'none',
+                            cursor: isActive ? (isCopyMode ? 'copy' : 'grabbing') : 'grab'
                         }}
                         onClick={(e) => {
                             e.stopPropagation();
@@ -444,6 +505,28 @@ function TimelineBar({
                             onContextMenu(e, clickDate);
                         }}
                     >
+                        {isActive && isCopyMode && (
+                            <div style={{
+                                position: 'absolute',
+                                top: '-24px',
+                                right: '-8px',
+                                background: '#4CAF50', // Green for Copy
+                                color: 'white',
+                                padding: '4px 8px',
+                                borderRadius: '12px',
+                                fontSize: '11px',
+                                fontWeight: 'bold',
+                                pointerEvents: 'none',
+                                whiteSpace: 'nowrap',
+                                zIndex: 102,
+                                boxShadow: '0 2px 5px rgba(0,0,0,0.3)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '4px'
+                            }}>
+                                <span>+</span> Copy
+                            </div>
+                        )}
                         {/* Drag Labels */}
                         {isActive && draggedDates && (
                             <>
