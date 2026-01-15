@@ -1,6 +1,6 @@
 import './Header.css';
 
-function Header({ darkMode, onToggleDarkMode, onExport, onImport, canUndo, canRedo, onUndo, onRedo, onOpenPromptGuide, snapEnabled, onToggleSnap }) {
+function Header({ darkMode, onToggleDarkMode, onExport, onImport, canUndo, canRedo, onUndo, onRedo, onOpenPromptGuide, onOpenSnapshots, snapEnabled, onToggleSnap }) {
     return (
         <header className="header">
             <div className="header-content">
@@ -18,6 +18,14 @@ function Header({ darkMode, onToggleDarkMode, onExport, onImport, canUndo, canRe
                             title="프롬프트 도우미"
                         >
                             🤖
+                        </button>
+                        <button
+                            className="icon tooltip"
+                            onClick={onOpenSnapshots}
+                            data-tooltip="프로젝트 저장/불러오기 목록"
+                            title="스냅샷 관리"
+                        >
+                            💾
                         </button>
                         <div className="divider-vertical" style={{ width: '1px', height: '16px', background: 'var(--color-border)', margin: 'auto 4px' }}></div>
                         <button

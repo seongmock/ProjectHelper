@@ -9,6 +9,7 @@ import TimelineView from './components/TimelineView';
 import TimelineBarPopover from './components/TimelineBarPopover'; // Import Popover
 import PromptGuideModal from './components/PromptGuideModal';
 import ImportExportModal from './components/ImportExportModal';
+import SaveLoadModal from './components/SaveLoadModal';
 import './App.css';
 
 function App() {
@@ -62,6 +63,11 @@ function App() {
 
     // 가져오기/내보내기 모달 상태
     const [ieModalMode, setIeModalMode] = useState(null); // 'IMPORT' | 'EXPORT' | null
+
+    // 저장/불러오기 모달 상태
+    const [isSaveLoadModalOpen, setIsSaveLoadModalOpen] = useState(false);
+    // 커스텀 내보내기 데이터 (스냅샷 내보내기용)
+    const [customExportData, setCustomExportData] = useState(null);
 
     // 컨텍스트 메뉴 팝오버 상태 (Table/Timeline 공용)
     const [popoverInfo, setPopoverInfo] = useState(null); // { x, y, taskId, date }
@@ -649,84 +655,110 @@ function App() {
 
     // 내보내기 (파일 저장)
     const handleExport = useCallback(() => {
-        const exportData = getExportDataObject();
+        const exportData = customExportData || getExportDataObject();
         const timestamp = new Date().toISOString().slice(0, 10);
         storage.exportData(exportData, `project-timeline-${timestamp}.json`);
-    }, [getExportDataObject]);
+    }, [getExportDataObject, customExportData]);
+
+    // 스냅샷 내보내기 핸들러
+    const handleSnapshotExport = useCallback((snapshot) => {
+        // 현재 설정 + 스냅샷 데이터로 내보내기 객체 생성
+        const exportObject = {
+            meta: {
+                viewSettings: {
+                    viewMode, timeScale, zoomLevel, showToday, isCompact, showTaskNames, darkMode, snapEnabled
+                },
+                version: '1.0'
+            },
+            data: snapshot.data
+        };
+        setCustomExportData(exportObject);
+        setIeModalMode('EXPORT');
+    }, [viewMode, timeScale, zoomLevel, showToday, isCompact, showTaskNames, darkMode, snapEnabled]);
 
     // 가져오기
+    // 가져오기 데이터 처리 공통 로직
+    const processImportedData = useCallback((importedData, isMerge = false) => {
+        try {
+            let newTasks = [];
+
+            if (Array.isArray(importedData)) {
+                // 구버전 호환 (배열인 경우) OR 스냅샷 데이터 (tasks 배열만 저장됨)
+                newTasks = importedData;
+            } else if (importedData.data && Array.isArray(importedData.data)) {
+                // 신버전 (메타데이터 포함)
+                newTasks = importedData.data;
+
+                // 덮어쓰기 모드일 때만 뷰 설정 복원
+                if (!isMerge && importedData.meta && importedData.meta.viewSettings) {
+                    const settings = importedData.meta.viewSettings;
+                    if (settings.viewMode) setViewMode(settings.viewMode);
+                    if (settings.timeScale) setTimeScale(settings.timeScale);
+                    if (settings.zoomLevel) setZoomLevel(settings.zoomLevel);
+                    if (settings.showToday !== undefined) setShowToday(settings.showToday);
+                    if (settings.isCompact !== undefined) setIsCompact(settings.isCompact);
+                    if (settings.showTaskNames !== undefined) setShowTaskNames(settings.showTaskNames);
+                    if (settings.snapEnabled !== undefined) setSnapEnabled(settings.snapEnabled);
+                    if (settings.darkMode !== undefined) {
+                        setDarkMode(settings.darkMode);
+                        storage.saveSettings({ darkMode: settings.darkMode });
+                    }
+                }
+            } else {
+                throw new Error('Invalid data format');
+            }
+
+            if (isMerge) {
+                // 병합 모드: ID 재생성 후 추가
+                const regenerateIds = (items) => {
+                    return items.map(item => {
+                        const newId = generateId();
+                        // 자식들도 재귀적으로 ID 변경
+                        const newChildren = item.children ? regenerateIds(item.children) : [];
+
+                        // 마일스톤 ID도 변경
+                        const newMilestones = item.milestones ? item.milestones.map(ms => ({
+                            ...ms,
+                            id: generateId()
+                        })) : [];
+
+                        return {
+                            ...item,
+                            id: newId,
+                            children: newChildren,
+                            milestones: newMilestones,
+                            dependencies: []
+                        };
+                    });
+                };
+
+                const processedTasks = regenerateIds(newTasks);
+                setTasks(prev => [...prev, ...processedTasks]);
+                alert('데이터가 성공적으로 병합되었습니다.');
+            } else {
+                // 덮어쓰기 모드
+                setTasks(newTasks);
+                // 스냅샷 로드 시에는 알림 생략 가능하지만 일단 표시 (사용자 피드백)
+                // alert('데이터를 성공적으로 가져왔습니다.'); 
+            }
+        } catch (error) {
+            console.error('Failed to process data:', error);
+            alert('데이터 처리 중 오류가 발생했습니다.');
+        }
+    }, [setViewMode, setTimeScale, setZoomLevel, setShowToday, setIsCompact, setShowTaskNames, setSnapEnabled, setDarkMode, setTasks]);
+
+    // 가져오기 (파일)
     const handleImport = useCallback((file, isMerge = false) => {
         storage.importData(file)
             .then(importedData => {
-                let newTasks = [];
-
-                if (Array.isArray(importedData)) {
-                    // 구버전 호환 (배열인 경우)
-                    newTasks = importedData;
-                } else if (importedData.data && Array.isArray(importedData.data)) {
-                    // 신버전 (메타데이터 포함)
-                    newTasks = importedData.data;
-
-                    // 덮어쓰기 모드일 때만 뷰 설정 복원
-                    if (!isMerge && importedData.meta && importedData.meta.viewSettings) {
-                        const settings = importedData.meta.viewSettings;
-                        if (settings.viewMode) setViewMode(settings.viewMode);
-                        if (settings.timeScale) setTimeScale(settings.timeScale);
-                        if (settings.zoomLevel) setZoomLevel(settings.zoomLevel);
-                        if (settings.showToday !== undefined) setShowToday(settings.showToday);
-                        if (settings.isCompact !== undefined) setIsCompact(settings.isCompact);
-                        if (settings.showTaskNames !== undefined) setShowTaskNames(settings.showTaskNames);
-                        if (settings.snapEnabled !== undefined) setSnapEnabled(settings.snapEnabled);
-                        if (settings.darkMode !== undefined) {
-                            setDarkMode(settings.darkMode);
-                            storage.saveSettings({ darkMode: settings.darkMode });
-                        }
-                    }
-                } else {
-                    throw new Error('Invalid data format');
-                }
-
-                if (isMerge) {
-                    // 병합 모드: ID 재생성 후 추가
-                    const regenerateIds = (items) => {
-                        return items.map(item => {
-                            const newId = generateId();
-                            // 자식들도 재귀적으로 ID 변경
-                            const newChildren = item.children ? regenerateIds(item.children) : [];
-
-                            // 마일스톤 ID도 변경
-                            const newMilestones = item.milestones ? item.milestones.map(ms => ({
-                                ...ms,
-                                id: generateId()
-                            })) : [];
-
-                            return {
-                                ...item,
-                                id: newId,
-                                children: newChildren,
-                                milestones: newMilestones,
-                                // 의존성은 ID가 바뀌면 깨지므로 일단 초기화하거나, 
-                                // 매핑 테이블을 만들어서 변환해야 함. 
-                                // 여기서는 간단히 병합 시 의존성 링크는 해제하는 것으로 처리 (복잡도 관리)
-                                dependencies: []
-                            };
-                        });
-                    };
-
-                    const processedTasks = regenerateIds(newTasks);
-                    setTasks(prev => [...prev, ...processedTasks]);
-                    alert('데이터가 성공적으로 병합되었습니다.');
-                } else {
-                    // 덮어쓰기 모드
-                    setTasks(newTasks);
-                    alert('데이터를 성공적으로 가져왔습니다.');
-                }
+                processImportedData(importedData, isMerge);
+                alert(isMerge ? '데이터가 성공적으로 병합되었습니다.' : '데이터를 성공적으로 가져왔습니다.');
             })
             .catch(error => {
                 console.error('Failed to import data:', error);
                 alert('데이터 가져오기에 실패했습니다.');
             });
-    }, [setTasks]);
+    }, [processImportedData]);
 
     // 필터링된 작업 (검색어 적용)
     const filteredTasks = useCallback(() => {
@@ -775,6 +807,7 @@ function App() {
                 onUndo={undo}
                 onRedo={redo}
                 onOpenPromptGuide={() => setIsPromptGuideOpen(true)}
+                onOpenSnapshots={() => setIsSaveLoadModalOpen(true)}
             />
 
             <Toolbar
@@ -906,17 +939,40 @@ function App() {
                 );
             })()}
 
-            <ImportExportModal
-                isOpen={!!ieModalMode}
-                onClose={() => setIeModalMode(null)}
-                mode={ieModalMode}
-                onImport={handleImport}
-                onExport={handleExport}
-                currentData={ieModalMode === 'EXPORT' ? getExportDataObject() : null}
-            />
+
             <PromptGuideModal
                 isOpen={isPromptGuideOpen}
                 onClose={() => setIsPromptGuideOpen(false)}
+            />
+            {/* 저장/불러오기 모달 */}
+            <SaveLoadModal
+                isOpen={isSaveLoadModalOpen}
+                onClose={() => setIsSaveLoadModalOpen(false)}
+                onLoad={(data) => {
+                    handleImportData(data); // Reusing import logic which handles migration/validation
+                }}
+                currentData={tasks} // Save current tasks
+            />
+            {/* 저장/불러오기 모달 */}
+            <SaveLoadModal
+                isOpen={isSaveLoadModalOpen}
+                onClose={() => setIsSaveLoadModalOpen(false)}
+                onLoad={(data) => {
+                    processImportedData(data, false); // Load snapshot (overwrite)
+                }}
+                currentData={tasks} // Save current tasks
+                onExportSnapshot={handleSnapshotExport}
+            />
+            <ImportExportModal
+                isOpen={!!ieModalMode}
+                onClose={() => {
+                    setIeModalMode(null);
+                    setCustomExportData(null);
+                }}
+                mode={ieModalMode}
+                onImport={handleImport}
+                onExport={handleExport}
+                currentData={ieModalMode === 'EXPORT' ? (customExportData || getExportDataObject()) : null}
             />
         </div>
     );
