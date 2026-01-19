@@ -51,6 +51,7 @@ function TimelineBar({
 
     // Handle Drag Start for a specific range
     const handleMouseDown = (e, type, range) => {
+        if (e.button !== 0) return;
         e.stopPropagation();
         setActiveRangeId(range.id);
         setDragType(type);
@@ -425,6 +426,7 @@ function TimelineBar({
                     <div
                         className="milestone-shape"
                         onMouseDown={(e) => {
+                            if (e.button !== 0) return;
                             e.stopPropagation();
                             setDraggingMilestone(milestone.id);
                             setMilestoneDragStart({ x: e.clientX, y: e.clientY, originalDate: new Date(milestone.date) });
@@ -432,6 +434,30 @@ function TimelineBar({
                         }}
                     >
                         {getShape()}
+                        {draggingMilestone === milestone.id && isCopyMode && (
+                            <div style={{
+                                position: 'absolute',
+                                top: '50%',
+                                right: '100%',
+                                marginRight: '12px',
+                                transform: 'translateY(-50%)',
+                                background: '#4CAF50',
+                                color: 'white',
+                                padding: '2px 6px',
+                                borderRadius: '10px',
+                                fontSize: '10px',
+                                fontWeight: 'bold',
+                                whiteSpace: 'nowrap',
+                                zIndex: 102,
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '2px',
+                                pointerEvents: 'none',
+                                boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                            }}>
+                                <span>+</span> Copy
+                            </div>
+                        )}
                         {draggingMilestone === milestone.id && draggedMilestoneDate && (
                             <div className="milestone-date-label">
                                 {dateUtils.formatDate(new Date(draggedMilestoneDate), 'MM.DD')}
@@ -490,6 +516,7 @@ function TimelineBar({
                             boxShadow: isActive ? '0 4px 8px rgba(0,0,0,0.3)' : 'none',
                             cursor: isActive ? (isCopyMode ? 'copy' : 'grabbing') : 'grab'
                         }}
+                        title={`${task.name} (${dateUtils.formatDate(new Date(range.startDate), 'YYYY.MM.DD')} ~ ${dateUtils.formatDate(new Date(range.endDate), 'YYYY.MM.DD')})`}
                         onClick={(e) => {
                             e.stopPropagation();
                             onSelect(task.id);
