@@ -10,6 +10,8 @@ import TimelineBarPopover from './components/TimelineBarPopover'; // Import Popo
 import PromptGuideModal from './components/PromptGuideModal';
 import ImportExportModal from './components/ImportExportModal';
 import SaveLoadModal from './components/SaveLoadModal';
+import MilestoneQuickAdd from './components/MilestoneQuickAdd';
+import { exportToHtml } from './utils/htmlExporter';
 import './App.css';
 
 function App() {
@@ -71,6 +73,9 @@ function App() {
 
     // 컨텍스트 메뉴 팝오버 상태 (Table/Timeline 공용)
     const [popoverInfo, setPopoverInfo] = useState(null); // { x, y, taskId, date }
+
+    // 마일스톤 추가 모달 상태 (App 레벨로 이동)
+    const [milestoneModalInfo, setMilestoneModalInfo] = useState(null); // { task, date }
 
     // 컨텍스트 메뉴 핸들러
     const handleContextMenu = useCallback((e, taskId, date = null) => {
@@ -341,11 +346,34 @@ function App() {
         closePopover();
     }, [handleDeleteTask, closePopover]);
 
+    // 팝오버 내 "마일스톤 추가" 핸들러
     const handlePopoverAddMilestone = useCallback(() => {
         if (!popoverInfo) return;
-        alert("마일스톤 추가 기능은 타임라인 뷰에서 직접 수행해주세요. (TODO: App 레벨로 이동 예정)");
+
+        const flatList = flattenTasks(tasks);
+        const targetTask = flatList.find(t => t.id === popoverInfo.taskId);
+
+        if (targetTask) {
+            setMilestoneModalInfo({ task: targetTask, date: popoverInfo.date });
+        }
         closePopover();
-    }, [popoverInfo, closePopover]);
+    }, [popoverInfo, closePopover, tasks]);
+
+    // 마일스톤 추가 완료 핸들러
+    const handleAddMilestone = useCallback((taskId, milestoneData) => {
+        const flatList = flattenTasks(tasks);
+        const currentTask = flatList.find(t => t.id === taskId);
+
+        if (currentTask) {
+            const newMilestone = {
+                id: generateId(),
+                ...milestoneData
+            };
+            const updatedMilestones = [...(currentTask.milestones || []), newMilestone];
+            handleUpdateTask(taskId, { milestones: updatedMilestones });
+        }
+        setMilestoneModalInfo(null);
+    }, [tasks, handleUpdateTask]);
 
     // 작업 순서 변경 (드래그 앤 드롭)
     const handleReorderTasks = useCallback((reorderedTasks) => {
@@ -660,6 +688,24 @@ function App() {
         storage.exportData(exportData, `project-timeline-${timestamp}.json`);
     }, [getExportDataObject, customExportData]);
 
+    // HTML 내보내기
+    const handleHtmlExport = useCallback(() => {
+        const currentTasks = tasks; // Current state
+        const settings = { darkMode };
+
+
+        const htmlContent = exportToHtml(currentTasks, settings);
+
+        navigator.clipboard.writeText(htmlContent)
+            .then(() => {
+                alert('HTML 코드가 클립보드에 복사되었습니다! 원하는 곳에 붙여넣으세요.');
+            })
+            .catch(err => {
+                console.error('클립보드 복사 실패:', err);
+                alert('클립보드 복사에 실패했습니다.');
+            });
+    }, [tasks, darkMode]);
+
     // 스냅샷 내보내기 핸들러
     const handleSnapshotExport = useCallback((snapshot) => {
         // 현재 설정 + 스냅샷 데이터로 내보내기 객체 생성
@@ -832,6 +878,7 @@ function App() {
                 snapEnabled={snapEnabled}
                 darkMode={darkMode}
                 onToggleSnap={() => setSnapEnabled(!snapEnabled)}
+                onHtmlExport={handleHtmlExport}
             />
 
             <div className="main-content">
@@ -875,6 +922,7 @@ function App() {
                         isCompact={isCompact}
                         showTaskNames={showTaskNames}
                         snapEnabled={snapEnabled}
+                        onOpenMilestoneAdd={setMilestoneModalInfo}
                     />
                 )}
             </div>
@@ -885,8 +933,12 @@ function App() {
                 const targetTask = flatList.find(t => t.id === popoverInfo.taskId);
                 if (!targetTask) return null;
 
-                const preds = flatList.filter(t => targetTask.dependencies.includes(t.id));
-                const succs = flatList.filter(t => t.dependencies.includes(targetTask.id));
+                // 모든 엔티티 (작업 + 마일스톤) 수집
+                const allMilestones = flatList.flatMap(t => (t.milestones || []).map(m => ({ ...m, type: 'milestone', parentId: t.id })));
+                const allEntities = [...flatList, ...allMilestones];
+
+                const preds = allEntities.filter(e => (targetTask.dependencies || []).includes(e.id));
+                const succs = allEntities.filter(e => (e.dependencies || []).includes(targetTask.id));
 
                 return (
                     <TimelineBarPopover
@@ -900,7 +952,9 @@ function App() {
                         onDelete={handlePopoverDelete}
                         onAddMilestone={handlePopoverAddMilestone}
                         onStartLinking={() => {
-                            alert("연결 모드는 타임라인 뷰에서 'Shift + 드래그'를 사용해주세요.");
+                            if (timelineRef.current) {
+                                timelineRef.current.startLinking(targetTask.id);
+                            }
                             closePopover();
                         }}
                         onAddTimeRange={(taskId, date) => {
@@ -939,20 +993,22 @@ function App() {
                 );
             })()}
 
+            {/* 마일스톤 추가 모달 */}
+            {milestoneModalInfo && (
+                <MilestoneQuickAdd
+                    task={milestoneModalInfo.task}
+                    date={milestoneModalInfo.date}
+                    onClose={() => setMilestoneModalInfo(null)}
+                    onAdd={handleAddMilestone}
+                />
+            )}
+
 
             <PromptGuideModal
                 isOpen={isPromptGuideOpen}
                 onClose={() => setIsPromptGuideOpen(false)}
             />
-            {/* 저장/불러오기 모달 */}
-            <SaveLoadModal
-                isOpen={isSaveLoadModalOpen}
-                onClose={() => setIsSaveLoadModalOpen(false)}
-                onLoad={(data) => {
-                    handleImportData(data); // Reusing import logic which handles migration/validation
-                }}
-                currentData={tasks} // Save current tasks
-            />
+
             {/* 저장/불러오기 모달 */}
             <SaveLoadModal
                 isOpen={isSaveLoadModalOpen}

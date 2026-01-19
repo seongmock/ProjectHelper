@@ -20,7 +20,8 @@ function Toolbar({
     onToggleTaskNames,
     onCopyImage,
     snapEnabled,
-    onToggleSnap
+    onToggleSnap,
+    onHtmlExport
 }) {
     return (
         <div className="toolbar">
@@ -134,6 +135,13 @@ function Toolbar({
                                     style={{ marginLeft: '4px' }}
                                 >
                                     📷
+                                </button>
+                                <button
+                                    className="icon-btn"
+                                    onClick={onHtmlExport}
+                                    title="HTML 코드 복사하기 (클립보드)"
+                                >
+                                    🌐
                                 </button>
                             </div>
                         </>

@@ -275,7 +275,7 @@ function TimelineBarPopover({ position, task, clickedDate, successors = [], pred
                         {predecessors.map(predTask => (
                             <div key={predTask.id} className="dependency-item" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px', marginBottom: '4px' }}>
                                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '150px' }}>
-                                    ← {predTask.name}
+                                    ← {predTask.name || predTask.label}
                                 </span>
                                 <button
                                     className="close-btn"
@@ -299,7 +299,7 @@ function TimelineBarPopover({ position, task, clickedDate, successors = [], pred
                         {successors.map(succTask => (
                             <div key={succTask.id} className="dependency-item" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px', marginBottom: '4px' }}>
                                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '150px' }}>
-                                    → {succTask.name}
+                                    → {succTask.name || succTask.label}
                                 </span>
                                 <button
                                     className="close-btn"
@@ -315,11 +315,12 @@ function TimelineBarPopover({ position, task, clickedDate, successors = [], pred
                             </div>
                         ))}
                     </div>
-                )}
-            </div>
+                )
+                }
+            </div >
 
             {/* 구분선 (Divider) 설정 */}
-            <div className="popover-section">
+            < div className="popover-section" >
                 <div className="section-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span>구분선 (Divider)</span>
                     <input
@@ -337,43 +338,45 @@ function TimelineBarPopover({ position, task, clickedDate, successors = [], pred
                     />
                 </div>
 
-                {task.divider?.enabled && (
-                    <div className="divider-settings" style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                            <span style={{ fontSize: '12px', whiteSpace: 'nowrap' }}>스타일</span>
-                            <select
-                                value={task.divider?.style || 'solid'}
-                                onChange={(e) => onUpdate(task.id, { divider: { ...task.divider, style: e.target.value } })}
-                                style={{ padding: '2px 4px', fontSize: '12px', fontFamily: 'monospace' }}
-                            >
-                                <option value="solid">────── (Solid)</option>
-                                <option value="dashed">- - - - - - (Dashed)</option>
-                                <option value="dotted">·············· (Dotted)</option>
-                            </select>
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                            <span style={{ fontSize: '12px', whiteSpace: 'nowrap' }}>색상</span>
-                            <div style={{ width: '100%' }}>
-                                <ColorPicker
-                                    color={task.divider?.color || '#000000'}
-                                    onChange={(color) => onUpdate(task.id, { divider: { ...task.divider, color } })}
+                {
+                    task.divider?.enabled && (
+                        <div className="divider-settings" style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                <span style={{ fontSize: '12px', whiteSpace: 'nowrap' }}>스타일</span>
+                                <select
+                                    value={task.divider?.style || 'solid'}
+                                    onChange={(e) => onUpdate(task.id, { divider: { ...task.divider, style: e.target.value } })}
+                                    style={{ padding: '2px 4px', fontSize: '12px', fontFamily: 'monospace' }}
+                                >
+                                    <option value="solid">────── (Solid)</option>
+                                    <option value="dashed">- - - - - - (Dashed)</option>
+                                    <option value="dotted">·············· (Dotted)</option>
+                                </select>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                <span style={{ fontSize: '12px', whiteSpace: 'nowrap' }}>색상</span>
+                                <div style={{ width: '100%' }}>
+                                    <ColorPicker
+                                        color={task.divider?.color || '#000000'}
+                                        onChange={(color) => onUpdate(task.id, { divider: { ...task.divider, color } })}
+                                    />
+                                </div>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                <span style={{ fontSize: '12px', whiteSpace: 'nowrap' }}>두께 (px)</span>
+                                <input
+                                    type="number"
+                                    min="1"
+                                    max="10"
+                                    value={task.divider?.thickness || 2}
+                                    onChange={(e) => onUpdate(task.id, { divider: { ...task.divider, thickness: parseInt(e.target.value) } })}
+                                    style={{ width: '60px', padding: '2px 4px', fontSize: '12px', border: '1px solid #ddd', borderRadius: '4px' }}
                                 />
                             </div>
                         </div>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                            <span style={{ fontSize: '12px', whiteSpace: 'nowrap' }}>두께 (px)</span>
-                            <input
-                                type="number"
-                                min="1"
-                                max="10"
-                                value={task.divider?.thickness || 2}
-                                onChange={(e) => onUpdate(task.id, { divider: { ...task.divider, thickness: parseInt(e.target.value) } })}
-                                style={{ width: '60px', padding: '2px 4px', fontSize: '12px', border: '1px solid #ddd', borderRadius: '4px' }}
-                            />
-                        </div>
-                    </div>
-                )}
-            </div>
+                    )
+                }
+            </div >
 
             <div className="popover-actions" style={{ justifyContent: 'space-between' }}>
                 <button
@@ -394,7 +397,7 @@ function TimelineBarPopover({ position, task, clickedDate, successors = [], pred
                     삭제
                 </button>
             </div>
-        </div>
+        </div >
     );
 }
 

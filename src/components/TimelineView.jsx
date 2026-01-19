@@ -18,7 +18,6 @@ import { dateUtils } from '../utils/dateUtils';
 import TimelineHeader from './TimelineHeader';
 import TimelineBar from './TimelineBar';
 import TimelineBarPopover from './TimelineBarPopover';
-import MilestoneQuickAdd from './MilestoneQuickAdd';
 import MilestoneEditPopover from './MilestoneEditPopover';
 import { generateId, flattenTasks } from '../utils/dataModel';
 import html2canvas from 'html2canvas';
@@ -109,7 +108,9 @@ const TimelineView = forwardRef(({
     onMoveTask,
     onIndentTask, // Add prop
     onOutdentTask, // Add prop
+
     onContextMenu, // Add prop
+    onOpenMilestoneAdd, // App from prop
     timeScale,
     viewMode,
     // Props from App
@@ -129,7 +130,7 @@ const TimelineView = forwardRef(({
     const [editingTaskId, setEditingTaskId] = useState(null);
     const [editingName, setEditingName] = useState('');
     // Remove local popoverInfo
-    const [milestoneModalInfo, setMilestoneModalInfo] = useState(null); // { task, date }
+
     const [milestoneEditInfo, setMilestoneEditInfo] = useState(null); // { x, y, task, milestone }
 
     // Sidebar Resize State
@@ -784,19 +785,7 @@ const TimelineView = forwardRef(({
 
 
 
-    const handleAddMilestone = (taskId, milestoneData) => {
-        const task = tasks.find(t => t.id === taskId);
-        const newMilestone = {
-            id: generateId(),
-            ...milestoneData
-        };
 
-        const currentTask = flatTasks.find(t => t.id === taskId);
-        if (currentTask) {
-            const updatedMilestones = [...(currentTask.milestones || []), newMilestone];
-            onUpdateTask(taskId, { milestones: updatedMilestones });
-        }
-    };
 
     const handleUpdateMilestone = (milestoneId, updates) => {
         if (!milestoneEditInfo) return;
@@ -836,7 +825,6 @@ const TimelineView = forwardRef(({
     const startLinking = (taskId) => {
         setIsLinkingMode(true);
         setLinkSourceTaskId(taskId);
-        setPopoverInfo(null); // 팝오버 닫기
     };
 
     // 이미지 복사 핸들러
@@ -1199,8 +1187,9 @@ const TimelineView = forwardRef(({
 
     // Expose copyToClipboard to parent
     useImperativeHandle(ref, () => ({
-        copyToClipboard: handleCopyToClipboard
-    }), [handleCopyToClipboard, flatTasks]);
+        copyToClipboard: handleCopyToClipboard,
+        startLinking
+    }), [handleCopyToClipboard, startLinking]);
 
     return (
         <div className={`timeline-view ${viewMode === 'split' ? 'split-mode' : ''} ${isCompact ? 'compact-mode' : ''}`} ref={containerRef}>
@@ -1345,7 +1334,9 @@ const TimelineView = forwardRef(({
                                 const targetTask = flatTasks.find(t => t.id === selectedTaskId) || flatTasks[0];
 
                                 if (targetTask) {
-                                    setMilestoneModalInfo({ task: targetTask, date: clickedDate });
+                                    if (onOpenMilestoneAdd) {
+                                        onOpenMilestoneAdd({ task: targetTask, date: clickedDate });
+                                    }
                                 }
                             }
                         }}
@@ -1415,17 +1406,7 @@ const TimelineView = forwardRef(({
                 )
             }
 
-            {/* 마일스톤 추가 모달 */}
-            {
-                milestoneModalInfo && (
-                    <MilestoneQuickAdd
-                        task={milestoneModalInfo.task}
-                        date={milestoneModalInfo.date}
-                        onClose={() => setMilestoneModalInfo(null)}
-                        onAdd={handleAddMilestone}
-                    />
-                )
-            }
+
         </div >
     );
 });

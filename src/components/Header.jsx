@@ -27,6 +27,7 @@ function Header({ darkMode, onToggleDarkMode, onExport, onImport, canUndo, canRe
                         >
                             💾
                         </button>
+
                         <div className="divider-vertical" style={{ width: '1px', height: '16px', background: 'var(--color-border)', margin: 'auto 4px' }}></div>
                         <button
                             className="icon tooltip"
@@ -81,7 +82,7 @@ function Header({ darkMode, onToggleDarkMode, onExport, onImport, canUndo, canRe
                     </button>
                 </div>
             </div>
-        </header>
+        </header >
     );
 }
 
