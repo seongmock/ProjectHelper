@@ -391,7 +391,7 @@ export const exportToHtml = (tasks, settings = {}) => {
     <div class="gantt-body">
         <div class="task-list-column">
             <div class="header-cell">작업명</div>
-            <div class="task-list-content qs-tasks-${listId}">
+            <div class="task-list-content qs-tasks-${listId}" style="padding-top: 24px;">
                 <!-- Tasks injected here -->
             </div>
         </div>
@@ -626,9 +626,10 @@ export const exportToHtml = (tasks, settings = {}) => {
             // Read Row Height from CSS to ensure sync
             const rowHeightCss = getComputedStyle(root).getPropertyValue('--row-height').trim();
             const ROW_HEIGHT = parseInt(rowHeightCss, 10) || 40;
+            const PADDING_TOP = 24;
 
             DATA.forEach(function(task, index) {
-                var rowTop = index * ROW_HEIGHT; 
+                var rowTop = (index * ROW_HEIGHT) + PADDING_TOP; 
                 var rowCenter = rowTop + (ROW_HEIGHT / 2);
                 var ranges = task.timeRanges || (task.startDate ? [{id: task.id, startDate: task.startDate, endDate: task.endDate}] : []);
                 
@@ -810,7 +811,7 @@ export const exportToHtml = (tasks, settings = {}) => {
             });
 
             // Fix: Set explicit height because rows are absolute
-            elTimelineContent.style.height = (DATA.length * ROW_HEIGHT) + 'px';
+            elTimelineContent.style.height = (DATA.length * ROW_HEIGHT + PADDING_TOP + 20) + 'px';
 
             const temp = document.createElement('div');
             temp.innerHTML = html;
