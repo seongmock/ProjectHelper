@@ -786,7 +786,7 @@ export const exportToHtml = (tasks, settings = {}) => {
                         var shapeClasses = 'milestone-shape';
                         if (shape === 'diamond') shapeClasses += ' diamond';
                         
-                        html += '<div class="milestone-marker" style="left: ' + leftPerc + '%; top: ' + rowCenter + 'px;" title="' + m.label + '">' +
+                        html += '<div class="milestone-marker" style="left: ' + leftPerc + '%; top: ' + rowCenter + 'px;" title="' + m.label + ' (' + formatDate(date) + ')">' +
                             '<div class="' + shapeClasses + '">' + shapeHtml + '</div>' +
                             '<div class="milestone-label" style="' + labelStyle + '">' + m.label + '</div>' +
                         '</div>';
