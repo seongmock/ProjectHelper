@@ -463,8 +463,7 @@ export const exportToHtml = (tasks, settings = {}) => {
              const y = date.getFullYear();
              const m = String(date.getMonth()+1).padStart(2,'0');
              const d = String(date.getDate()).padStart(2,'0');
-             if (format === 'MM.DD') return \`\${m}.\${d}\`;
-             return \`\${y}.\${m}.\${d}\`; 
+             return \`\${y}-\${m}-\${d}\`; 
         }
         function getDaysBetween(d1, d2) {
             const start = new Date(d1); start.setHours(0,0,0,0);
