@@ -118,6 +118,8 @@ const TimelineView = forwardRef(({
     showToday = true,
     isCompact = false,
     showTaskNames = true,
+
+    showPeriodLabels = false,
     snapEnabled = true, // 기본값 true
     darkMode // 다크 모드
 }, ref) => {
@@ -323,15 +325,34 @@ const TimelineView = forwardRef(({
                 maxEnd = new Date(Math.max(...ends));
             }
 
-            // 작업 정보 저장
+            // 1. Task ID 매핑 (Legacy 호환 및 그룹핑용) - 첫 번째 Range 또는 전체 범위
             map.set(task.id, {
                 type: 'task',
                 data: task,
                 index: index,
-                startDate: minStart, // 전체 범위 시작 (의존성 표시용)
-                endDate: maxEnd,     // 전체 범위 종료 (의존성 표시용)
+                startDate: minStart,
+                endDate: maxEnd,
                 name: task.name
             });
+
+            // 2. Individual Time Range 매핑 (New)
+            if (task.timeRanges && task.timeRanges.length > 0) {
+                task.timeRanges.forEach(range => {
+                    // 범위별 고유 ID가 있어야 함
+                    if (range.id) {
+                        map.set(range.id, {
+                            type: 'range',
+                            data: range,
+                            parentId: task.id,
+                            index: index,
+                            startDate: new Date(range.startDate).getTime(),
+                            endDate: new Date(range.endDate).getTime(),
+                            name: task.name,
+                            color: range.color || task.color // Range color override
+                        });
+                    }
+                });
+            }
 
             // 마일스톤 정보 저장
             if (task.milestones) {
@@ -649,37 +670,82 @@ const TimelineView = forwardRef(({
     }, [showToday, dateRange, contentWidth]);
 
     // 작업 클릭 핸들러 (연결 모드 처리)
-    const handleTaskClick = (taskId) => {
+    const handleTaskClick = (taskId, rangeId) => {
         if (isLinkingMode) {
+            // 소스 (Task or Range)
+            // If linking FROM a range, linkSourceTaskId is assumed to be an ID (Task or Range).
+
+            // Allow linking if IDs are different.
+            // Even if taskId is same, if rangeId is valid and different from linkSourceTaskId, it's allowed.
+
             if (taskId === linkSourceTaskId) {
-                // 자기 자신 선택 시 취소
+                // Task ID matches source.
+                // Check if it is a Range-to-Range link within same task
+                if (!rangeId) {
+                    // Clicked on Task itself (or legacy), and Source is same Task. Block.
+                    setIsLinkingMode(false);
+                    setLinkSourceTaskId(null);
+                    return;
+                }
+
+                if (rangeId === linkSourceTaskId) {
+                    // Clicked on SAME Range. Block.
+                    setIsLinkingMode(false);
+                    setLinkSourceTaskId(null);
+                    return;
+                }
+
+                // If rangeId != linkSourceTaskId, we proceed (Same Task, Different Range)
+            } else if (rangeId && rangeId === linkSourceTaskId) {
+                // Should be covered above, but safe check
                 setIsLinkingMode(false);
                 setLinkSourceTaskId(null);
                 return;
             }
 
-            // 의존성 추가 (Target: Task)
+            // 의존성 추가 (Target: Range if rangeId present, else Task)
+            // We want to add dependency TO the specific range if clicked.
+
             const targetTask = flatTasks.find(t => t.id === taskId);
             if (targetTask) {
-                // 이미 존재하는지 확인
-                if (targetTask.dependencies && targetTask.dependencies.includes(linkSourceTaskId)) {
-                    alert('이미 연결된 작업입니다.');
+                // If rangeId is provided, look up the range
+                let targetId = taskId;
+                let currentDependencies = targetTask.dependencies || [];
+
+                if (rangeId) {
+                    const targetRange = (targetTask.timeRanges || []).find(r => r.id === rangeId);
+                    if (targetRange) {
+                        targetId = rangeId; // Link to range
+                        currentDependencies = targetRange.dependencies || [];
+                    }
+                }
+
+                // Check existence
+                if (currentDependencies.includes(linkSourceTaskId)) {
+                    alert('이미 연결된 항목입니다.');
                     setIsLinkingMode(false);
                     setLinkSourceTaskId(null);
                     return;
                 }
 
-                // 순환 참조 방지 (간단한 체크 - 소스가 작업인 경우만)
-                const sourceTask = flatTasks.find(t => t.id === linkSourceTaskId);
-                if (sourceTask && sourceTask.dependencies && sourceTask.dependencies.includes(taskId)) {
-                    alert('순환 참조가 발생할 수 있어 연결할 수 없습니다.');
-                    setIsLinkingMode(false);
-                    setLinkSourceTaskId(null);
-                    return;
+                // Check cyclic (Simplified: strict check difficult without graph traversal, skipping for now or basic check)
+
+                // Update
+                if (rangeId && targetId === rangeId) {
+                    // Update Range
+                    const newRanges = targetTask.timeRanges.map(r => {
+                        if (r.id === rangeId) {
+                            return { ...r, dependencies: [...(r.dependencies || []), linkSourceTaskId] };
+                        }
+                        return r;
+                    });
+                    onUpdateTask(taskId, { timeRanges: newRanges });
+                } else {
+                    // Update Task (Legacy)
+                    const newDependencies = [...(targetTask.dependencies || []), linkSourceTaskId];
+                    onUpdateTask(taskId, { dependencies: newDependencies });
                 }
 
-                const newDependencies = [...(targetTask.dependencies || []), linkSourceTaskId];
-                onUpdateTask(taskId, { dependencies: newDependencies });
                 setIsLinkingMode(false);
                 setLinkSourceTaskId(null);
             }
@@ -764,11 +830,12 @@ const TimelineView = forwardRef(({
     }, [isResizingSidebar]);
 
     // 우클릭 핸들러
-    const handleContextMenu = (e, task, date) => {
+    const handleContextMenu = (e, task, date, rangeId) => {
         e.preventDefault();
         setMilestoneEditInfo(null); // 마일스톤 팝오버 닫기
         if (onContextMenu) {
-            onContextMenu(e, task.id, date);
+            // Pass rangeId to App
+            onContextMenu(e, task.id, date, rangeId);
         }
     };
 
@@ -1007,21 +1074,29 @@ const TimelineView = forwardRef(({
 
         // 2. 의존성 선 그리기
         flatTasks.forEach((task) => {
-            // 작업의 의존성 처리
-            if (task.dependencies) {
-                task.dependencies.forEach(depId => {
-                    const source = itemMap.get(depId);
-                    const target = itemMap.get(task.id);
+            // A. Time Ranges 의존성 처리
+            if (task.timeRanges) {
+                task.timeRanges.forEach(range => {
+                    if (range.dependencies) {
+                        range.dependencies.forEach(depId => {
+                            const source = itemMap.get(depId);
+                            // Target is current range
+                            const target = itemMap.get(range.id);
 
-                    if (source && target) {
-                        lines.push(drawDependencyLine(source, target, totalDays, contentWidth, rowHeight));
+                            if (source && target) {
+                                lines.push(drawDependencyLine(source, target, totalDays, contentWidth, rowHeight));
+                            }
+                        });
                     }
                 });
             }
 
-            // 마일스톤의 의존성 처리 (데이터 모델에 milestones 내 dependencies가 있다고 가정하거나, 
-            // 현재 구조상 마일스톤 객체에 dependencies 필드가 없으면 추가해야 함.
-            // 일단 기존 데이터 구조를 유지하면서, 마일스톤 객체에 dependencies가 추가될 수 있다고 가정)
+            // Legacy / Fallback for task.dependencies (if any left) -> map to first range?
+            // itemMap.get(task.id) points to Task object.
+            // But we prefer Range-to-Range. 
+            // If data is migrated, task.dependencies should be empty.
+
+            // B. 마일스톤 의존성 처리
             if (task.milestones) {
                 task.milestones.forEach(ms => {
                     if (ms.dependencies) {
@@ -1062,11 +1137,17 @@ const TimelineView = forwardRef(({
         let startX, startY, endX, endY;
 
         // 시작점 계산 (Source)
-        if (source.type === 'task') {
-            // 작업인 경우: 종료일 기준
-            const sourceDays = dateUtils.getDuration(dateRange.start, source.endDate);
+        if (source.type === 'task' || source.type === 'range') {
+            // 작업/범위인 경우: 종료일 기준
+            const sourceDate = new Date(source.endDate); // itemMap stores timestamp or string
+            const sourceDays = dateUtils.getDuration(dateRange.start, sourceDate);
             startX = (sourceDays / totalDays) * contentWidth;
-            startY = source.index * rowHeight + rowHeight / 2;
+
+            if (source.type === 'range') {
+                startY = source.index * rowHeight + rowHeight / 2; // Same row as task
+            } else {
+                startY = source.index * rowHeight + rowHeight / 2;
+            }
         } else {
             // 마일스톤인 경우: 해당 날짜 기준
             const sourceDays = dateUtils.getDuration(dateRange.start, source.date);
@@ -1075,11 +1156,17 @@ const TimelineView = forwardRef(({
         }
 
         // 끝점 계산 (Target)
-        if (target.type === 'task') {
-            // 작업인 경우: 시작일 기준
-            const targetDays = dateUtils.getDaysBetween(dateRange.start, target.startDate);
+        if (target.type === 'task' || target.type === 'range') {
+            // 작업/범위인 경우: 시작일 기준
+            const targetDate = new Date(target.startDate);
+            const targetDays = dateUtils.getDaysBetween(dateRange.start, targetDate);
             endX = (targetDays / totalDays) * contentWidth;
-            endY = target.index * rowHeight + rowHeight / 2;
+
+            if (target.type === 'range') {
+                endY = target.index * rowHeight + rowHeight / 2;
+            } else {
+                endY = target.index * rowHeight + rowHeight / 2;
+            }
         } else {
             // 마일스톤인 경우: 해당 날짜 기준
             const targetDays = dateUtils.getDaysBetween(dateRange.start, target.date);
@@ -1093,6 +1180,9 @@ const TimelineView = forwardRef(({
 
         if (startX < endX - 40) {
             path = `M ${startX} ${startY} L ${midX} ${startY} L ${midX} ${endY} L ${endX} ${endY}`;
+        } else if (startY === endY && startX < endX) {
+            // Same row, forward direction (even if gap is small) -> Straight Line
+            path = `M ${startX} ${startY} L ${endX} ${endY}`;
         } else {
             const backX = startX + 10;
             const forwardX = endX - 30;
@@ -1366,16 +1456,17 @@ const TimelineView = forwardRef(({
                                     containerWidth={contentWidth}
                                     isSelected={task.id === selectedTaskId}
                                     isDragTarget={dragTargetTaskId === task.id}
-                                    onSelect={() => handleTaskClick(task.id)}
+                                    onSelect={(taskId, rangeId) => handleTaskClick(taskId, rangeId)}
                                     onDragUpdate={handleDragUpdate}
                                     onDragEnd={handleTimelineBarDragEnd}
                                     onMilestoneDragEnd={handleMilestoneDragEnd}
                                     onMilestoneDragMove={handleMilestoneDragMove}
                                     onGuideMove={handleGuideMove}
-                                    onContextMenu={(e, date) => handleContextMenu(e, task, date)}
+                                    onContextMenu={(e, date, rangeId) => handleContextMenu(e, task, date, rangeId)}
                                     onMilestoneContextMenu={(e, milestone) => handleMilestoneContextMenu(e, task, milestone)}
                                     onMilestoneClick={handleMilestoneClick}
                                     showLabel={!showTaskNames}
+                                    showPeriodLabels={showPeriodLabels}
                                     timeScale={timeScale}
                                     snapEnabled={snapEnabled}
                                 />

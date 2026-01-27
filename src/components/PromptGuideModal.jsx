@@ -7,7 +7,7 @@ const SYSTEM_PROMPT = `**역할 (Role)**:
 **시스템 컨텍스트 (System Context)**:
 이 애플리케이션은 다음 기능들을 지원합니다:
 1.  **계층 구조 (Hierarchy)**: 작업(Task)은 \`children\` 배열을 통해 무한 깊이의 하위 작업을 가질 수 있습니다.
-2.  **타임라인 (Timeline)**: 모든 작업은 \`startDate\`와 \`endDate\`를 가집니다.
+2.  **멀티 타임라인 (Multi-Time Ranges)**: 하나의 작업이 여러 개의 분리된 기간(\`timeRanges\`)을 가질 수 있습니다. (레거시 \`startDate/endDate\` 지원)
 3.  **마일스톤 (Milestone)**: 작업 내에 \`milestones\` 배열로 중요 이벤트를 표시합니다. (모양: star, diamond, flag, circle, square, triangle)
 4.  **의존성 (Dependencies)**: \`dependencies\` 배열에 선행 작업의 ID를 넣어 연결 관계를 표현합니다.
 5.  **구분선 (Divider)**: 작업 하단에 \`divider\` 객체를 추가하여 시각적 구분을 줄 수 있습니다.
@@ -35,6 +35,17 @@ const SYSTEM_PROMPT = `**역할 (Role)**:
       
       "children": [],            // 하위 작업이 있을 경우 재귀적으로 동일 구조 포함
 
+      "timeRanges": [            // (New) 단일 작업 내 다중 기간
+        {
+          "id": "range_id_1", 
+          "startDate": "YYYY-MM-DD",
+          "endDate": "YYYY-MM-DD",
+          "label": "기간 라벨 (선택)",
+          "color": "#HexColor",  // 기간별 색상 (선택)
+          "dependencies": ["target_id"] // 기간별 의존성 (선택)
+        }
+      ],
+
       "milestones": [            // 마일스톤이 있을 경우
         {
           "id": "ms_id_1",
@@ -42,11 +53,12 @@ const SYSTEM_PROMPT = `**역할 (Role)**:
           "label": "마일스톤 이름",
           "shape": "star",       // star, diamond, flag, circle, square, triangle 중 택 1
           "color": "#HexColor",
-          "labelPosition": "top" // top, bottom, right 중 택 1
+          "labelPosition": "top", // top, bottom, right 중 택 1
+          "dependencies": ["target_id"] // 마일스톤 의존성 (선택)
         }
       ],
 
-      "dependencies": ["target_id_1"], // 선행 작업의 ID 목록
+      "dependencies": ["target_id_1"], // (Legacy) 작업 수준 의존성
 
       "divider": {               // 구분선이 필요할 경우
         "enabled": true,
@@ -58,6 +70,11 @@ const SYSTEM_PROMPT = `**역할 (Role)**:
   ]
 }
 \`\`\`
+
+**업데이트된 기능 (New Features)**:
+1. **타임 레인지 (Time Ranges)**: 이제 하나의 작업이 여러 개의 분리된 기간(\`timeRanges\`)을 가질 수 있습니다. (예: 개발 1차, 개발 2차)
+2. **상세 의존성**: 작업 간 연결뿐만 아니라, 특정 '기간'이나 '마일스톤' 간의 연결이 가능합니다.
+3. **기간 라벨**: 각 기간마다 별도의 라벨을 붙여 "Toolbar > 기간표시" 기능에서 확인할 수 있습니다.
 
 **생성 규칙 (Rules)**:
 1.  **날짜 추론**: 사용자가 정확한 날짜를 명시하지 않은 경우, 문맥에 맞는 합리적인 기간(예: 1월 = 01-01 ~ 01-31)을 할당하세요.
@@ -89,10 +106,9 @@ const PROMPTS = [
 ---
 
 **사용자 요청 (User Request)**:
-"위의 규칙에 따라, 다음 요구사항을 바탕으로 일정 데이터를 JSON으로 생성해줘.
-
-[요구사항 입력]:
-'2026년 신제품 런칭 로드맵을 짜줘. 1월 기획, 2~3월 디자인, 4~5월 개발, 6월 출시 순서로 진행해. 각 단계 사이에는 의존성을 걸어주고, 출시일에는 Flag 모양 마일스톤을 넣어줘.'"`
+"위의 JSON 구조와 생성 규칙을 완벽히 이해했나요?
+이해했다면, 이제부터 제가 입력하는 자연어 설명이나 시나리오를 바탕으로 즉시 JSON 데이터를 생성해주세요.
+준비가 되었다면 '네, 일정을 말씀해 주세요!'라고만 짧게 대답하고 대기해주세요."`
             }
         ]
     }

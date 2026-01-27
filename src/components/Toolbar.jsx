@@ -21,7 +21,10 @@ function Toolbar({
     onCopyImage,
     snapEnabled,
     onToggleSnap,
-    onHtmlExport
+
+    onHtmlExport,
+    showPeriodLabels,
+    onTogglePeriodLabels
 }) {
     return (
         <div className="toolbar">
@@ -84,6 +87,14 @@ function Toolbar({
                                     title={showTaskNames ? '작업명 숨기기' : '작업명 표시'}
                                 >
                                     📄 작업명
+                                </button>
+
+                                <button
+                                    className={`icon-btn ${showPeriodLabels ? 'active' : ''}`}
+                                    onClick={onTogglePeriodLabels}
+                                    title={showPeriodLabels ? '기간 라벨 숨기기' : '기간 라벨 표시'}
+                                >
+                                    🏷️ 레이블 표시
                                 </button>
 
                                 <button

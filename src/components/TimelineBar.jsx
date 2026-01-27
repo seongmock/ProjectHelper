@@ -21,6 +21,7 @@ function TimelineBar({
     onMilestoneContextMenu,
     onMilestoneClick,
     showLabel = true,
+    showPeriodLabels = false,
     timeScale = 'monthly',
     snapEnabled = true
 }) {
@@ -67,7 +68,7 @@ function TimelineBar({
             end: new Date(range.endDate)
         };
 
-        onSelect(task.id);
+        onSelect(task.id, range.id);
     };
 
     const finalDragState = useRef({ start: null, end: null });
@@ -519,7 +520,7 @@ function TimelineBar({
                         title={`${task.name} (${dateUtils.formatDate(new Date(range.startDate), 'YYYY.MM.DD')} ~ ${dateUtils.formatDate(new Date(range.endDate), 'YYYY.MM.DD')})`}
                         onClick={(e) => {
                             e.stopPropagation();
-                            onSelect(task.id);
+                            onSelect(task.id, range.id); // Pass rangeId
                         }}
                         onContextMenu={(e) => {
                             e.preventDefault();
@@ -529,7 +530,7 @@ function TimelineBar({
                             const barTotalDays = dateUtils.getDaysBetween(range.startDate, range.endDate);
                             const daysToAdd = Math.round((offsetX / rect.width) * barTotalDays);
                             const clickDate = dateUtils.addDays(range.startDate, daysToAdd);
-                            onContextMenu(e, clickDate);
+                            onContextMenu(e, clickDate, range.id); // Pass rangeId
                         }}
                     >
                         {isActive && isCopyMode && (
@@ -586,9 +587,12 @@ function TimelineBar({
                             onMouseDown={(e) => handleMouseDown(e, 'move', range)}
                         >
                             {/* Label only on first bar or all? Typically first, or if space permits. For now all */}
-                            {showLabel && (
+                            {(showLabel || showPeriodLabels) && (
                                 <span className="bar-label">
-                                    {task.name}
+                                    {showPeriodLabels
+                                        ? `${range.label || task.name} (${dateUtils.formatDate(new Date(range.startDate), 'YYYY.MM.DD')} ~ ${dateUtils.formatDate(new Date(range.endDate), 'MM.DD')})`
+                                        : (range.label || task.name)
+                                    }
                                 </span>
                             )}
                         </div>

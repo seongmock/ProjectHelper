@@ -10,7 +10,14 @@ export const createNewTask = (name = '새 작업', parentId = null) => {
         // startDate, // Legacy: Removed in favor of timeRanges
         // endDate,   // Legacy
         timeRanges: [
-            { id: generateId(), startDate, endDate }
+            {
+                id: generateId(),
+                startDate,
+                endDate,
+                dependencies: [], // [NEW] Range-level dependencies
+                color: null,      // [NEW] Range-specific color override
+                label: ''         // [NEW] Range label
+            }
         ],
         color: '#4A90E2',
         description: '',
@@ -69,12 +76,34 @@ export const migrateTaskData = (tasks) => {
                     {
                         id: generateId(), // 새 ID 발급
                         startDate: newTask.startDate,
-                        endDate: newTask.endDate
+                        endDate: newTask.endDate,
+                        dependencies: [] // 초기화
                     }
                 ];
             } else {
                 newTask.timeRanges = [];
             }
+        } else {
+            // timeRanges가 있어도 필수 필드(id, dependencies)가 없는 경우 보완
+            newTask.timeRanges = newTask.timeRanges.map(range => ({
+                ...range,
+                id: range.id || generateId(),
+                dependencies: range.dependencies || []
+            }));
+        }
+
+        // [MIGRATION] Task 레벨의 dependencies를 첫 번째 TimeRange로 이동
+        // 기존 로직 호환성을 위해 이동 후 Task 레벨 dependencies는 유지하지 않거나,
+        // UI에서 Task 레벨 dependencies를 더 이상 참조하지 않도록 해야 함.
+        if (newTask.dependencies && newTask.dependencies.length > 0) {
+            if (newTask.timeRanges.length > 0) {
+                // 첫 번째 Range에 병합 (중복 제거)
+                const firstRange = newTask.timeRanges[0];
+                const newDeps = new Set([...(firstRange.dependencies || []), ...newTask.dependencies]);
+                firstRange.dependencies = Array.from(newDeps);
+            }
+            // Task 레벨에서는 제거 (혼란 방지)
+            newTask.dependencies = [];
         }
 
         // 자식들도 재귀적으로 마이그레이션
@@ -85,8 +114,6 @@ export const migrateTaskData = (tasks) => {
         // startDate/endDate 필드는 호환성을 위해 유지하거나 제거.
         // 여기서는 computed로 사용하기 위해 제거하지 않지만,
         // UI에서는 timeRanges를 우선적으로 사용해야 함.
-        // 의존성 로직 등에서 startDate/endDate를 참조하는 경우를 대비해
-        // 마이그레이션 시점에는 굳이 삭제하지 않음 (단, 업데이트 시에는 동기화 필요)
 
         return newTask;
     });

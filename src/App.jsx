@@ -43,6 +43,10 @@ function App() {
         const saved = storage.loadSettings();
         return saved?.snapEnabled !== undefined ? saved.snapEnabled : true;
     });
+    const [showPeriodLabels, setShowPeriodLabels] = useState(() => {
+        const saved = storage.loadSettings();
+        return saved?.showPeriodLabels !== undefined ? saved.showPeriodLabels : false;
+    });
 
     // 다크모드
     const [darkMode, setDarkMode] = useState(() => {
@@ -78,14 +82,15 @@ function App() {
     const [milestoneModalInfo, setMilestoneModalInfo] = useState(null); // { task, date }
 
     // 컨텍스트 메뉴 핸들러
-    const handleContextMenu = useCallback((e, taskId, date = null) => {
+    const handleContextMenu = useCallback((e, taskId, date = null, rangeId = null) => {
         e.preventDefault();
         const clickDate = date || new Date(); // 날짜 없으면 오늘
         setPopoverInfo({
             x: e.clientX,
             y: e.clientY,
             taskId,
-            date: clickDate
+            date: clickDate,
+            rangeId // Pass rangeId
         });
     }, []);
 
@@ -180,10 +185,12 @@ function App() {
             zoomLevel,
             showToday,
             isCompact,
+            isCompact,
             showTaskNames,
-            snapEnabled
+            snapEnabled,
+            showPeriodLabels
         });
-    }, [timeScale, zoomLevel, showToday, isCompact, showTaskNames, snapEnabled]);
+    }, [timeScale, zoomLevel, showToday, isCompact, showTaskNames, snapEnabled, showPeriodLabels]);
 
     // 키보드 단축키
     useEffect(() => {
@@ -691,8 +698,15 @@ function App() {
     // HTML 내보내기
     const handleHtmlExport = useCallback(() => {
         const currentTasks = tasks; // Current state
-        const settings = { darkMode };
-
+        const settings = {
+            darkMode,
+            dayWidth: zoomLevel * 40,
+            showToday,
+            showPeriodLabels,
+            showTaskNames, // Add showTaskNames
+            timeScale,
+            isCompact // Add isCompact
+        };
 
         const htmlContent = exportToHtml(currentTasks, settings);
 
@@ -704,7 +718,7 @@ function App() {
                 console.error('클립보드 복사 실패:', err);
                 alert('클립보드 복사에 실패했습니다.');
             });
-    }, [tasks, darkMode]);
+    }, [tasks, darkMode, zoomLevel, showToday, showPeriodLabels, timeScale, isCompact]);
 
     // 스냅샷 내보내기 핸들러
     const handleSnapshotExport = useCallback((snapshot) => {
@@ -879,6 +893,8 @@ function App() {
                 darkMode={darkMode}
                 onToggleSnap={() => setSnapEnabled(!snapEnabled)}
                 onHtmlExport={handleHtmlExport}
+                showPeriodLabels={showPeriodLabels}
+                onTogglePeriodLabels={() => setShowPeriodLabels(!showPeriodLabels)}
             />
 
             <div className="main-content">
@@ -922,6 +938,7 @@ function App() {
                         isCompact={isCompact}
                         showTaskNames={showTaskNames}
                         snapEnabled={snapEnabled}
+                        showPeriodLabels={showPeriodLabels}
                         onOpenMilestoneAdd={setMilestoneModalInfo}
                     />
                 )}
@@ -934,17 +951,40 @@ function App() {
                 if (!targetTask) return null;
 
                 // 모든 엔티티 (작업 + 마일스톤) 수집
-                const allMilestones = flatList.flatMap(t => (t.milestones || []).map(m => ({ ...m, type: 'milestone', parentId: t.id })));
-                const allEntities = [...flatList, ...allMilestones];
+                // 모든 엔티티 (작업 + 마일스톤 + 타임레인지) 수집
+                const allMilestones = flatList.flatMap(t => (t.milestones || []).map(m => ({ ...m, type: 'milestone', parentId: t.id, name: m.label || 'Milestone' })));
+                const allRanges = flatList.flatMap(t => (t.timeRanges || []).map((r, i) => ({
+                    ...r,
+                    type: 'range',
+                    parentId: t.id,
+                    name: r.label || `${t.name} (Period ${i + 1})`
+                })));
+                const allEntities = [...flatList, ...allMilestones, ...allRanges];
 
-                const preds = allEntities.filter(e => (targetTask.dependencies || []).includes(e.id));
-                const succs = allEntities.filter(e => (e.dependencies || []).includes(targetTask.id));
+                let targetDependencies = targetTask.dependencies || [];
+                let targetId = targetTask.id;
+
+                if (popoverInfo.rangeId) {
+                    const range = (targetTask.timeRanges || []).find(r => r.id === popoverInfo.rangeId);
+                    if (range) {
+                        targetDependencies = range.dependencies || [];
+                        targetId = range.id;
+                    }
+                }
+
+                const preds = allEntities.filter(e => targetDependencies.includes(e.id));
+                // Successors: entities that have targetId in THEIR dependencies
+                const succs = allEntities.filter(e => {
+                    // Check direct dependencies only (Legacy Task or specific Range/Milestone)
+                    return (e.dependencies || []).includes(targetId);
+                });
 
                 return (
                     <TimelineBarPopover
                         position={{ x: popoverInfo.x, y: popoverInfo.y }}
                         task={targetTask}
                         clickedDate={popoverInfo.date}
+                        clickedRangeId={popoverInfo.rangeId}
                         predecessors={preds}
                         successors={succs}
                         onClose={closePopover}
@@ -953,7 +993,9 @@ function App() {
                         onAddMilestone={handlePopoverAddMilestone}
                         onStartLinking={() => {
                             if (timelineRef.current) {
-                                timelineRef.current.startLinking(targetTask.id);
+                                // Link from specific range if selected, else task
+                                const sourceId = popoverInfo.rangeId || targetTask.id;
+                                timelineRef.current.startLinking(sourceId);
                             }
                             closePopover();
                         }}
@@ -988,6 +1030,45 @@ function App() {
                                 startDate: minStart.toISOString().split('T')[0],
                                 endDate: maxEnd.toISOString().split('T')[0]
                             });
+                        }}
+                        onRemoveDependency={(holderId, dependencyId) => {
+                            // holderId: The entity holding the dependency (Task/Range/Milestone ID)
+                            // dependencyId: The ID to remove from holder's dependencies
+                            const flatList = flattenTasks(tasks);
+
+                            // 1. Check if holder is Task
+                            let holderTask = flatList.find(t => t.id === holderId);
+                            if (holderTask) {
+                                const newDeps = (holderTask.dependencies || []).filter(id => id !== dependencyId);
+                                handleUpdateTask(holderId, { dependencies: newDeps });
+                                return;
+                            }
+
+                            // 2. Check if holder is Range
+                            holderTask = flatList.find(t => t.timeRanges && t.timeRanges.some(r => r.id === holderId));
+                            if (holderTask) {
+                                const newRanges = holderTask.timeRanges.map(r => {
+                                    if (r.id === holderId) {
+                                        return { ...r, dependencies: (r.dependencies || []).filter(id => id !== dependencyId) };
+                                    }
+                                    return r;
+                                });
+                                handleUpdateTask(holderTask.id, { timeRanges: newRanges });
+                                return;
+                            }
+
+                            // 3. Check if holder is Milestone
+                            holderTask = flatList.find(t => t.milestones && t.milestones.some(m => m.id === holderId));
+                            if (holderTask) {
+                                const newMilestones = holderTask.milestones.map(m => {
+                                    if (m.id === holderId) {
+                                        return { ...m, dependencies: (m.dependencies || []).filter(id => id !== dependencyId) };
+                                    }
+                                    return m;
+                                });
+                                handleUpdateTask(holderTask.id, { milestones: newMilestones });
+                                return;
+                            }
                         }}
                     />
                 );
