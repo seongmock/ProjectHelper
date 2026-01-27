@@ -138,5 +138,33 @@ export const storage = {
             console.error('Failed to delete snapshot:', error);
             return false;
         }
+    },
+
+    // 스냅샷 업데이트
+    updateSnapshot: (id, data) => {
+        try {
+            const snapshots = storage.loadSnapshots();
+            const index = snapshots.findIndex(s => s.id === id);
+
+            if (index === -1) return false;
+
+            // 업데이트: 데이터 교체 및 날짜 갱신 (이름은 유지하거나 변경 가능하지만 여기선 유지)
+            snapshots[index] = {
+                ...snapshots[index],
+                date: new Date().toISOString(),
+                data
+            };
+
+            // 최신순 정렬 (업데이트된 항목을 맨 위로?)
+            // 선택 사항이지만, 보통 최근 수정된게 위로 오는게 좋음.
+            const updatedItem = snapshots.splice(index, 1)[0];
+            snapshots.unshift(updatedItem);
+
+            localStorage.setItem(SNAPSHOTS_KEY, JSON.stringify(snapshots));
+            return true;
+        } catch (error) {
+            console.error('Failed to update snapshot:', error);
+            return false;
+        }
     }
 };

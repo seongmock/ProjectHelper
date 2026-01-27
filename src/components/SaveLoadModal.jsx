@@ -22,11 +22,38 @@ function SaveLoadModal({ isOpen, onClose, onLoad, currentData, onExportSnapshot 
             alert('저장할 이름을 입력해주세요.');
             return;
         }
+
+        // 중복 이름 체크
+        const existing = snapshots.find(s => s.name === saveName.trim());
+        if (existing) {
+            if (window.confirm(`'${saveName}' 이름의 프로젝트가 이미 존재합니다. 덮어쓰시겠습니까?`)) {
+                if (storage.updateSnapshot(existing.id, currentData)) {
+                    loadSnapshots();
+                    setSaveName(`Backup ${new Date().toLocaleString()}`);
+                    alert('업데이트되었습니다.');
+                } else {
+                    alert('저장 실패.');
+                }
+            }
+            return;
+        }
+
         if (storage.saveSnapshot(saveName, currentData)) {
             loadSnapshots();
             setSaveName(`Backup ${new Date().toLocaleString()}`);
         } else {
             alert('저장에 실패했습니다 (용량 부족 등).');
+        }
+    };
+
+    const handleOverwrite = (id, name) => {
+        if (window.confirm(`'${name}' 프로젝트를 현재 상태로 덮어쓰시겠습니까?`)) {
+            if (storage.updateSnapshot(id, currentData)) {
+                loadSnapshots();
+                alert('업데이트되었습니다.');
+            } else {
+                alert('업데이트 실패.');
+            }
         }
     };
 
@@ -116,6 +143,14 @@ function SaveLoadModal({ isOpen, onClose, onLoad, currentData, onExportSnapshot 
                                             style={{ padding: '4px 8px', fontSize: '12px', background: '#ff4444', color: 'white', border: 'none', borderRadius: '4px' }}
                                         >
                                             삭제
+                                        </button>
+                                        <button
+                                            className="secondary-button"
+                                            onClick={() => handleOverwrite(snap.id, snap.name)}
+                                            title="현재 상태로 덮어쓰기"
+                                            style={{ padding: '4px 8px', fontSize: '12px' }}
+                                        >
+                                            💾 덮어쓰기
                                         </button>
                                     </div>
                                 </div>
