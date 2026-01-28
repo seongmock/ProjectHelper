@@ -192,9 +192,10 @@ function App() {
             isCompact,
             showTaskNames,
             snapEnabled,
-            showPeriodLabels
+            showBarLabels,
+            showBarDates
         });
-    }, [timeScale, zoomLevel, showToday, isCompact, showTaskNames, snapEnabled, showPeriodLabels]);
+    }, [timeScale, zoomLevel, showToday, isCompact, showTaskNames, snapEnabled, showBarLabels, showBarDates]);
 
     // 키보드 단축키
     useEffect(() => {
