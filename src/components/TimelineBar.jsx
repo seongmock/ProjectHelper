@@ -21,6 +21,8 @@ function TimelineBar({
     onMilestoneContextMenu,
     onMilestoneClick,
     showLabel = true,
+    showBarLabels = true, // Toolbar toggle
+    showBarDates = true, // Toolbar toggle
     showPeriodLabels = false,
     timeScale = 'monthly',
     snapEnabled = true
@@ -586,13 +588,22 @@ function TimelineBar({
                             className="bar-content"
                             onMouseDown={(e) => handleMouseDown(e, 'move', range)}
                         >
-                            {/* Label only on first bar or all? Typically first, or if space permits. For now all */}
-                            {(showLabel || showPeriodLabels) && (
+                            {/* Label Logic:
+                                Show Name if: sidebar hidden (showLabel) OR explicit "Name" toggle (showBarLabels) is ON.
+                                Show Date if: explicit "Date" toggle (showBarDates) is ON.
+                            */}
+                            {((showLabel || showBarLabels) || showBarDates) && (
                                 <span className="bar-label">
-                                    {showPeriodLabels
-                                        ? `${range.label || task.name} (${dateUtils.formatDate(new Date(range.startDate), 'YYYY.MM.DD')} ~ ${dateUtils.formatDate(new Date(range.endDate), 'MM.DD')})`
-                                        : (range.label || task.name)
-                                    }
+                                    {(() => {
+                                        const showName = showLabel || showBarLabels;
+                                        const nameText = range.label || task.name;
+                                        const dateText = `(${dateUtils.formatDate(new Date(range.startDate), 'YYYY.MM.DD')} ~ ${dateUtils.formatDate(new Date(range.endDate), 'MM.DD')})`;
+
+                                        if (showName && showBarDates) return `${nameText} ${dateText}`;
+                                        if (showName) return nameText;
+                                        if (showBarDates) return dateText;
+                                        return '';
+                                    })()}
                                 </span>
                             )}
                         </div>

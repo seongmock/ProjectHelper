@@ -119,7 +119,10 @@ const TimelineView = forwardRef(({
     isCompact = false,
     showTaskNames = true,
 
-    showPeriodLabels = false,
+    showTaskNames = true,
+
+    showBarLabels = false,
+    showBarDates = false,
     snapEnabled = true, // 기본값 true
     darkMode // 다크 모드
 }, ref) => {
@@ -1466,7 +1469,8 @@ const TimelineView = forwardRef(({
                                     onMilestoneContextMenu={(e, milestone) => handleMilestoneContextMenu(e, task, milestone)}
                                     onMilestoneClick={handleMilestoneClick}
                                     showLabel={!showTaskNames}
-                                    showPeriodLabels={showPeriodLabels}
+                                    showBarLabels={showBarLabels}
+                                    showBarDates={showBarDates}
                                     timeScale={timeScale}
                                     snapEnabled={snapEnabled}
                                 />

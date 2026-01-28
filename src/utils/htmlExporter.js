@@ -667,15 +667,26 @@ export const exportToHtml = (tasks, settings = {}) => {
 
                     var color = range.color || task.color || '#4a90e2';
                     var title = task.name + ' (' + formatDate(start) + ' ~ ' + formatDate(end) + ')';
-                    var labelText = range.label || task.name;
-                    if (${settings.showPeriodLabels}) {
-                        // Always append date range if showPeriodLabels is true
-                        labelText += ' (' + formatDate(start) + ' ~ ' + formatDate(end, 'MM.DD') + ')';
+                    
+                    var labelText = '';
+                    var showName = ${settings.showTaskNames} === false || ${settings.showBarLabels}; // If sidebar hidden (showTaskNames=false) OR explicit showBarLabels
+                    // Note: In App, showTaskNames means "List Visible". If false, we want labels on bars.
+                    // The settings.showTaskNames passed here is boolean.
+                    // In htmlExporter, we might NOT have sidebar toggling logic as dynamic as App.
+                    // But if user exports with List HIDDEN, we typically want names on bars.
+                    // Check App.jsx: settings.showTaskNames is passed.
+                    // If settings.showTaskNames is false (List Hidden), we should show Name.
+                    
+                    if (!${settings.showTaskNames} || ${settings.showBarLabels}) {
+                         labelText += (range.label || task.name);
+                    }
+                    if (${settings.showBarDates}) {
+                         if (labelText) labelText += ' ';
+                         labelText += '(' + formatDate(start) + ' ~ ' + formatDate(end, 'MM.DD') + ')';
                     }
 
                     var labelHtml = '';
-                    // Only show label if TaskNames or PeriodLabels are enabled, or if it's a specific range label (optional refinement)
-                    if (${settings.showTaskNames} || ${settings.showPeriodLabels}) {
+                    if (labelText) {
                         labelHtml = '<span class="bar-label">' + labelText + '</span>';
                     }
 

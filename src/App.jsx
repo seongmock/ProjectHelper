@@ -43,9 +43,13 @@ function App() {
         const saved = storage.loadSettings();
         return saved?.snapEnabled !== undefined ? saved.snapEnabled : true;
     });
-    const [showPeriodLabels, setShowPeriodLabels] = useState(() => {
+    const [showBarLabels, setShowBarLabels] = useState(() => {
         const saved = storage.loadSettings();
-        return saved?.showPeriodLabels !== undefined ? saved.showPeriodLabels : false;
+        return saved?.showBarLabels !== undefined ? saved.showBarLabels : false;
+    });
+    const [showBarDates, setShowBarDates] = useState(() => {
+        const saved = storage.loadSettings();
+        return saved?.showBarDates !== undefined ? saved.showBarDates : false;
     });
 
     // 다크모드
@@ -702,7 +706,8 @@ function App() {
             darkMode,
             dayWidth: zoomLevel * 40,
             showToday,
-            showPeriodLabels,
+            showBarLabels,
+            showBarDates,
             showTaskNames, // Add showTaskNames
             timeScale,
             isCompact // Add isCompact
@@ -718,7 +723,7 @@ function App() {
                 console.error('클립보드 복사 실패:', err);
                 alert('클립보드 복사에 실패했습니다.');
             });
-    }, [tasks, darkMode, zoomLevel, showToday, showPeriodLabels, timeScale, isCompact]);
+    }, [tasks, darkMode, zoomLevel, showToday, showBarLabels, showBarDates, timeScale, isCompact]);
 
     // 스냅샷 내보내기 핸들러
     const handleSnapshotExport = useCallback((snapshot) => {
@@ -890,11 +895,12 @@ function App() {
                 onToggleTaskNames={() => setShowTaskNames(!showTaskNames)}
                 onCopyImage={handleCopyTimeline}
                 snapEnabled={snapEnabled}
-                darkMode={darkMode}
                 onToggleSnap={() => setSnapEnabled(!snapEnabled)}
                 onHtmlExport={handleHtmlExport}
-                showPeriodLabels={showPeriodLabels}
-                onTogglePeriodLabels={() => setShowPeriodLabels(!showPeriodLabels)}
+                showBarLabels={showBarLabels}
+                onToggleBarLabels={() => setShowBarLabels(!showBarLabels)}
+                showBarDates={showBarDates}
+                onToggleBarDates={() => setShowBarDates(!showBarDates)}
             />
 
             <div className="main-content">
@@ -938,7 +944,8 @@ function App() {
                         isCompact={isCompact}
                         showTaskNames={showTaskNames}
                         snapEnabled={snapEnabled}
-                        showPeriodLabels={showPeriodLabels}
+                        showBarLabels={showBarLabels}
+                        showBarDates={showBarDates}
                         onOpenMilestoneAdd={setMilestoneModalInfo}
                     />
                 )}

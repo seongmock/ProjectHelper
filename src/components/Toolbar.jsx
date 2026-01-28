@@ -23,8 +23,11 @@ function Toolbar({
     onToggleSnap,
 
     onHtmlExport,
-    showPeriodLabels,
-    onTogglePeriodLabels
+    onHtmlExport,
+    showBarLabels,
+    onToggleBarLabels,
+    showBarDates,
+    onToggleBarDates
 }) {
     return (
         <div className="toolbar">
@@ -90,11 +93,25 @@ function Toolbar({
                                 </button>
 
                                 <button
-                                    className={`icon-btn ${showPeriodLabels ? 'active' : ''}`}
-                                    onClick={onTogglePeriodLabels}
-                                    title={showPeriodLabels ? '기간 라벨 숨기기' : '기간 라벨 표시'}
+                                    title={showTaskNames ? '작업명 숨기기' : '작업명 표시'}
                                 >
-                                    🏷️ 레이블 표시
+                                    📄 목록
+                                </button>
+
+                                <button
+                                    className={`icon-btn ${showBarLabels ? 'active' : ''}`}
+                                    onClick={onToggleBarLabels}
+                                    title={showBarLabels ? '바 이름 숨기기' : '바 이름 표시'}
+                                >
+                                    🏷️ 이름
+                                </button>
+
+                                <button
+                                    className={`icon-btn ${showBarDates ? 'active' : ''}`}
+                                    onClick={onToggleBarDates}
+                                    title={showBarDates ? '바 날짜 숨기기' : '바 날짜 표시'}
+                                >
+                                    📅 날짜
                                 </button>
 
                                 <button
