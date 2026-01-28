@@ -493,7 +493,7 @@ export const exportToHtml = (tasks, settings = {}) => {
         
         const allDates = [];
         DATA.forEach(t => {
-            if (t.timeRanges) t.timeRanges.forEach(r => { allDates.push(parseDate(r.startDate)); allDates.push(parseDate(r.endDate)); });
+            if (t.timeRanges && t.timeRanges.length > 0) t.timeRanges.forEach(r => { allDates.push(parseDate(r.startDate)); allDates.push(parseDate(r.endDate)); });
             else if (t.startDate) { allDates.push(parseDate(t.startDate)); allDates.push(parseDate(t.endDate)); }
             if (t.milestones) t.milestones.forEach(m => allDates.push(parseDate(m.date)));
         });
@@ -631,7 +631,7 @@ export const exportToHtml = (tasks, settings = {}) => {
             DATA.forEach(function(task, index) {
                 var rowTop = (index * ROW_HEIGHT) + PADDING_TOP; 
                 var rowCenter = rowTop + (ROW_HEIGHT / 2);
-                var ranges = task.timeRanges || (task.startDate ? [{id: task.id, startDate: task.startDate, endDate: task.endDate}] : []);
+                var ranges = (task.timeRanges && task.timeRanges.length > 0) ? task.timeRanges : (task.startDate ? [{id: task.id, startDate: task.startDate, endDate: task.endDate}] : []);
                 
                 // 1. Calculate Task Aggregates for Task ID (Legacy/Group Dependencies)
                 // Finds the overall start and end of the task to ensure Task-level dependencies connect to the very end/start
