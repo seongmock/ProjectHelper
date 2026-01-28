@@ -23,7 +23,7 @@ function Toolbar({
     onToggleSnap,
 
     onHtmlExport,
-    onHtmlExport,
+
     showBarLabels,
     onToggleBarLabels,
     showBarDates,
