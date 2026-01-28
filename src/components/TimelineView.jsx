@@ -119,8 +119,6 @@ const TimelineView = forwardRef(({
     isCompact = false,
     showTaskNames = true,
 
-    showTaskNames = true,
-
     showBarLabels = false,
     showBarDates = false,
     snapEnabled = true, // 기본값 true
