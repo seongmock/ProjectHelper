@@ -1,3 +1,4 @@
+
 :80 {
     # Redirect all HTTP to HTTPS
     redir https://{host}{uri}
@@ -5,6 +6,8 @@
 
 :443 {
     # Proxy to app
-    tls internal
+    tls internal {
+        on_demand
+    }
     reverse_proxy project-management-app:80
 }
