@@ -9,6 +9,15 @@ RUN npm install
 COPY . .
 RUN npm run build
 
+# Development Stage
+FROM node:18-alpine as development
+
+WORKDIR /app
+COPY package*.json ./
+RUN npm install
+COPY . .
+CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "80"]
+
 # Production Stage
 FROM nginx:alpine
 

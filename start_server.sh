@@ -7,6 +7,13 @@ NC='\033[0m' # No Color
 
 echo -e "${GREEN}=== Project Management App Deployment Script ===${NC}"
 
+# Check for --dev flag
+DEV_MODE=false
+if [ "$1" == "--dev" ]; then
+    DEV_MODE=true
+    echo -e "${GREEN}Running in Development Mode (Hot-Reload Enabled)${NC}"
+fi
+
 # Check for Docker Compose (v1 or v2)
 COMPOSE_CMD=""
 if command -v docker-compose &> /dev/null; then
@@ -16,24 +23,34 @@ elif docker compose version &> /dev/null; then
 fi
 
 if [ -n "$COMPOSE_CMD" ] && command -v docker &> /dev/null; then
-    echo "Docker detected. Starting HTTP service..."
-    echo -e "${GREEN}For HTTPS (Clipboard support), use ./start_https.sh instead.${NC}"
+    echo "Docker detected. Starting service..."
     
-    if ! docker info &> /dev/null; then
+    if ! sudo docker info &> /dev/null; then
         echo -e "${RED}Error: Docker daemon is not running.${NC}"
         COMPOSE_CMD="" # Fallback
     else
-        # Run standard HTTP docker-compose.yml
+        # Determine compose files
+        COMPOSE_FILES="-f docker-compose.yml"
+        if [ "$DEV_MODE" = true ]; then
+            COMPOSE_FILES="-f docker-compose.yml -f docker-compose.dev.yml"
+        fi
+        
+        # Clean up any orphan containers from other modes
+        sudo $COMPOSE_CMD down -v --remove-orphans &> /dev/null || true
+        
         echo "Building and starting containers..."
-        if ! $COMPOSE_CMD up -d --build; then
+        if ! sudo $COMPOSE_CMD $COMPOSE_FILES up -d --build; then
             echo -e "${RED}Start failed. Retrying with cleanup...${NC}"
-            $COMPOSE_CMD down --remove-orphans
-            $COMPOSE_CMD up -d --build
+            sudo $COMPOSE_CMD $COMPOSE_FILES down --remove-orphans
+            sudo $COMPOSE_CMD $COMPOSE_FILES up -d --build
         fi
         
         if [ $? -eq 0 ]; then
             echo -e "${GREEN}Deployment successful!${NC}"
-            echo -e "App is running at: ${GREEN}http://localhost:8080${NC} (or http://SERVER_IP:8080)"
+            echo -e "App is running at: ${GREEN}https://localhost${NC} (or https://SERVER_IP)"
+            if [ "$DEV_MODE" = true ]; then
+                echo "Development mode active: Source code changes will hot-reload automatically."
+            fi
             exit 0
         fi
     fi
@@ -70,4 +87,3 @@ nohup serve -s dist -l 8080 > server.log 2>&1 &
 echo -e "${GREEN}Deployment successful!${NC}"
 echo "App is running at: http://localhost:8080"
 echo "Logs are being written to server.log"
-echo -e "${RED}Note: Clipboard copy requires HTTPS. Currently running in HTTP mode (Download fallback active).${NC}"

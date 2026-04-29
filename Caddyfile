@@ -5,6 +5,6 @@
 
 :443 {
     # Proxy to app
-    tls /etc/caddy/certs/cert.pem /etc/caddy/certs/key.pem
+    tls internal
     reverse_proxy project-management-app:80
 }

@@ -281,6 +281,12 @@ const TimelineView = forwardRef(({
         };
 
         const allDates = getAllDates(tasks);
+        
+        // '오늘' 표시 활성화 시, 현재 날짜를 날짜 범위 계산에 포함
+        if (showToday) {
+            allDates.push(new Date());
+        }
+
         const minDate = new Date(Math.min(...allDates));
         const maxDate = new Date(Math.max(...allDates));
 
@@ -305,7 +311,7 @@ const TimelineView = forwardRef(({
         }
 
         return { start, end };
-    }, [tasks, timeScale]);
+    }, [tasks, timeScale, showToday]);
 
 
 

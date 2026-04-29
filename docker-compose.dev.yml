@@ -1,13 +1,15 @@
 version: '3'
 
 services:
-  project-management-app-dev:
-    image: node:18-alpine
-    working_dir: /app
+  project-management-app:
+    build:
+      context: .
+      target: development
     volumes:
-      - ./:/app
-    ports:
-      - "8090:5173"
-    command: sh -c "if [ ! -d 'node_modules' ]; then npm install; fi && npm run dev -- --host"
-    environment:
-      - CHOKIDAR_USEPOLLING=true
+      - ./src:/app/src
+      - ./public:/app/public
+      - ./index.html:/app/index.html
+      - ./vite.config.js:/app/vite.config.js
+      - ./package.json:/app/package.json
+      # node_modules는 호스트와 충돌할 수 있으므로 볼륨 제외
+      - /app/node_modules
