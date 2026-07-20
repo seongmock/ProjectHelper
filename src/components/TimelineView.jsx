@@ -88,7 +88,7 @@ function SortableTaskNameItem({ task, selectedTaskId, editingTaskId, editingName
                         width: '100%',
                         borderBottom: `${task.divider.thickness}px ${task.divider.style} ${task.divider.color}`,
                         pointerEvents: 'none',
-                        zIndex: 10
+                        zIndex: 0
                     }}
                 />
             )}
@@ -99,30 +99,29 @@ function SortableTaskNameItem({ task, selectedTaskId, editingTaskId, editingName
 
 
 const TimelineView = forwardRef(({
-    tasks = [], // Default value to prevent crash
+    tasks = [],
     selectedTaskId,
     onSelectTask,
     onUpdateTask,
-    onUpdateTasks, // 여러 작업 동시 업데이트용
-    onDeleteTask, // Add prop
+    onUpdateTasks,
+    onDeleteTask,
     onMoveTask,
-    onIndentTask, // Add prop
-    onOutdentTask, // Add prop
-
-    onContextMenu, // Add prop
-    onOpenMilestoneAdd, // App from prop
+    onIndentTask,
+    onOutdentTask,
+    onContextMenu,
+    onOpenMilestoneAdd,
     timeScale,
     viewMode,
-    // Props from App
     zoomLevel = 1.0,
     showToday = true,
     isCompact = false,
     showTaskNames = true,
-
     showBarLabels = false,
     showBarDates = false,
-    snapEnabled = true, // 기본값 true
-    darkMode // 다크 모드
+    snapEnabled = true,
+    darkMode,
+    toast,
+    chartTheme = 'default',
 }, ref) => {
     const containerRef = useRef(null);
     const timelineScrollRef = useRef(null);
@@ -729,7 +728,7 @@ const TimelineView = forwardRef(({
 
                 // Check existence
                 if (currentDependencies.includes(linkSourceTaskId)) {
-                    alert('이미 연결된 항목입니다.');
+                    toast.warn('이미 연결된 항목입니다.');
                     setIsLinkingMode(false);
                     setLinkSourceTaskId(null);
                     return;
@@ -781,7 +780,7 @@ const TimelineView = forwardRef(({
                     if (m.id === milestone.id) {
                         const currentDeps = m.dependencies || [];
                         if (currentDeps.includes(linkSourceTaskId)) {
-                            alert('이미 연결된 마일스톤입니다.');
+                            toast.warn('이미 연결된 마일스톤입니다.');
                             return m;
                         }
                         return { ...m, dependencies: [...currentDeps, linkSourceTaskId] };
@@ -1038,17 +1037,16 @@ const TimelineView = forwardRef(({
 
             canvas.toBlob(async (blob) => {
                 if (!blob) {
-                    alert('이미지 생성 실패');
+                    toast.error('이미지 생성 실패');
                     return;
                 }
                 try {
                     await navigator.clipboard.write([
                         new ClipboardItem({ 'image/png': blob })
                     ]);
-                    alert('타임라인 이미지가 클립보드에 복사되었습니다.');
+                    toast.success('타임라인 이미지가 클립보드에 복사되었습니다.');
                 } catch (err) {
                     console.error('클립보드 복사 실패:', err);
-                    // 클립보드 복사 실패 시 (보안 정책 등) 이미지 다운로드로 대체
                     try {
                         const url = URL.createObjectURL(blob);
                         const link = document.createElement('a');
@@ -1058,16 +1056,16 @@ const TimelineView = forwardRef(({
                         link.click();
                         document.body.removeChild(link);
                         URL.revokeObjectURL(url);
-                        alert('클립보드 접근 권한 문제로 이미지를 다운로드했습니다.');
+                        toast.info('클립보드 접근 권한 문제로 이미지를 다운로드했습니다.');
                     } catch (downloadErr) {
                         console.error('다운로드 실패:', downloadErr);
-                        alert('이미지 저장에 실패했습니다.');
+                        toast.error('이미지 저장에 실패했습니다.');
                     }
                 }
             });
         } catch (err) {
             console.error('이미지 캡처 실패:', err);
-            alert(`이미지 캡처 중 오류가 발생했습니다: ${err.message}`);
+            toast.error(`이미지 캡처 중 오류가 발생했습니다: ${err.message}`);
         }
     };
 
@@ -1289,7 +1287,7 @@ const TimelineView = forwardRef(({
     }), [handleCopyToClipboard, startLinking]);
 
     return (
-        <div className={`timeline-view ${viewMode === 'split' ? 'split-mode' : ''} ${isCompact ? 'compact-mode' : ''}`} ref={containerRef}>
+        <div className={`timeline-view ${viewMode === 'split' ? 'split-mode' : ''} ${isCompact ? 'compact-mode' : ''}`} ref={containerRef} data-chart-theme={chartTheme}>
             <div className={`timeline-container ${showTaskNames ? 'with-names' : ''}`} ref={captureRef}>
                 {/* ... (Existing JSX) ... */}
                 {/* 왼쪽 작업명 컬럼 */}
@@ -1477,6 +1475,7 @@ const TimelineView = forwardRef(({
                                     showBarDates={showBarDates}
                                     timeScale={timeScale}
                                     snapEnabled={snapEnabled}
+                                    chartTheme={chartTheme}
                                 />
                             ))
                         )}

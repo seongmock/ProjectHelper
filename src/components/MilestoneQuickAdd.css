@@ -8,8 +8,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 9999;
-    animation: fadeIn 0.2s ease-out;
+    z-index: 10000;
 }
 
 .milestone-quick-add-dialog {

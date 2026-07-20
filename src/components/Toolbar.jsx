@@ -1,3 +1,4 @@
+import { THEMES } from '../themes/index.js';
 import './Toolbar.css';
 
 function Toolbar({
@@ -27,7 +28,10 @@ function Toolbar({
     showBarLabels,
     onToggleBarLabels,
     showBarDates,
-    onToggleBarDates
+    onToggleBarDates,
+
+    chartTheme,
+    onThemeChange,
 }) {
     return (
         <div className="toolbar">
@@ -90,12 +94,6 @@ function Toolbar({
                                     title={showTaskNames ? '작업명 숨기기' : '작업명 표시'}
                                 >
                                     📄 작업명
-                                </button>
-
-                                <button
-                                    title={showTaskNames ? '작업명 숨기기' : '작업명 표시'}
-                                >
-                                    📄 목록
                                 </button>
 
                                 <button
@@ -177,6 +175,22 @@ function Toolbar({
                 </div>
 
                 <div className="toolbar-right flex items-center gap-md">
+                    {/* 테마 선택 */}
+                    <div className="theme-toggle" title="차트 스타일 선택">
+                        {THEMES.map(t => (
+                            <button
+                                key={t.id}
+                                className={chartTheme === t.id ? 'active' : ''}
+                                onClick={() => onThemeChange(t.id)}
+                                title={t.label}
+                            >
+                                {t.icon} {t.shortLabel}
+                            </button>
+                        ))}
+                    </div>
+
+                    <div className="divider" style={{ width: '1px', height: '24px', backgroundColor: 'var(--color-border)', margin: '0 8px' }}></div>
+
                     {/* 검색 */}
                     <div className="search-box">
                         <input

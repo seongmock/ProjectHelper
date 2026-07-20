@@ -1,0 +1,131 @@
+/* ============================================================
+   차트 테마 CSS 오버라이드
+   [data-chart-theme="<id>"] 스코프 안에서 CSS 변수를 재정의합니다.
+   새 테마 추가 시 새 [data-chart-theme="newid"] 블록을 추가하세요.
+   ============================================================ */
+
+/* ── LG전자 스타일 ────────────────────────────────────────── */
+[data-chart-theme="lg"] {
+    /* 배경: 항상 흰색 (다크모드 무시) */
+    --color-bg-primary: #ffffff;
+    --color-bg-secondary: #f0f0f0;
+    --color-bg: #ffffff;
+    --color-border: #cccccc;
+    --color-grid: #d8d8d8;
+    --color-text-primary: #222222;
+    --color-text-secondary: #555555;
+    --color-text-muted: #888888;
+    --color-primary: #a50034;          /* LG 레드 */
+    --color-primary-hover: #8a002c;
+    --color-danger: #cc0000;
+    --color-success: #2d8c00;
+    --border-radius: 0px;              /* LG 스타일은 각진 모서리 */
+    background-color: #ffffff;
+    color: #222222;
+}
+
+/* 타임라인 컨테이너 배경 */
+[data-chart-theme="lg"] .timeline-view,
+[data-chart-theme="lg"] .timeline-container,
+[data-chart-theme="lg"] .timeline-content,
+[data-chart-theme="lg"] .timeline-scroll-container {
+    background-color: #ffffff;
+}
+
+/* 헤더 */
+[data-chart-theme="lg"] .timeline-header,
+[data-chart-theme="lg"] .task-names-header {
+    background-color: #e8e8e8;
+    border-bottom: 1px solid #b0b0b0;
+}
+
+/* 행 */
+[data-chart-theme="lg"] .timeline-row {
+    border-bottom: 1px solid #d8d8d8;
+}
+
+[data-chart-theme="lg"] .timeline-row:nth-child(even) {
+    background-color: #fafafa;
+}
+
+/* 바 — LG 테마에서는 JS(SVG polygon)가 시각을 직접 렌더링.
+   bar 자체는 투명 컨테이너 역할만 하며,
+   LG 스타일은 레벨과 무관하게 동일한 높이를 사용 */
+[data-chart-theme="lg"] .timeline-bar {
+    background-color: transparent !important;
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    overflow: visible;
+}
+
+[data-chart-theme="lg"] .timeline-row.level-0 .timeline-bar,
+[data-chart-theme="lg"] .timeline-row.level-1 .timeline-bar,
+[data-chart-theme="lg"] .timeline-row.level-2 .timeline-bar,
+[data-chart-theme="lg"] .timeline-row .timeline-bar { height: 24px; }
+
+[data-chart-theme="lg"] .timeline-bar:hover {
+    box-shadow: none !important;
+}
+
+/* selected는 JS에서 lgBorderColor = #a50034으로 직접 적용 */
+[data-chart-theme="lg"] .timeline-bar.selected {
+    box-shadow: none !important;
+}
+
+/* 바 레이블 */
+[data-chart-theme="lg"] .bar-label {
+    color: #222222 !important;
+    text-shadow: none !important;
+    font-weight: 500;
+    font-size: 11px;
+}
+
+/* 리사이즈 핸들 */
+[data-chart-theme="lg"] .resize-handle:hover {
+    background-color: rgba(0, 0, 0, 0.1);
+}
+
+/* 오늘 마커 */
+[data-chart-theme="lg"] .today-marker {
+    background-color: #cc0000;
+    opacity: 1;
+    width: 2px;
+}
+
+[data-chart-theme="lg"] .today-marker::before {
+    border-bottom-color: #cc0000;
+    border-left-width: 7px;
+    border-right-width: 7px;
+    border-bottom-width: 12px;
+}
+
+/* 태스크 이름 열 */
+[data-chart-theme="lg"] .task-name-cell {
+    color: #222222;
+    background-color: #ffffff;
+}
+
+[data-chart-theme="lg"] .task-row-container:hover .task-name-cell {
+    background-color: #f5f5f5;
+}
+
+/* 마일스톤 — LG 스타일은 빨간 다이아몬드 */
+[data-chart-theme="lg"] .milestone-marker {
+    filter: drop-shadow(0 1px 2px rgba(0,0,0,0.2));
+}
+
+/* 기간 레이블 (바 위에 표시) */
+.bar-duration-label {
+    position: absolute;
+    top: -20px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 11px;
+    font-weight: 700;
+    color: #2d8c00;
+    white-space: nowrap;
+    pointer-events: none;
+    line-height: 1;
+    z-index: 5;
+}

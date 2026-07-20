@@ -1,55 +1,90 @@
-// localStorage 관리 유틸리티
+// 스토리지 유틸리티 — localStorage 캐시 + 서버 동기화 하이브리드
+//
+// 저장 전략:
+//   - 읽기: 서버 우선 → 실패 시 localStorage 폴백
+//   - 쓰기: localStorage 즉시 + 서버 비동기 (App.jsx에서 debounce 적용)
+//   - 오프라인/네트워크 오류 시 localStorage만으로 동작 유지
 
 const STORAGE_KEY = 'project-timeline-data';
 const SETTINGS_KEY = 'project-timeline-settings';
 const SNAPSHOTS_KEY = 'project-timeline-snapshots';
+const API_BASE = '/api';
+
+// ── 내부 헬퍼 ──────────────────────────────────────────────────────────────
+
+const localGet = (key) => {
+    try {
+        const item = localStorage.getItem(key);
+        return item ? JSON.parse(item) : null;
+    } catch { return null; }
+};
+
+const localSet = (key, value) => {
+    try {
+        localStorage.setItem(key, JSON.stringify(value));
+    } catch (e) {
+        console.error('localStorage write failed:', e);
+    }
+};
+
+const apiFetch = async (path, options = {}) => {
+    const res = await fetch(API_BASE + path, {
+        headers: { 'Content-Type': 'application/json' },
+        ...options,
+    });
+    if (!res.ok) throw new Error(`API ${path} failed: ${res.status}`);
+    return res.json();
+};
+
+// ── 공개 API ──────────────────────────────────────────────────────────────
 
 export const storage = {
-    // 프로젝트 데이터 저장
-    saveData: (data) => {
+    // 프로젝트 데이터 로드 (서버 우선 → localStorage 폴백)
+    loadData: async () => {
         try {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-            return true;
-        } catch (error) {
-            console.error('Failed to save data:', error);
-            return false;
+            const res = await apiFetch('/data');
+            if (res.data) {
+                localSet(STORAGE_KEY, res.data); // 캐시 갱신
+                return res.data;
+            }
+        } catch {
+            console.warn('서버 로드 실패, localStorage 폴백');
         }
+        return localGet(STORAGE_KEY);
     },
 
-    // 프로젝트 데이터 로드
-    loadData: () => {
+    // 프로젝트 데이터 저장 (localStorage 즉시 + 서버 비동기)
+    saveData: (data) => {
+        localSet(STORAGE_KEY, data);
+        apiFetch('/data', { method: 'POST', body: JSON.stringify(data) })
+            .catch(e => console.warn('서버 저장 실패 (로컬 유지):', e));
+    },
+
+    // 설정 로드 (서버 우선 → localStorage 폴백)
+    loadSettings: async () => {
         try {
-            const data = localStorage.getItem(STORAGE_KEY);
-            return data ? JSON.parse(data) : null;
-        } catch (error) {
-            console.error('Failed to load data:', error);
-            return null;
+            const res = await apiFetch('/settings');
+            if (res.data) {
+                localSet(SETTINGS_KEY, res.data);
+                return res.data;
+            }
+        } catch {
+            console.warn('설정 서버 로드 실패, localStorage 폴백');
         }
+        return localGet(SETTINGS_KEY);
     },
 
     // 설정 저장
     saveSettings: (settings) => {
-        try {
-            localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
-            return true;
-        } catch (error) {
-            console.error('Failed to save settings:', error);
-            return false;
-        }
+        // 기존 설정과 병합
+        const current = localGet(SETTINGS_KEY) || {};
+        const merged = { ...current, ...settings };
+        localSet(SETTINGS_KEY, merged);
+        apiFetch('/settings', { method: 'POST', body: JSON.stringify(merged) })
+            .catch(e => console.warn('설정 서버 저장 실패:', e));
     },
 
-    // 설정 로드
-    loadSettings: () => {
-        try {
-            const settings = localStorage.getItem(SETTINGS_KEY);
-            return settings ? JSON.parse(settings) : null;
-        } catch (error) {
-            console.error('Failed to load settings:', error);
-            return null;
-        }
-    },
-
-    // 데이터 내보내기 (JSON 파일)
+    // 데이터 내보내기 (파일 다운로드 — 서버 불필요)
     exportData: (data, filename = 'project-timeline.json') => {
         try {
             const jsonStr = JSON.stringify(data, null, 2);
@@ -67,16 +102,23 @@ export const storage = {
         }
     },
 
-    // 데이터 가져오기 (JSON 파일)
+    // 데이터 가져오기 (파일 읽기 — 서버 불필요)
     importData: (file) => {
         return new Promise((resolve, reject) => {
             const reader = new FileReader();
             reader.onload = (e) => {
-                try {
-                    const data = JSON.parse(e.target.result);
-                    resolve(data);
-                } catch (error) {
-                    reject(error);
+                try { 
+                    const parsed = JSON.parse(e.target.result);
+                    console.log('📥 Import data:', parsed);
+                    if (!parsed.tasks || !Array.isArray(parsed.tasks)) {
+                        reject(new Error('Invalid format: expected { tasks: [...] }'));
+                        return;
+                    }
+                    resolve(parsed); 
+                }
+                catch (error) { 
+                    console.error('Import parse error:', error);
+                    reject(error); 
                 }
             };
             reader.onerror = () => reject(reader.error);
@@ -91,80 +133,74 @@ export const storage = {
             localStorage.removeItem(SETTINGS_KEY);
             localStorage.removeItem(SNAPSHOTS_KEY);
             return true;
-        } catch (error) {
-            console.error('Failed to clear data:', error);
-            return false;
+        } catch { return false; }
+    },
+
+    // 스냅샷 목록 로드 (서버 우선 → localStorage 폴백)
+    loadSnapshots: async () => {
+        try {
+            const res = await apiFetch('/snapshots');
+            if (res.data) {
+                localSet(SNAPSHOTS_KEY, res.data);
+                return res.data;
+            }
+        } catch {
+            console.warn('스냅샷 서버 로드 실패, localStorage 폴백');
         }
+        return localGet(SNAPSHOTS_KEY) || [];
     },
 
     // 스냅샷 저장
-    saveSnapshot: (name, data) => {
+    saveSnapshot: async (name, data) => {
         try {
-            const snapshots = storage.loadSnapshots();
-            const newSnapshot = {
-                id: Date.now().toString(),
-                name,
-                date: new Date().toISOString(),
-                data
-            };
-            snapshots.unshift(newSnapshot); // 최신순
-            localStorage.setItem(SNAPSHOTS_KEY, JSON.stringify(snapshots));
+            const res = await apiFetch('/snapshots', {
+                method: 'POST',
+                body: JSON.stringify({ name, data }),
+            });
+            // 서버 결과로 로컬 캐시 갱신
+            const snapshots = localGet(SNAPSHOTS_KEY) || [];
+            snapshots.unshift(res.snapshot);
+            localSet(SNAPSHOTS_KEY, snapshots);
             return true;
-        } catch (error) {
-            console.error('Failed to save snapshot:', error);
-            return false;
-        }
-    },
-
-    // 스냅샷 목록 로드 (메타데이터만 반환 권장하지만 로컬스토리지는 다 불러와짐. 일단 다 반환)
-    loadSnapshots: () => {
-        try {
-            const saved = localStorage.getItem(SNAPSHOTS_KEY);
-            return saved ? JSON.parse(saved) : [];
-        } catch (error) {
-            console.error('Failed to load snapshots:', error);
-            return [];
-        }
-    },
-
-    // 스냅샷 삭제
-    deleteSnapshot: (id) => {
-        try {
-            const snapshots = storage.loadSnapshots();
-            const filtered = snapshots.filter(s => s.id !== id);
-            localStorage.setItem(SNAPSHOTS_KEY, JSON.stringify(filtered));
-            return true;
-        } catch (error) {
-            console.error('Failed to delete snapshot:', error);
+        } catch (e) {
+            console.error('스냅샷 저장 실패:', e);
             return false;
         }
     },
 
     // 스냅샷 업데이트
-    updateSnapshot: (id, data) => {
+    updateSnapshot: async (id, data) => {
         try {
-            const snapshots = storage.loadSnapshots();
+            await apiFetch(`/snapshots/${id}`, {
+                method: 'PUT',
+                body: JSON.stringify({ data }),
+            });
+            // 로컬 캐시도 갱신
+            const snapshots = localGet(SNAPSHOTS_KEY) || [];
             const index = snapshots.findIndex(s => s.id === id);
-
-            if (index === -1) return false;
-
-            // 업데이트: 데이터 교체 및 날짜 갱신 (이름은 유지하거나 변경 가능하지만 여기선 유지)
-            snapshots[index] = {
-                ...snapshots[index],
-                date: new Date().toISOString(),
-                data
-            };
-
-            // 최신순 정렬 (업데이트된 항목을 맨 위로?)
-            // 선택 사항이지만, 보통 최근 수정된게 위로 오는게 좋음.
-            const updatedItem = snapshots.splice(index, 1)[0];
-            snapshots.unshift(updatedItem);
-
-            localStorage.setItem(SNAPSHOTS_KEY, JSON.stringify(snapshots));
+            if (index !== -1) {
+                const updated = { ...snapshots[index], date: new Date().toISOString(), data };
+                snapshots.splice(index, 1);
+                snapshots.unshift(updated);
+                localSet(SNAPSHOTS_KEY, snapshots);
+            }
             return true;
-        } catch (error) {
-            console.error('Failed to update snapshot:', error);
+        } catch (e) {
+            console.error('스냅샷 업데이트 실패:', e);
             return false;
         }
-    }
+    },
+
+    // 스냅샷 삭제
+    deleteSnapshot: async (id) => {
+        try {
+            await apiFetch(`/snapshots/${id}`, { method: 'DELETE' });
+            const snapshots = localGet(SNAPSHOTS_KEY) || [];
+            localSet(SNAPSHOTS_KEY, snapshots.filter(s => s.id !== id));
+            return true;
+        } catch (e) {
+            console.error('스냅샷 삭제 실패:', e);
+            return false;
+        }
+    },
 };

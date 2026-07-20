@@ -25,7 +25,8 @@ function TimelineBar({
     showBarDates = true, // Toolbar toggle
     showPeriodLabels = false,
     timeScale = 'monthly',
-    snapEnabled = true
+    snapEnabled = true,
+    chartTheme = 'default',
 }) {
     const [activeRangeId, setActiveRangeId] = useState(null); // ID of range being dragged
     const [dragType, setDragType] = useState(null); // 'move', 'resize-start', 'resize-end'
@@ -90,7 +91,15 @@ function TimelineBar({
 
             const applySnapping = (date, type) => {
                 if (snapEnabled) {
-                    return dateUtils.snapAdaptive(date, type, totalDays);
+                    // timeScale에 맞춰 스냅 단위 결정
+                    switch (timeScale) {
+                        case 'daily':   return dateUtils.snapToDay(date, type);
+                        case 'weekly':  return dateUtils.snapToWeek(date, type);
+                        case 'monthly': return dateUtils.snapToMonth(date, type);
+                        case 'quarterly':
+                        case 'yearly':  return dateUtils.snapToQuarter(date, type);
+                        default:        return dateUtils.snapAdaptive(date, type, totalDays);
+                    }
                 }
                 return dateUtils.snapToDay(date, type);
             };
@@ -208,7 +217,14 @@ function TimelineBar({
 
             let snappedDate;
             if (snapEnabled) {
-                snappedDate = dateUtils.snapAdaptive(rawNewDate, 'closest', totalDays);
+                switch (timeScale) {
+                    case 'daily':     snappedDate = dateUtils.snapToDay(rawNewDate, 'closest'); break;
+                    case 'weekly':    snappedDate = dateUtils.snapToWeek(rawNewDate, 'start'); break;
+                    case 'monthly':   snappedDate = dateUtils.snapToMonth(rawNewDate, 'closest'); break;
+                    case 'quarterly':
+                    case 'yearly':    snappedDate = dateUtils.snapToQuarter(rawNewDate, 'start'); break;
+                    default:          snappedDate = dateUtils.snapAdaptive(rawNewDate, 'closest', totalDays);
+                }
             } else {
                 snappedDate = dateUtils.snapToDay(rawNewDate, 'closest');
             }
@@ -505,20 +521,56 @@ function TimelineBar({
                     containerWidth
                 );
 
+                const isLg = chartTheme === 'lg';
+                const LG_STROKE = 2;
+                // 기본 높이: 모든 테마에서 레벨별 24/20/16px
+                // range.barHeight로 개별 오버라이드 가능
+                const DEFAULT_BAR_H = { 0: 24, 1: 20, 2: 16 }[level] ?? 24;
+                const LG_BAR_H = range.barHeight ?? DEFAULT_BAR_H;
+                const LG_ARROW_DEPTH = LG_BAR_H / 2;
+
+                // 기간 레이블: LG 테마에서 range 설정에 따라 표시/숨김
+                const showDurLabel = isLg && (range.showDurationLabel !== false);
+                const durLabelPos = range.durationLabelPosition || 'above'; // 'above' | 'below' | 'inside'
+                const rangeDurationDays = showDurLabel
+                    ? Math.max(1, dateUtils.getDaysBetween(range.startDate, range.endDate))
+                    : null;
+
+                // LG 선택/기본 테두리 색상
+                const lgBorderColor = isLg && isSelected ? '#a50034' : '#9e9e9e';
+
+                const barStyle = isLg
+                    ? {
+                        // 투명 컨테이너 — 시각은 자식 div가 담당
+                        left: `${offset}px`,
+                        width: `${width}px`,
+                        backgroundColor: 'transparent',
+                        border: 'none',
+                        borderRadius: 0,
+                        boxShadow: 'none',
+                        overflow: 'visible',
+                        transform: isActive ? `translateY(calc(-50% + ${draggedRangeY}px))` : undefined,
+                        zIndex: isActive ? 100 : 1,
+                        cursor: isActive ? (isCopyMode ? 'copy' : 'grabbing') : 'grab',
+                        ...(range.barHeight != null ? { height: `${range.barHeight}px` } : {}),
+                    }
+                    : {
+                        left: `${offset}px`,
+                        width: `${width}px`,
+                        backgroundColor: range.color || task.color,
+                        transform: isActive ? `translateY(calc(-50% + ${draggedRangeY}px))` : undefined,
+                        zIndex: isActive ? 100 : 1,
+                        boxShadow: isActive ? '0 4px 8px rgba(0,0,0,0.3)' : 'none',
+                        cursor: isActive ? (isCopyMode ? 'copy' : 'grabbing') : 'grab',
+                        ...(range.barHeight != null ? { height: `${range.barHeight}px` } : {}),
+                    };
+
                 return (
                     <div
                         key={range.id}
                         ref={(el) => (barRefs.current[range.id] = el)}
-                        className={`timeline-bar ${isSelected ? 'selected' : ''} ${isActive ? 'dragging' : ''}`}
-                        style={{
-                            left: `${offset}px`,
-                            width: `${width}px`,
-                            backgroundColor: range.color || task.color,
-                            transform: isActive ? `translateY(calc(-50% + ${draggedRangeY}px))` : undefined,
-                            zIndex: isActive ? 100 : 1,
-                            boxShadow: isActive ? '0 4px 8px rgba(0,0,0,0.3)' : 'none',
-                            cursor: isActive ? (isCopyMode ? 'copy' : 'grabbing') : 'grab'
-                        }}
+                        className={`timeline-bar ${isSelected ? 'selected' : ''} ${isActive ? 'dragging' : ''} ${isLg ? 'theme-lg' : ''}`}
+                        style={barStyle}
                         title={`${task.name} (${dateUtils.formatDate(new Date(range.startDate), 'YYYY.MM.DD')} ~ ${dateUtils.formatDate(new Date(range.endDate), 'YYYY.MM.DD')})`}
                         onClick={(e) => {
                             e.stopPropagation();
@@ -535,6 +587,82 @@ function TimelineBar({
                             onContextMenu(e, clickDate, range.id); // Pass rangeId
                         }}
                     >
+                        {/* ── LG 테마 화살표 바 (SVG 방식) ─────────────────
+                            SVG polygon + strokeWidth를 사용하면
+                            수평/수직/대각선 모든 변의 stroke 두께가 수학적으로
+                            동일한 LG_STROKE 픽셀로 보장됩니다.
+                            (clip-path 방식은 대각선에서 두께가 불균일해짐)
+                         ──────────────────────────────────────────────────── */}
+                        {isLg && (
+                            <>
+                                {/* 기간 레이블: showDurationLabel + durationLabelPosition 반영 */}
+                                {rangeDurationDays && (() => {
+                                    const labelStyles = {
+                                        above: {
+                                            position: 'absolute',
+                                            bottom: `${LG_BAR_H + 2}px`,
+                                            left: '50%',
+                                            transform: 'translateX(-50%)',
+                                            fontSize: '11px', fontWeight: 700,
+                                            color: '#2d8c00', whiteSpace: 'nowrap',
+                                            pointerEvents: 'none', lineHeight: 1, zIndex: 9999,
+                                        },
+                                        below: {
+                                            position: 'absolute',
+                                            top: `${LG_BAR_H + 2}px`,
+                                            left: '50%',
+                                            transform: 'translateX(-50%)',
+                                            fontSize: '11px', fontWeight: 700,
+                                            color: '#2d8c00', whiteSpace: 'nowrap',
+                                            pointerEvents: 'none', lineHeight: 1, zIndex: 9999,
+                                        },
+                                        inside: {
+                                            position: 'absolute',
+                                            top: '50%',
+                                            left: '50%',
+                                            transform: 'translate(-50%, -50%)',
+                                            fontSize: '10px', fontWeight: 700,
+                                            color: '#333333', whiteSpace: 'nowrap',
+                                            pointerEvents: 'none', lineHeight: 1, zIndex: 9999,
+                                        },
+                                    };
+                                    return (
+                                        <div style={labelStyles[durLabelPos] || labelStyles.above}>
+                                            {rangeDurationDays}d
+                                        </div>
+                                    );
+                                })()}
+                                <svg
+                                    style={{
+                                        position: 'absolute',
+                                        top: 0, left: 0,
+                                        overflow: 'hidden',
+                                        pointerEvents: 'none',
+                                        zIndex: 0,
+                                    }}
+                                    width={width}
+                                    height={LG_BAR_H}
+                                    xmlns="http://www.w3.org/2000/svg"
+                                >
+                                    {/* stroke는 path 중심 기준 ±S2씩 퍼짐.
+                                        polygon 좌표를 S2(=1px) 안으로 인셋하면
+                                        stroke가 SVG 뷰포트(= bar 크기)를 벗어나지 않음. */}
+                                    <polygon
+                                        points={[
+                                            `${LG_STROKE / 2},${LG_STROKE / 2}`,
+                                            `${width - LG_ARROW_DEPTH},${LG_STROKE / 2}`,
+                                            `${width - LG_STROKE / 2},${LG_BAR_H / 2}`,
+                                            `${width - LG_ARROW_DEPTH},${LG_BAR_H - LG_STROKE / 2}`,
+                                            `${LG_STROKE / 2},${LG_BAR_H - LG_STROKE / 2}`,
+                                        ].join(' ')}
+                                        fill="white"
+                                        stroke={lgBorderColor}
+                                        strokeWidth={LG_STROKE}
+                                        strokeLinejoin="miter"
+                                    />
+                                </svg>
+                            </>
+                        )}
                         {isActive && isCopyMode && (
                             <div style={{
                                 position: 'absolute',
@@ -628,7 +756,7 @@ function TimelineBar({
                         width: '100%',
                         borderBottom: `${task.divider.thickness}px ${task.divider.style} ${task.divider.color}`,
                         pointerEvents: 'none',
-                        zIndex: 10
+                        zIndex: 0
                     }}
                 />
             )}

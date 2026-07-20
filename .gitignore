@@ -32,3 +32,8 @@ npm_letsencrypt/
 caddy_data/
 caddy_config/
 
+# Runtime / personal data & temp files
+restored-data.json
+server/data/
+tmp/
+

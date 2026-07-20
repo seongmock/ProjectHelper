@@ -186,13 +186,13 @@ export const exportToHtml = (tasks, settings = {}) => {
 
         #ph-gantt-${listId} .timeline-bar {
             position: absolute;
-            top: 50%;
-            transform: translateY(-50%);
-            height: 24px;
+            /* top/transform은 JS inline style로 지정 */
+            height: 24px; /* level-0 default; overridden by inline style per level/range */
             border-radius: 4px;
-/* ... */
             box-shadow: 0 1px 3px rgba(0,0,0,0.2);
             font-size: 11px;
+            font-weight: 600;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
             color: white;
             display: flex;
             align-items: center;
@@ -201,6 +201,7 @@ export const exportToHtml = (tasks, settings = {}) => {
             white-space: nowrap;
             cursor: default;
             z-index: 2;
+            transform: translateY(-50%);
         }
         #ph-gantt-${listId} .timeline-bar:hover {
             opacity: 0.9;
@@ -210,6 +211,40 @@ export const exportToHtml = (tasks, settings = {}) => {
         #ph-gantt-${listId} .bar-label {
             text-overflow: ellipsis;
             overflow: hidden;
+        }
+
+        /* 기간 레이블 (초록 레이블) - 배경 없이 녹색 텍스트만 */
+        #ph-gantt-${listId} .duration-label {
+            position: absolute;
+            color: #2d8c00;
+            font-size: 11px;
+            font-weight: 700;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            white-space: nowrap;
+            pointer-events: none;
+            z-index: 9999;
+            line-height: 1;
+        }
+
+        /* LG 테마 화살표 바 */
+        #ph-gantt-${listId} .timeline-bar.lg-bar {
+            background-color: transparent;
+            border: none;
+            border-radius: 0;
+            box-shadow: none;
+            overflow: hidden;
+            padding: 0;
+            position: absolute;
+        }
+
+        /* Divider */
+        #ph-gantt-${listId} .task-divider {
+            position: absolute;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            z-index: 0;
+            pointer-events: none;
         }
 
         /* Global Reset for this component */
@@ -427,6 +462,7 @@ export const exportToHtml = (tasks, settings = {}) => {
         const RAW_DATA = ${tasksJson};
         const ZOOM_LEVEL = ${zoomLevel};
         const TIME_SCALE = '${settings.timeScale || 'monthly'}';
+        const CHART_THEME = '${settings.chartTheme || 'default'}';
 
         // Flatten Data
         const FLATTENED_TASKS = [];
@@ -633,8 +669,12 @@ export const exportToHtml = (tasks, settings = {}) => {
                 var rowCenter = rowTop + (ROW_HEIGHT / 2);
                 var ranges = (task.timeRanges && task.timeRanges.length > 0) ? task.timeRanges : (task.startDate ? [{id: task.id, startDate: task.startDate, endDate: task.endDate}] : []);
                 
+                // 레벨별 기본 바 높이 (모든 테마 공통 24/20/16px)
+                var LEVEL_BAR_H = task.level === 0 ? 24 : task.level === 1 ? 20 : 16;
+                var isLg = CHART_THEME === 'lg';
+                var LG_STROKE = 2;
+                
                 // 1. Calculate Task Aggregates for Task ID (Legacy/Group Dependencies)
-                // Finds the overall start and end of the task to ensure Task-level dependencies connect to the very end/start
                 let taskMinDate = null;
                 let taskMaxDate = null;
 
@@ -668,14 +708,12 @@ export const exportToHtml = (tasks, settings = {}) => {
                     var color = range.color || task.color || '#4a90e2';
                     var title = task.name + ' (' + formatDate(start) + ' ~ ' + formatDate(end) + ')';
                     
+                    // 바 높이: range.barHeight 오버라이드 → 레벨별 기본값
+                    var barH = (range.barHeight != null) ? range.barHeight : LEVEL_BAR_H;
+                    // 바 중앙 x (퍼센트)
+                    var barCenterPerc = leftPerc + widthPerc / 2;
+                    
                     var labelText = '';
-                    var showName = ${settings.showTaskNames} === false || ${settings.showBarLabels}; // If sidebar hidden (showTaskNames=false) OR explicit showBarLabels
-                    // Note: In App, showTaskNames means "List Visible". If false, we want labels on bars.
-                    // The settings.showTaskNames passed here is boolean.
-                    // In htmlExporter, we might NOT have sidebar toggling logic as dynamic as App.
-                    // But if user exports with List HIDDEN, we typically want names on bars.
-                    // Check App.jsx: settings.showTaskNames is passed.
-                    // If settings.showTaskNames is false (List Hidden), we should show Name.
                     
                     if (!${settings.showTaskNames} || ${settings.showBarLabels}) {
                          labelText += (range.label || task.name);
@@ -690,10 +728,71 @@ export const exportToHtml = (tasks, settings = {}) => {
                         labelHtml = '<span class="bar-label">' + labelText + '</span>';
                     }
 
-                    html += '<div class="timeline-bar" style="left: ' + leftPerc + '%; width: ' + widthPerc + '%; top: ' + rowCenter + 'px; background-color: ' + color + ';" title="' + title + '">' +
-                        labelHtml +
-                    '</div>';
+                    // LG 테마: SVG 화살표 바 (실제 px 기반)
+                    if (isLg) {
+                        // 실제 바 너비(px) 계산 — contentWidth 기준
+                        var barWidthPx = Math.max(1, Math.round((widthPerc / 100) * contentWidth));
+                        var S2 = LG_STROKE / 2;
+                        var H = barH;
+                        // 화살표 깊이: barH/2 (px 고정, 45°)
+                        var D = H / 2;
+                        // viewBox = 실제px × barH → preserveAspectRatio="none"이어도 x좌표 불변
+                        var pts = [
+                            S2 + ',' + S2,
+                            (barWidthPx - D) + ',' + S2,
+                            (barWidthPx - S2) + ',' + (H / 2),
+                            (barWidthPx - D) + ',' + (H - S2),
+                            S2 + ',' + (H - S2)
+                        ].join(' ');
+                        var svgInner =
+                            '<polygon points="' + pts + '" fill="white" stroke="#9e9e9e" stroke-width="' + LG_STROKE + '" stroke-linejoin="miter"/>';
+
+                        // 바 안 레이블 (showBarLabels) — 앱과 동일하게 왼쪽 정렬
+                        // 주의: 여기서 생성되는 코드는 export된 HTML의 JS 문자열 안에 들어가므로
+                        // font-family에 따옴표 필요한 이름(Segoe UI 등) 사용 불가 → 제거
+                        var lgLabelHtml = labelText
+                            ? '<span style="position:absolute;top:50%;left:8px;transform:translateY(-50%);font-size:11px;font-weight:600;font-family:-apple-system,BlinkMacSystemFont,Roboto,Arial,sans-serif;color:#333;white-space:nowrap;pointer-events:none;overflow:hidden;max-width:calc(100% - 24px);text-overflow:ellipsis;">' + labelText + '</span>'
+                            : '';
+
+                        html += '<div class="timeline-bar lg-bar" style="left:' + leftPerc + '%;width:' + widthPerc + '%;top:' + rowCenter + 'px;height:' + barH + 'px;transform:translateY(-50%);overflow:hidden;" title="' + title + '">' +
+                            '<svg viewBox="0 0 ' + barWidthPx + ' ' + H + '" preserveAspectRatio="none" style="position:absolute;top:0;left:0;width:100%;height:100%;">' +
+                            svgInner + '</svg>' +
+                            lgLabelHtml +
+                        '</div>';
+                    } else {
+                        html += '<div class="timeline-bar" style="left:' + leftPerc + '%;width:' + widthPerc + '%;top:' + rowCenter + 'px;height:' + barH + 'px;background-color:' + color + ';" title="' + title + '">' +
+                            labelHtml +
+                        '</div>';
+                    }
+
+                    // 기간 레이블 (showDurationLabel)
+                    // LG 테마에서만 표시 (앱 동작과 일치)
+                    var showDurLabel = isLg && (range.showDurationLabel !== false);
+                    if (showDurLabel) {
+                        var durDays = Math.max(1, getDaysBetween(range.startDate, range.endDate));
+                        var durText = durDays + 'd';
+                        var durPos = range.durationLabelPosition || 'above';
+                        var durStyle = '';
+                        if (durPos === 'above') {
+                            // 바 상단 바로 위 (2px 간격), 가로는 바 가운데 정렬
+                            durStyle = 'left:' + barCenterPerc + '%;top:' + (rowCenter - barH/2 - 2) + 'px;transform:translate(-50%,-100%);';
+                        } else if (durPos === 'below') {
+                            durStyle = 'left:' + barCenterPerc + '%;top:' + (rowCenter + barH/2 + 2) + 'px;transform:translateX(-50%);';
+                        } else {
+                            // inside: 바 중앙
+                            durStyle = 'left:' + barCenterPerc + '%;top:' + rowCenter + 'px;transform:translate(-50%,-50%);';
+                        }
+                        html += '<div class="duration-label" style="' + durStyle + '">' + durText + '</div>';
+                    }
                 });
+
+                // Divider
+                if (task.divider && task.divider.enabled) {
+                    var divH = task.divider.thickness || 1;
+                    var divColor = task.divider.color || '#ccc';
+                    var divStyle = task.divider.style || 'solid';
+                    html += '<div class="task-divider" style="top:' + (rowTop + ROW_HEIGHT - divH) + 'px;height:' + divH + 'px;background:' + divColor + ';border-top:' + divH + 'px ' + divStyle + ' ' + divColor + ';"></div>';
+                }
 
                 if (task.milestones) {
                     var placedMilestones = []; 

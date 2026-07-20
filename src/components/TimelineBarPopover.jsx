@@ -153,6 +153,90 @@ function TimelineBarPopover({ position, task, clickedDate, clickedRangeId, succe
                                     </div>
                                 </div>
 
+                                {/* 기간 레이블 표시 옵션 */}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px', padding: '6px 8px', background: 'var(--color-bg-secondary)', borderRadius: '4px' }}>
+                                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: '#666', cursor: 'pointer', userSelect: 'none' }}>
+                                        <input
+                                            type="checkbox"
+                                            checked={range.showDurationLabel !== false}
+                                            onChange={(e) => {
+                                                const newRanges = task.timeRanges.map(r =>
+                                                    r.id === range.id ? { ...r, showDurationLabel: e.target.checked } : r
+                                                );
+                                                onUpdate(task.id, { timeRanges: newRanges });
+                                            }}
+                                            style={{ cursor: 'pointer' }}
+                                        />
+                                        기간 레이블 표시
+                                    </label>
+                                    {range.showDurationLabel !== false && (
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginLeft: 'auto' }}>
+                                            <span style={{ fontSize: '11px', color: '#666' }}>위치:</span>
+                                            {[
+                                                { value: 'above', label: '위' },
+                                                { value: 'below', label: '아래' },
+                                                { value: 'inside', label: '내부' },
+                                            ].map(opt => (
+                                                <button
+                                                    key={opt.value}
+                                                    onClick={() => {
+                                                        const newRanges = task.timeRanges.map(r =>
+                                                            r.id === range.id ? { ...r, durationLabelPosition: opt.value } : r
+                                                        );
+                                                        onUpdate(task.id, { timeRanges: newRanges });
+                                                    }}
+                                                    style={{
+                                                        padding: '2px 6px',
+                                                        fontSize: '11px',
+                                                        border: '1px solid',
+                                                        borderRadius: '3px',
+                                                        cursor: 'pointer',
+                                                        borderColor: (range.durationLabelPosition || 'above') === opt.value ? 'var(--color-primary)' : '#ccc',
+                                                        background: (range.durationLabelPosition || 'above') === opt.value ? 'var(--color-primary)' : 'white',
+                                                        color: (range.durationLabelPosition || 'above') === opt.value ? 'white' : '#555',
+                                                    }}
+                                                >
+                                                    {opt.label}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* 바 높이 오버라이드 */}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', padding: '6px 8px', background: 'var(--color-bg-secondary)', borderRadius: '4px' }}>
+                                    <span style={{ fontSize: '11px', color: '#666', whiteSpace: 'nowrap' }}>바 높이:</span>
+                                    {[
+                                        { value: null, label: '기본' },
+                                        { value: 16, label: 'S' },
+                                        { value: 20, label: 'M' },
+                                        { value: 24, label: 'L' },
+                                        { value: 28, label: 'XL' },
+                                    ].map(opt => (
+                                        <button
+                                            key={String(opt.value)}
+                                            onClick={() => {
+                                                const newRanges = task.timeRanges.map(r =>
+                                                    r.id === range.id ? { ...r, barHeight: opt.value } : r
+                                                );
+                                                onUpdate(task.id, { timeRanges: newRanges });
+                                            }}
+                                            style={{
+                                                padding: '2px 7px',
+                                                fontSize: '11px',
+                                                border: '1px solid',
+                                                borderRadius: '3px',
+                                                cursor: 'pointer',
+                                                borderColor: (range.barHeight ?? null) === opt.value ? 'var(--color-primary)' : '#ccc',
+                                                background: (range.barHeight ?? null) === opt.value ? 'var(--color-primary)' : 'white',
+                                                color: (range.barHeight ?? null) === opt.value ? 'white' : '#555',
+                                            }}
+                                        >
+                                            {opt.label}
+                                        </button>
+                                    ))}
+                                </div>
+
                                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                                     <div style={{ flex: 1 }}>
                                         <label style={{ fontSize: '11px', color: '#666', display: 'block', marginBottom: '2px' }}>시작일</label>

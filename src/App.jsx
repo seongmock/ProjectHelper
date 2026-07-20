@@ -1,64 +1,58 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { getSampleData, createNewTask, generateId, flattenTasks, migrateTaskData } from './utils/dataModel';
 import { storage } from './utils/storage';
 import { useUndoRedo } from './hooks/useUndoRedo';
+import { useToast } from './hooks/useToast';
 import Header from './components/Header';
 import Toolbar from './components/Toolbar';
 import TableView from './components/TableView';
 import TimelineView from './components/TimelineView';
-import TimelineBarPopover from './components/TimelineBarPopover'; // Import Popover
+import TimelineBarPopover from './components/TimelineBarPopover';
 import PromptGuideModal from './components/PromptGuideModal';
 import ImportExportModal from './components/ImportExportModal';
 import SaveLoadModal from './components/SaveLoadModal';
 import MilestoneQuickAdd from './components/MilestoneQuickAdd';
+import ToastContainer from './components/Toast';
 import { exportToHtml } from './utils/htmlExporter';
+import { getTheme } from './themes/index.js';
+import './themes/themes.css';
 import './App.css';
 
 function App() {
     // 뷰 모드: 'table', 'timeline', 'split'
     const [viewMode, setViewMode] = useState('timeline');
 
-    // 타임스케일 및 타임라인 설정: localStorage에서 초기화
-    const [timeScale, setTimeScale] = useState(() => {
-        const saved = storage.loadSettings();
-        return saved?.timeScale || 'monthly';
-    });
-    const [zoomLevel, setZoomLevel] = useState(() => {
-        const saved = storage.loadSettings();
-        return saved?.zoomLevel || 1.0;
-    });
-    const [showToday, setShowToday] = useState(() => {
-        const saved = storage.loadSettings();
-        return saved?.showToday !== undefined ? saved.showToday : true;
-    });
-    const [isCompact, setIsCompact] = useState(() => {
-        const saved = storage.loadSettings();
-        return saved?.isCompact || false;
-    });
-    const [showTaskNames, setShowTaskNames] = useState(() => {
-        const saved = storage.loadSettings();
-        return saved?.showTaskNames !== undefined ? saved.showTaskNames : true;
-    });
-    const [snapEnabled, setSnapEnabled] = useState(() => {
-        const saved = storage.loadSettings();
-        return saved?.snapEnabled !== undefined ? saved.snapEnabled : true;
-    });
-    const [showBarLabels, setShowBarLabels] = useState(() => {
-        const saved = storage.loadSettings();
-        return saved?.showBarLabels !== undefined ? saved.showBarLabels : false;
-    });
-    const [showBarDates, setShowBarDates] = useState(() => {
-        const saved = storage.loadSettings();
-        return saved?.showBarDates !== undefined ? saved.showBarDates : false;
-    });
+    // Toast 알림
+    const { toasts, toast, removeToast } = useToast();
+
+    // 서버 로드 완료 전 로딩 상태
+    const [isLoading, setIsLoading] = useState(true);
+
+    // 설정 (localStorage 캐시에서 즉시 초기화, 서버 로드 후 갱신)
+    const loadSettingsSync = () => {
+        try {
+            const item = localStorage.getItem('project-timeline-settings');
+            return item ? JSON.parse(item) : null;
+        } catch { return null; }
+    };
+    const [timeScale, setTimeScale] = useState(() => loadSettingsSync()?.timeScale || 'monthly');
+    const [zoomLevel, setZoomLevel] = useState(() => loadSettingsSync()?.zoomLevel || 1.0);
+    const [showToday, setShowToday] = useState(() => loadSettingsSync()?.showToday ?? true);
+    const [isCompact, setIsCompact] = useState(() => loadSettingsSync()?.isCompact || false);
+    const [showTaskNames, setShowTaskNames] = useState(() => loadSettingsSync()?.showTaskNames ?? true);
+    const [snapEnabled, setSnapEnabled] = useState(() => loadSettingsSync()?.snapEnabled ?? true);
+    const [showBarLabels, setShowBarLabels] = useState(() => loadSettingsSync()?.showBarLabels ?? false);
+    const [showBarDates, setShowBarDates] = useState(() => loadSettingsSync()?.showBarDates ?? false);
+
+    // 차트 테마
+    const [chartTheme, setChartTheme] = useState(() => loadSettingsSync()?.chartTheme || 'default');
+    const themeConfig = getTheme(chartTheme);
 
     // 다크모드
     const [darkMode, setDarkMode] = useState(() => {
-        const saved = storage.loadSettings();
-        if (saved && saved.darkMode !== undefined) {
-            return saved.darkMode;
-        }
-        return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+        const saved = loadSettingsSync();
+        if (saved?.darkMode !== undefined) return saved.darkMode;
+        return window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false;
     });
 
     // 검색 쿼리
@@ -101,53 +95,63 @@ function App() {
     // 팝오버 닫기
     const closePopover = useCallback(() => setPopoverInfo(null), []);
 
-
-    // Wait, implementation plan said "Lift state". I need to act on it.
-    // If I don't lift MilestoneQuickAdd, then "Add Milestone" button in Popover won't work perfectly.
-    // However, requested feature is just "Show Task Settings Dialog".
-    // I can pass a dummy or keep it simple. 
-    // Actually, popover calls `onAddMilestone`. If I pass `null`, button might not work.
-    // Let's assume for now I only need basic settings. 
-    // BUT user expects "Task Settings" which includes "Add Milestone" button usually.
-    // Refactoring MilestoneQuickAdd is large. I will defer that specific action or make it simple prompt.
-    // Better: TimelineView usually handles this. If I click in TableView, maybe prompt?
-    // Let's implement basics first.
-
-
-    // 초기 데이터 로드
-    const getInitialData = () => {
-        const saved = storage.loadData();
-        if (!saved) return getSampleData();
-
-        let dataToLoad;
-
-        // 신버전 데이터 구조 (meta, data) 지원
-        if (saved.data && Array.isArray(saved.data)) {
-            dataToLoad = saved.data;
-        } else if (Array.isArray(saved)) { // 구버전 데이터 구조 (배열)
-            dataToLoad = saved;
-        } else {
-            return getSampleData();
-        }
-
-        return migrateTaskData(dataToLoad);
-    };
-
-    // 프로젝트 데이터 (실행 취소/다시 실행 지원)
+    // 초기 데이터 로드 (서버 우선 → localStorage 폴백 → 샘플)
     const {
         state: tasks,
         setState: setTasks,
-        setStateSilent: setTasksSilent, // 드래그 중 임시 업데이트용
+        setStateSilent: setTasksSilent,
         undo,
         redo,
         canUndo,
         canRedo,
-    } = useUndoRedo(getInitialData());
+    } = useUndoRedo(getSampleData()); // 서버 로드 전 임시 샘플
 
-    // localStorage에 자동 저장
     useEffect(() => {
-        storage.saveData(tasks);
-    }, [tasks]);
+        (async () => {
+            try {
+                const [serverData, serverSettings] = await Promise.all([
+                    storage.loadData(),
+                    storage.loadSettings(),
+                ]);
+
+                // 설정 적용
+                if (serverSettings) {
+                    if (serverSettings.timeScale) setTimeScale(serverSettings.timeScale);
+                    if (serverSettings.zoomLevel) setZoomLevel(serverSettings.zoomLevel);
+                    if (serverSettings.showToday !== undefined) setShowToday(serverSettings.showToday);
+                    if (serverSettings.isCompact !== undefined) setIsCompact(serverSettings.isCompact);
+                    if (serverSettings.showTaskNames !== undefined) setShowTaskNames(serverSettings.showTaskNames);
+                    if (serverSettings.snapEnabled !== undefined) setSnapEnabled(serverSettings.snapEnabled);
+                    if (serverSettings.showBarLabels !== undefined) setShowBarLabels(serverSettings.showBarLabels);
+                    if (serverSettings.showBarDates !== undefined) setShowBarDates(serverSettings.showBarDates);
+                    if (serverSettings.darkMode !== undefined) setDarkMode(serverSettings.darkMode);
+                    if (serverSettings.chartTheme) setChartTheme(serverSettings.chartTheme);
+                }
+
+                // 작업 데이터 적용
+                if (serverData) {
+                    let dataToLoad;
+                    if (serverData.data && Array.isArray(serverData.data)) {
+                        dataToLoad = serverData.data;
+                    } else if (Array.isArray(serverData)) {
+                        dataToLoad = serverData;
+                    }
+                    if (dataToLoad) setTasks(migrateTaskData(dataToLoad));
+                }
+            } finally {
+                setIsLoading(false);
+            }
+        })();
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // 자동 저장 — 1.5초 debounce (매 변경마다 서버 요청 방지)
+    useEffect(() => {
+        if (isLoading) return; // 초기 로드 중에는 저장하지 않음
+        const timer = setTimeout(() => {
+            storage.saveData(tasks);
+        }, 1500);
+        return () => clearTimeout(timer);
+    }, [tasks, isLoading]);
 
     // 다크모드 설정 저장
     // 다크모드 변경 시 DOM 적용
@@ -189,164 +193,85 @@ function App() {
             zoomLevel,
             showToday,
             isCompact,
-            isCompact,
             showTaskNames,
             snapEnabled,
             showBarLabels,
-            showBarDates
+            showBarDates,
+            chartTheme,
         });
-    }, [timeScale, zoomLevel, showToday, isCompact, showTaskNames, snapEnabled, showBarLabels, showBarDates]);
+    }, [timeScale, zoomLevel, showToday, isCompact, showTaskNames, snapEnabled, showBarLabels, showBarDates, chartTheme]);
 
-    // 키보드 단축키
-    useEffect(() => {
-        const handleKeyDown = (e) => {
-            // Ctrl+Z: 실행 취소
-            if (e.ctrlKey && e.key === 'z' && !e.shiftKey) {
-                e.preventDefault();
-                undo();
-            }
-            // Ctrl+Y or Ctrl+Shift+Z: 다시 실행
-            if ((e.ctrlKey && e.key === 'y') || (e.ctrlKey && e.shiftKey && e.key === 'z')) {
-                e.preventDefault();
-                redo();
-            }
-            // Ctrl+S: 내보내기
-            if (e.ctrlKey && e.key === 's') {
-                e.preventDefault();
-                handleExport();
-            }
-            // Ctrl+N: 새 작업 추가
-            if (e.ctrlKey && e.key === 'n') {
-                e.preventDefault();
-                handleAddTask();
-            }
-
-        };
-
-        window.addEventListener('keydown', handleKeyDown);
-        return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [undo, redo, selectedTaskId]);
+    // 테마 변경 핸들러
+    const handleThemeChange = useCallback((newTheme) => {
+        setChartTheme(newTheme);
+        storage.saveSettings({ chartTheme: newTheme });
+    }, []);
 
     // 작업 추가
     const handleAddTask = useCallback((parentId = null) => {
         const newTask = createNewTask('새 작업', parentId);
 
-        if (parentId) {
-            // 하위 작업 추가
-            const addToParent = (items) => {
-                return items.map(item => {
-                    if (item.id === parentId) {
-                        return {
-                            ...item,
-                            children: [...item.children, newTask],
-                            expanded: true,
-                        };
-                    }
-                    if (item.children.length > 0) {
-                        return {
-                            ...item,
-                            children: addToParent(item.children),
-                        };
-                    }
-                    return item;
-                });
-            };
-            setTasks(addToParent(tasks));
-        } else {
-            // 최상위 작업 추가
-            setTasks([...tasks, newTask]);
-        }
+        setTasks(prevTasks => {
+            if (parentId) {
+                const addToParent = (items) =>
+                    items.map(item => {
+                        if (item.id === parentId) {
+                            return { ...item, children: [...item.children, newTask], expanded: true };
+                        }
+                        if (item.children && item.children.length > 0) {
+                            return { ...item, children: addToParent(item.children) };
+                        }
+                        return item;
+                    });
+                return addToParent(prevTasks);
+            }
+            return [...prevTasks, newTask];
+        });
 
         setSelectedTaskId(newTask.id);
-    }, [tasks, setTasks]);
+    }, [setTasks]);
+
+    // 재귀적으로 특정 작업을 업데이트하는 헬퍼 (깊이 제한 없음)
+    const updateTaskInTree = useCallback((items, taskId, updates) => {
+        return items.map(task => {
+            if (task.id === taskId) {
+                return { ...task, ...updates };
+            }
+            if (task.children && task.children.length > 0) {
+                return { ...task, children: updateTaskInTree(task.children, taskId, updates) };
+            }
+            return task;
+        });
+    }, []);
 
     // 작업 업데이트
-    const handleUpdateTask = useCallback((taskId, updates, addToHistory = false) => {
-        const updateFunc = (prevTasks) => {
-            return prevTasks.map(task => {
-                if (task.id === taskId) {
-                    return { ...task, ...updates };
-                }
-                if (task.children) {
-                    return {
-                        ...task,
-                        children: task.children.map(child => {
-                            if (child.id === taskId) {
-                                return { ...child, ...updates };
-                            }
-                            if (child.children) {
-                                return {
-                                    ...child,
-                                    children: child.children.map(grandchild =>
-                                        grandchild.id === taskId ? { ...grandchild, ...updates } : grandchild
-                                    ),
-                                };
-                            }
-                            return child;
-                        }),
-                    };
-                }
-                return task;
-            });
-        };
-
-        // 드래그 중이든 완료든 항상 setTasks 사용
-        // 드래그 완료 시에만 실제 히스토리에 기록됨
-        setTasks(updateFunc);
-    }, [setTasks]);
+    const handleUpdateTask = useCallback((taskId, updates) => {
+        setTasks(prevTasks => updateTaskInTree(prevTasks, taskId, updates));
+    }, [setTasks, updateTaskInTree]);
 
     // 여러 작업 동시 업데이트 처리 (Undo/Redo를 위해 한 번의 상태 변경으로 처리)
-    const handleUpdateMultipleTasks = useCallback((updatesArray, addToHistory = true) => {
-        const updateFunc = (prevTasks) => {
-            let newTasks = [...prevTasks];
+    const handleUpdateMultipleTasks = useCallback((updatesArray) => {
+        setTasks(prevTasks => {
+            return updatesArray.reduce(
+                (acc, { taskId, updates }) => updateTaskInTree(acc, taskId, updates),
+                prevTasks
+            );
+        });
+    }, [setTasks, updateTaskInTree]);
 
-            updatesArray.forEach(({ taskId, updates }) => {
-                newTasks = newTasks.map(task => {
-                    if (task.id === taskId) {
-                        return { ...task, ...updates };
-                    }
-                    if (task.children) {
-                        return {
-                            ...task,
-                            children: updateSubtasks(task.children, taskId, updates)
-                        };
-                    }
-                    return task;
-                });
-            });
-            return newTasks;
-        };
-
-        // 재귀 업데이트 헬퍼
-        const updateSubtasks = (tasks, targetId, updates) => {
-            return tasks.map(task => {
-                if (task.id === targetId) {
-                    return { ...task, ...updates };
-                }
-                if (task.children) {
-                    return { ...task, children: updateSubtasks(task.children, targetId, updates) };
-                }
-                return task;
-            });
-        };
-
-        setTasks(updateFunc);
-    }, [setTasks]);
-
-    // 작업 삭제
+    // 작업 삭제 (불변 재귀 — 원본 객체 직접 변경 없음)
     const handleDeleteTask = useCallback((taskId) => {
-        const deleteTask = (items) => {
-            return items.filter(item => {
-                if (item.id === taskId) return false;
-                if (item.children.length > 0) {
-                    item.children = deleteTask(item.children);
-                }
-                return true;
-            });
-        };
-        setTasks(deleteTask(tasks));
+        const deleteFromTree = (items) =>
+            items
+                .filter(item => item.id !== taskId)
+                .map(item => ({
+                    ...item,
+                    children: deleteFromTree(item.children),
+                }));
+
+        setTasks(prev => deleteFromTree(prev));
         setSelectedTaskId(null);
-    }, [tasks, setTasks]);
+    }, [setTasks]);
 
     // 팝오버 액션 핸들러들 (순서 변경됨)
     const handlePopoverUpdate = useCallback((id, updates) => {
@@ -416,7 +341,7 @@ function App() {
                     return newItems;
                 }
 
-                if (items[i].children.length > 0) {
+                if (items[i].children && items[i].children.length > 0) {
                     const updatedChildren = indentTask(items[i].children);
                     if (updatedChildren !== items[i].children) {
                         return items.map((item, index) =>
@@ -437,7 +362,7 @@ function App() {
             if (items[i].id === taskId) {
                 return { task: items[i], parent, index: i, list: items };
             }
-            if (items[i].children.length > 0) {
+            if (items[i].children && items[i].children.length > 0) {
                 const result = findTaskAndParent(items[i].children, taskId, items[i]);
                 if (result) return result;
             }
@@ -464,7 +389,7 @@ function App() {
             // 따라서 재귀적으로 새로운 트리를 만들어야 함.
 
             // 하지만 복잡성을 줄이기 위해 deep clone 후 처리
-            const clonedTasks = JSON.parse(JSON.stringify(prevTasks));
+            const clonedTasks = structuredClone(prevTasks);
 
             // 클론된 데이터에서 다시 찾기
             const activeNode = findTaskAndParent(clonedTasks, activeId);
@@ -586,7 +511,7 @@ function App() {
                     newItems.splice(i, 1);
                     return newItems;
                 }
-                if (items[i].children.length > 0) {
+                if (items[i].children && items[i].children.length > 0) {
                     const updatedChildren = removeTask(items[i].children);
                     if (updatedChildren !== items[i].children) {
                         return items.map((item, index) =>
@@ -624,7 +549,7 @@ function App() {
                     return { found: true, task: items[i], index: i };
                 }
 
-                if (items[i].children.length > 0) {
+                if (items[i].children && items[i].children.length > 0) {
                     const result = outdentTaskRecursive(items[i].children, items[i]);
 
                     // 자식에서 찾았고, 결과가 배열이 아니라 객체라면 (작업을 찾음)
@@ -702,29 +627,28 @@ function App() {
 
     // HTML 내보내기
     const handleHtmlExport = useCallback(() => {
-        const currentTasks = tasks; // Current state
         const settings = {
             darkMode,
             dayWidth: zoomLevel * 40,
             showToday,
             showBarLabels,
             showBarDates,
-            showTaskNames, // Add showTaskNames
+            showTaskNames,
             timeScale,
-            isCompact // Add isCompact
+            isCompact,
+            chartTheme,
         };
 
-        const htmlContent = exportToHtml(currentTasks, settings);
+        const htmlContent = exportToHtml(tasks, settings);
 
         navigator.clipboard.writeText(htmlContent)
             .then(() => {
-                alert('HTML 코드가 클립보드에 복사되었습니다! 원하는 곳에 붙여넣으세요.');
+                toast.success('HTML 코드가 클립보드에 복사되었습니다!');
             })
-            .catch(err => {
-                console.error('클립보드 복사 실패:', err);
-                alert('클립보드 복사에 실패했습니다.');
+            .catch(() => {
+                toast.error('클립보드 복사에 실패했습니다.');
             });
-    }, [tasks, darkMode, zoomLevel, showToday, showBarLabels, showBarDates, timeScale, isCompact]);
+    }, [tasks, darkMode, zoomLevel, showToday, showBarLabels, showBarDates, timeScale, isCompact, toast]);
 
     // 스냅샷 내보내기 핸들러
     const handleSnapshotExport = useCallback((snapshot) => {
@@ -742,20 +666,16 @@ function App() {
         setIeModalMode('EXPORT');
     }, [viewMode, timeScale, zoomLevel, showToday, isCompact, showTaskNames, darkMode, snapEnabled]);
 
-    // 가져오기
     // 가져오기 데이터 처리 공통 로직
     const processImportedData = useCallback((importedData, isMerge = false) => {
         try {
             let newTasks = [];
 
             if (Array.isArray(importedData)) {
-                // 구버전 호환 (배열인 경우) OR 스냅샷 데이터 (tasks 배열만 저장됨)
                 newTasks = importedData;
             } else if (importedData.data && Array.isArray(importedData.data)) {
-                // 신버전 (메타데이터 포함)
                 newTasks = importedData.data;
 
-                // 덮어쓰기 모드일 때만 뷰 설정 복원
                 if (!isMerge && importedData.meta && importedData.meta.viewSettings) {
                     const settings = importedData.meta.viewSettings;
                     if (settings.viewMode) setViewMode(settings.viewMode);
@@ -775,19 +695,14 @@ function App() {
             }
 
             if (isMerge) {
-                // 병합 모드: ID 재생성 후 추가
                 const regenerateIds = (items) => {
                     return items.map(item => {
                         const newId = generateId();
-                        // 자식들도 재귀적으로 ID 변경
                         const newChildren = item.children ? regenerateIds(item.children) : [];
-
-                        // 마일스톤 ID도 변경
                         const newMilestones = item.milestones ? item.milestones.map(ms => ({
                             ...ms,
                             id: generateId()
                         })) : [];
-
                         return {
                             ...item,
                             id: newId,
@@ -800,50 +715,66 @@ function App() {
 
                 const processedTasks = regenerateIds(newTasks);
                 setTasks(prev => [...prev, ...processedTasks]);
-                alert('데이터가 성공적으로 병합되었습니다.');
             } else {
-                // 덮어쓰기 모드
                 setTasks(newTasks);
-                // 스냅샷 로드 시에는 알림 생략 가능하지만 일단 표시 (사용자 피드백)
-                // alert('데이터를 성공적으로 가져왔습니다.'); 
             }
         } catch (error) {
             console.error('Failed to process data:', error);
-            alert('데이터 처리 중 오류가 발생했습니다.');
+            toast.error('데이터 처리 중 오류가 발생했습니다.');
         }
-    }, [setViewMode, setTimeScale, setZoomLevel, setShowToday, setIsCompact, setShowTaskNames, setSnapEnabled, setDarkMode, setTasks]);
+    }, [setViewMode, setTimeScale, setZoomLevel, setShowToday, setIsCompact, setShowTaskNames, setSnapEnabled, setDarkMode, setTasks, toast]);
 
     // 가져오기 (파일)
     const handleImport = useCallback((file, isMerge = false) => {
         storage.importData(file)
             .then(importedData => {
                 processImportedData(importedData, isMerge);
-                alert(isMerge ? '데이터가 성공적으로 병합되었습니다.' : '데이터를 성공적으로 가져왔습니다.');
+                toast.success(isMerge ? '데이터가 성공적으로 병합되었습니다.' : '데이터를 성공적으로 가져왔습니다.');
             })
             .catch(error => {
                 console.error('Failed to import data:', error);
-                alert('데이터 가져오기에 실패했습니다.');
+                toast.error('데이터 가져오기에 실패했습니다.');
             });
-    }, [processImportedData]);
+    }, [processImportedData, toast]);
 
-    // 필터링된 작업 (검색어 적용)
-    const filteredTasks = useCallback(() => {
+    // 키보드 단축키 — handleExport/handleAddTask 선언 이후에 위치해야 TDZ 오류 방지
+    useEffect(() => {
+        const handleKeyDown = (e) => {
+            if (e.ctrlKey && e.key === 'z' && !e.shiftKey) {
+                e.preventDefault();
+                undo();
+            }
+            if ((e.ctrlKey && e.key === 'y') || (e.ctrlKey && e.shiftKey && e.key === 'z')) {
+                e.preventDefault();
+                redo();
+            }
+            if (e.ctrlKey && e.key === 's') {
+                e.preventDefault();
+                handleExport();
+            }
+            if (e.ctrlKey && e.key === 'n') {
+                e.preventDefault();
+                handleAddTask();
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [undo, redo, handleExport, handleAddTask]);
+
+    // 필터링된 작업 (검색어 적용) — split 모드에서 중복 계산 방지
+    const filteredTasks = useMemo(() => {
         if (!searchQuery.trim()) return tasks;
 
-        const filterTasks = (items) => {
-            return items.filter(item => {
-                const matchesSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase());
-                const hasMatchingChildren = item.children.length > 0 && filterTasks(item.children).length > 0;
-
-                if (matchesSearch || hasMatchingChildren) {
-                    return true;
-                }
-                return false;
-            }).map(item => ({
-                ...item,
-                children: filterTasks(item.children),
-            }));
-        };
+        const query = searchQuery.toLowerCase();
+        const filterTasks = (items) =>
+            items
+                .filter(item => {
+                    const matchesName = item.name.toLowerCase().includes(query);
+                    const matchesDesc = item.description && item.description.toLowerCase().includes(query);
+                    const hasMatchingChildren = item.children && item.children.length > 0 && filterTasks(item.children).length > 0;
+                    return matchesName || matchesDesc || hasMatchingChildren;
+                })
+                .map(item => ({ ...item, children: filterTasks(item.children || []) }));
 
         return filterTasks(tasks);
     }, [tasks, searchQuery]);
@@ -902,12 +833,20 @@ function App() {
                 onToggleBarLabels={() => setShowBarLabels(!showBarLabels)}
                 showBarDates={showBarDates}
                 onToggleBarDates={() => setShowBarDates(!showBarDates)}
+                chartTheme={chartTheme}
+                onThemeChange={handleThemeChange}
             />
 
             <div className="main-content">
+                {isLoading ? (
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1, color: 'var(--color-text-secondary)', fontSize: '15px', gap: '10px' }}>
+                        <span>⏳</span> 데이터 불러오는 중...
+                    </div>
+                ) : (
+                    <>
                 {(viewMode === 'table' || viewMode === 'split') && (
                     <TableView
-                        tasks={filteredTasks()}
+                        tasks={filteredTasks}
                         selectedTaskId={selectedTaskId}
                         onSelectTask={setSelectedTaskId}
                         onUpdateTask={handleUpdateTask}
@@ -926,7 +865,7 @@ function App() {
                 {(viewMode === 'timeline' || viewMode === 'split') && (
                     <TimelineView
                         ref={timelineRef}
-                        tasks={filteredTasks()}
+                        tasks={filteredTasks}
                         selectedTaskId={selectedTaskId}
                         onSelectTask={setSelectedTaskId}
                         onUpdateTask={handleUpdateTask}
@@ -939,7 +878,6 @@ function App() {
                         onContextMenu={handleContextMenu}
                         timeScale={timeScale}
                         viewMode={viewMode}
-                        // 상태 전달
                         zoomLevel={zoomLevel}
                         showToday={showToday}
                         isCompact={isCompact}
@@ -948,7 +886,11 @@ function App() {
                         showBarLabels={showBarLabels}
                         showBarDates={showBarDates}
                         onOpenMilestoneAdd={setMilestoneModalInfo}
+                        toast={toast}
+                        chartTheme={chartTheme}
                     />
+                )}
+                    </>
                 )}
             </div>
 
@@ -1096,6 +1038,7 @@ function App() {
             <PromptGuideModal
                 isOpen={isPromptGuideOpen}
                 onClose={() => setIsPromptGuideOpen(false)}
+                toast={toast}
             />
 
             {/* 저장/불러오기 모달 */}
@@ -1103,10 +1046,11 @@ function App() {
                 isOpen={isSaveLoadModalOpen}
                 onClose={() => setIsSaveLoadModalOpen(false)}
                 onLoad={(data) => {
-                    processImportedData(data, false); // Load snapshot (overwrite)
+                    processImportedData(data, false);
                 }}
-                currentData={tasks} // Save current tasks
+                currentData={tasks}
                 onExportSnapshot={handleSnapshotExport}
+                toast={toast}
             />
             <ImportExportModal
                 isOpen={!!ieModalMode}
@@ -1118,7 +1062,11 @@ function App() {
                 onImport={handleImport}
                 onExport={handleExport}
                 currentData={ieModalMode === 'EXPORT' ? (customExportData || getExportDataObject()) : null}
+                toast={toast}
             />
+
+            {/* 토스트 알림 */}
+            <ToastContainer toasts={toasts} onRemove={removeToast} />
         </div>
     );
 }

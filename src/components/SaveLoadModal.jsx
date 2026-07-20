@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { storage } from '../utils/storage';
-import './Modal.css'; // Reusing Modal CSS
+import './Modal.css';
 
-function SaveLoadModal({ isOpen, onClose, onLoad, currentData, onExportSnapshot }) {
+function SaveLoadModal({ isOpen, onClose, onLoad, currentData, onExportSnapshot, toast }) {
     const [snapshots, setSnapshots] = useState([]);
     const [saveName, setSaveName] = useState('');
 
@@ -13,54 +13,58 @@ function SaveLoadModal({ isOpen, onClose, onLoad, currentData, onExportSnapshot 
         }
     }, [isOpen]);
 
-    const loadSnapshots = () => {
-        setSnapshots(storage.loadSnapshots());
+    const loadSnapshots = async () => {
+        const data = await storage.loadSnapshots();
+        setSnapshots(data || []);
     };
 
-    const handleSave = () => {
+    const handleSave = async () => {
         if (!saveName.trim()) {
-            alert('저장할 이름을 입력해주세요.');
+            toast.warn('저장할 이름을 입력해주세요.');
             return;
         }
 
-        // 중복 이름 체크
         const existing = snapshots.find(s => s.name === saveName.trim());
         if (existing) {
             if (window.confirm(`'${saveName}' 이름의 프로젝트가 이미 존재합니다. 덮어쓰시겠습니까?`)) {
-                if (storage.updateSnapshot(existing.id, currentData)) {
-                    loadSnapshots();
+                const ok = await storage.updateSnapshot(existing.id, currentData);
+                if (ok) {
+                    await loadSnapshots();
                     setSaveName(`Backup ${new Date().toLocaleString()}`);
-                    alert('업데이트되었습니다.');
+                    toast.success('업데이트되었습니다.');
                 } else {
-                    alert('저장 실패.');
+                    toast.error('저장 실패.');
                 }
             }
             return;
         }
 
-        if (storage.saveSnapshot(saveName, currentData)) {
-            loadSnapshots();
+        const ok = await storage.saveSnapshot(saveName, currentData);
+        if (ok) {
+            await loadSnapshots();
             setSaveName(`Backup ${new Date().toLocaleString()}`);
+            toast.success('저장되었습니다.');
         } else {
-            alert('저장에 실패했습니다 (용량 부족 등).');
+            toast.error('저장에 실패했습니다 (용량 부족 등).');
         }
     };
 
-    const handleOverwrite = (id, name) => {
+    const handleOverwrite = async (id, name) => {
         if (window.confirm(`'${name}' 프로젝트를 현재 상태로 덮어쓰시겠습니까?`)) {
-            if (storage.updateSnapshot(id, currentData)) {
-                loadSnapshots();
-                alert('업데이트되었습니다.');
+            const ok = await storage.updateSnapshot(id, currentData);
+            if (ok) {
+                await loadSnapshots();
+                toast.success('업데이트되었습니다.');
             } else {
-                alert('업데이트 실패.');
+                toast.error('업데이트 실패.');
             }
         }
     };
 
-    const handleDelete = (id) => {
+    const handleDelete = async (id) => {
         if (window.confirm('정말 삭제하시겠습니까?')) {
-            storage.deleteSnapshot(id);
-            loadSnapshots();
+            await storage.deleteSnapshot(id);
+            await loadSnapshots();
         }
     };
 

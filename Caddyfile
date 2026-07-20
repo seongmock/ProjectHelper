@@ -1,13 +1,22 @@
 
 :80 {
-    # Redirect all HTTP to HTTPS
     redir https://{host}{uri}
 }
 
 :443 {
-    # Proxy to app
     tls internal {
         on_demand
     }
-    reverse_proxy project-management-app:80
+
+    basicauth {
+        moggging $2a$14$OvcRuysiWbXKniyOnuh.f.7UMpulXgIw6p/Q4tohZ.7/cgqe.cAea
+    }
+
+    handle /api/* {
+        reverse_proxy project-helper-api:3000
+    }
+
+    handle {
+        reverse_proxy project-management-app:80
+    }
 }

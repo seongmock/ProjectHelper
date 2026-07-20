@@ -147,18 +147,18 @@
     transform: translateX(-50%) scale(1.05);
 }
 
-/* 레벨별 여백 */
+/* 레벨별 바 높이: 모든 테마 공통 24/20/16px */
 .timeline-row.level-0 .timeline-bar {
-    height: 32px;
+    height: 24px;
 }
 
 .timeline-row.level-1 .timeline-bar {
-    height: 28px;
+    height: 20px;
     opacity: 0.95;
 }
 
 .timeline-row.level-2 .timeline-bar {
-    height: 24px;
+    height: 16px;
     opacity: 0.9;
 }
 

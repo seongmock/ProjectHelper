@@ -2,26 +2,41 @@ version: '3'
 
 services:
   project-management-app:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
     container_name: project-management-app
     restart: always
     expose:
       - "80"
+
+  project-helper-api:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: project-helper-api
+    restart: always
+    expose:
+      - "3000"
+    volumes:
+      - api_data:/app/data
 
   caddy:
     image: caddy:2-alpine
     container_name: caddy-https
     restart: unless-stopped
     ports:
-      - "80:80" # HTTP Redirect
-      - "443:443" # HTTPS
+      - "80:80"
+      - "443:443"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile
       - caddy_data:/data
       - caddy_config:/config
     depends_on:
       - project-management-app
+      - project-helper-api
 
 volumes:
   caddy_data:
   caddy_config:
+  api_data:

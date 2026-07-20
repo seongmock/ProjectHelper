@@ -106,8 +106,9 @@ export const migrateTaskData = (tasks) => {
             newTask.dependencies = [];
         }
 
-        // 자식들도 재귀적으로 마이그레이션
-        if (newTask.children && newTask.children.length > 0) {
+        // 자식들도 재귀적으로 마이그레이션 (children 없으면 빈 배열 보장)
+        if (!newTask.children) newTask.children = [];
+        if (newTask.children.length > 0) {
             newTask.children = migrateTaskData(newTask.children);
         }
 

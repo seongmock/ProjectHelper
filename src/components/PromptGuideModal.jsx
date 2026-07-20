@@ -114,12 +114,13 @@ const PROMPTS = [
     }
 ];
 
-function PromptGuideModal({ isOpen, onClose }) {
+function PromptGuideModal({ isOpen, onClose, toast }) {
     if (!isOpen) return null;
 
     const handleCopy = (text) => {
-        navigator.clipboard.writeText(text);
-        alert('프롬프트가 복사되었습니다! 📋');
+        navigator.clipboard.writeText(text)
+            .then(() => toast.success('프롬프트가 복사되었습니다! 📋'))
+            .catch(() => toast.error('복사에 실패했습니다.'));
     };
 
     return (

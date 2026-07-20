@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import './ImportExportModal.css';
 
-function ImportExportModal({ isOpen, onClose, mode, onImport, onExport, currentData }) {
+function ImportExportModal({ isOpen, onClose, mode, onImport, onExport, currentData, toast }) {
     const [activeTab, setActiveTab] = useState('file'); // 'file' | 'text'
     const [jsonText, setJsonText] = useState('');
     const [isMerge, setIsMerge] = useState(false);
@@ -41,22 +41,19 @@ function ImportExportModal({ isOpen, onClose, mode, onImport, onExport, currentD
     const handleTextImport = () => {
         try {
             const parsed = JSON.parse(jsonText);
-            // 가상의 파일 객체처럼 래핑하거나 데이터를 직접 전달
-            // 여기서는 App.jsx의 handleImport가 file 객체를 기대하므로,
-            // JSON 데이터를 직접 처리하는 로직을 분리하거나, Blob으로 변환하여 전달
             const blob = new Blob([jsonText], { type: 'application/json' });
             const file = new File([blob], 'pasted_data.json', { type: 'application/json' });
             onImport(file, isMerge);
             onClose();
         } catch (err) {
-            alert('유효하지 않은 JSON 형식입니다.\n' + err.message);
+            toast.error('유효하지 않은 JSON 형식입니다: ' + err.message);
         }
     };
 
     const handleCopy = () => {
         navigator.clipboard.writeText(jsonText)
-            .then(() => alert('JSON 데이터가 클립보드에 복사되었습니다.'))
-            .catch(err => alert('복사 실패: ' + err));
+            .then(() => toast.success('JSON 데이터가 클립보드에 복사되었습니다.'))
+            .catch(err => toast.error('복사 실패: ' + err));
     };
 
     return (
