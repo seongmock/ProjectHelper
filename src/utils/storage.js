@@ -10,6 +10,9 @@ const SETTINGS_KEY = 'project-timeline-settings';
 const SNAPSHOTS_KEY = 'project-timeline-snapshots';
 const API_BASE = '/api';
 
+// 서버 데이터 리비전 추적 — 외부(AI API 등) 변경 감지 및 충돌 검출용
+let knownRevision = null;
+
 // ── 내부 헬퍼 ──────────────────────────────────────────────────────────────
 
 const localGet = (key) => {
@@ -29,10 +32,14 @@ const localSet = (key, value) => {
 
 const apiFetch = async (path, options = {}) => {
     const res = await fetch(API_BASE + path, {
-        headers: { 'Content-Type': 'application/json' },
         ...options,
+        headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
     });
-    if (!res.ok) throw new Error(`API ${path} failed: ${res.status}`);
+    if (!res.ok) {
+        const err = new Error(`API ${path} failed: ${res.status}`);
+        err.status = res.status;
+        throw err;
+    }
     return res.json();
 };
 
@@ -43,6 +50,7 @@ export const storage = {
     loadData: async () => {
         try {
             const res = await apiFetch('/data');
+            if (res.revision !== undefined) knownRevision = res.revision;
             if (res.data) {
                 localSet(STORAGE_KEY, res.data); // 캐시 갱신
                 return res.data;
@@ -53,12 +61,37 @@ export const storage = {
         return localGet(STORAGE_KEY);
     },
 
-    // 프로젝트 데이터 저장 (localStorage 즉시 + 서버 비동기)
-    saveData: (data) => {
+    // 프로젝트 데이터 저장 (localStorage 즉시 + 서버 If-Match 저장)
+    // 반환: { ok } | { ok:false, conflict:true } — 409면 외부(AI 등)에서 먼저 수정한 것
+    saveData: async (data) => {
         localSet(STORAGE_KEY, data);
-        apiFetch('/data', { method: 'POST', body: JSON.stringify(data) })
-            .catch(e => console.warn('서버 저장 실패 (로컬 유지):', e));
+        try {
+            const res = await apiFetch('/data', {
+                method: 'POST',
+                headers: knownRevision != null ? { 'If-Match': String(knownRevision) } : {},
+                body: JSON.stringify(data),
+            });
+            if (res.revision !== undefined) knownRevision = res.revision;
+            return { ok: true };
+        } catch (e) {
+            if (e.status === 409) return { ok: false, conflict: true };
+            console.warn('서버 저장 실패 (로컬 유지):', e);
+            return { ok: false };
+        }
     },
+
+    // 현재 서버 리비전 조회 (폴링용, 실패 시 null)
+    fetchRevision: async () => {
+        try {
+            const res = await apiFetch('/revision');
+            return res.revision ?? null;
+        } catch {
+            return null;
+        }
+    },
+
+    // 마지막으로 알고 있는 리비전
+    getKnownRevision: () => knownRevision,
 
     // 설정 로드 (서버 우선 → localStorage 폴백)
     loadSettings: async () => {
@@ -107,14 +140,16 @@ export const storage = {
         return new Promise((resolve, reject) => {
             const reader = new FileReader();
             reader.onload = (e) => {
-                try { 
+                try {
                     const parsed = JSON.parse(e.target.result);
-                    console.log('📥 Import data:', parsed);
-                    if (!parsed.tasks || !Array.isArray(parsed.tasks)) {
-                        reject(new Error('Invalid format: expected { tasks: [...] }'));
+                    // 허용 형식: 배열(bare tasks) 또는 { data: [...] } (내보내기 형식)
+                    const isValid = Array.isArray(parsed) ||
+                        (parsed && Array.isArray(parsed.data));
+                    if (!isValid) {
+                        reject(new Error('Invalid format: expected an array or { data: [...] }'));
                         return;
                     }
-                    resolve(parsed); 
+                    resolve(parsed);
                 }
                 catch (error) { 
                     console.error('Import parse error:', error);

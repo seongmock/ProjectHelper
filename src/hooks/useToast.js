@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 
 let idCounter = 0;
 
@@ -13,12 +13,13 @@ export const useToast = () => {
         }, duration);
     }, []);
 
-    const toast = {
+    // effect 의존성으로 쓰일 수 있으므로 참조 안정성 유지
+    const toast = useMemo(() => ({
         success: (msg, duration) => addToast(msg, 'success', duration),
         error: (msg, duration) => addToast(msg, 'error', duration),
         info: (msg, duration) => addToast(msg, 'info', duration),
         warn: (msg, duration) => addToast(msg, 'warn', duration),
-    };
+    }), [addToast]);
 
     const removeToast = useCallback((id) => {
         setToasts(prev => prev.filter(t => t.id !== id));

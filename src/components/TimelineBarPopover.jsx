@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useLayoutEffect } from 'react';
+import { recalcTaskBoundsSafe } from '../utils/taskTree';
 import './TimelineBarPopover.css';
 import ColorPicker from './ColorPicker';
 
@@ -249,25 +250,9 @@ function TimelineBarPopover({ position, task, clickedDate, clickedRangeId, succe
 
                                                 if (targetIndex !== -1) {
                                                     originalRanges[targetIndex] = { ...originalRanges[targetIndex], startDate: e.target.value };
-
-                                                    // Determine overall start/end
-                                                    const allStarts = originalRanges.map(r => new Date(r.startDate).getTime()).filter(t => !isNaN(t));
-                                                    const allEnds = originalRanges.map(r => new Date(r.endDate).getTime()).filter(t => !isNaN(t));
-
-                                                    let minStartStr = '';
-                                                    let maxEndStr = '';
-
-                                                    if (allStarts.length > 0) {
-                                                        minStartStr = new Date(Math.min(...allStarts)).toISOString().split('T')[0];
-                                                    }
-                                                    if (allEnds.length > 0) {
-                                                        maxEndStr = new Date(Math.max(...allEnds)).toISOString().split('T')[0];
-                                                    }
-
                                                     onUpdate(task.id, {
                                                         timeRanges: originalRanges,
-                                                        startDate: minStartStr,
-                                                        endDate: maxEndStr
+                                                        ...recalcTaskBoundsSafe(originalRanges),
                                                     });
                                                 }
                                             }}
@@ -285,25 +270,9 @@ function TimelineBarPopover({ position, task, clickedDate, clickedRangeId, succe
 
                                                 if (targetIndex !== -1) {
                                                     originalRanges[targetIndex] = { ...originalRanges[targetIndex], endDate: e.target.value };
-
-                                                    // Determine overall start/end
-                                                    const allStarts = originalRanges.map(r => new Date(r.startDate).getTime()).filter(t => !isNaN(t));
-                                                    const allEnds = originalRanges.map(r => new Date(r.endDate).getTime()).filter(t => !isNaN(t));
-
-                                                    let minStartStr = '';
-                                                    let maxEndStr = '';
-
-                                                    if (allStarts.length > 0) {
-                                                        minStartStr = new Date(Math.min(...allStarts)).toISOString().split('T')[0];
-                                                    }
-                                                    if (allEnds.length > 0) {
-                                                        maxEndStr = new Date(Math.max(...allEnds)).toISOString().split('T')[0];
-                                                    }
-
                                                     onUpdate(task.id, {
                                                         timeRanges: originalRanges,
-                                                        startDate: minStartStr,
-                                                        endDate: maxEndStr
+                                                        ...recalcTaskBoundsSafe(originalRanges),
                                                     });
                                                 }
                                             }}
@@ -326,23 +295,9 @@ function TimelineBarPopover({ position, task, clickedDate, clickedRangeId, succe
                                                         endDate: ''
                                                     });
                                                 } else {
-                                                    const allStarts = newRanges.map(r => new Date(r.startDate).getTime()).filter(t => !isNaN(t));
-                                                    const allEnds = newRanges.map(r => new Date(r.endDate).getTime()).filter(t => !isNaN(t));
-
-                                                    let minStartStr = '';
-                                                    let maxEndStr = '';
-
-                                                    if (allStarts.length > 0) {
-                                                        minStartStr = new Date(Math.min(...allStarts)).toISOString().split('T')[0];
-                                                    }
-                                                    if (allEnds.length > 0) {
-                                                        maxEndStr = new Date(Math.max(...allEnds)).toISOString().split('T')[0];
-                                                    }
-
                                                     onUpdate(task.id, {
                                                         timeRanges: newRanges,
-                                                        startDate: minStartStr,
-                                                        endDate: maxEndStr
+                                                        ...recalcTaskBoundsSafe(newRanges)
                                                     });
                                                 }
                                             }
@@ -570,12 +525,7 @@ function TimelineBarPopover({ position, task, clickedDate, clickedRangeId, succe
                                 if (newRanges.length === 0) {
                                     onUpdate(task.id, { timeRanges: [], startDate: '', endDate: '' });
                                 } else {
-                                    const allStarts = newRanges.map(r => new Date(r.startDate).getTime()).filter(t => !isNaN(t));
-                                    const allEnds = newRanges.map(r => new Date(r.endDate).getTime()).filter(t => !isNaN(t));
-                                    const minStart = allStarts.length > 0 ? new Date(Math.min(...allStarts)).toISOString().split('T')[0] : '';
-                                    const maxEnd = allEnds.length > 0 ? new Date(Math.max(...allEnds)).toISOString().split('T')[0] : '';
-
-                                    onUpdate(task.id, { timeRanges: newRanges, startDate: minStart, endDate: maxEnd });
+                                    onUpdate(task.id, { timeRanges: newRanges, ...recalcTaskBoundsSafe(newRanges) });
                                 }
                                 onClose();
                             }

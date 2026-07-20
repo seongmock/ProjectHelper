@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "project-helper": {
+      "command": "node",
+      "args": ["mcp/index.js"],
+      "env": {
+        "PH_API_BASE": "http://localhost:3000/api"
+      }
+    }
+  }
+}

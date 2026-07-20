@@ -936,11 +936,7 @@ export const exportToHtml = (tasks, settings = {}) => {
             // Draw SVG Lines 
             setTimeout(() => {
                 const width = elTimelineContent.offsetWidth || 1000;
-                console.log("ProjectHelper Debug: Exported Gantt Chart");
-                console.log("Timeline Content Width:", width);
-                console.log("Timeline Content Height:", elTimelineContent.offsetHeight); 
-                console.log("Connections to draw:", connections.length);
-                
+
                 let pathHtml = '';
                 connections.forEach(({src, tgt}) => {
                     const startX = (src.right / 100) * width;

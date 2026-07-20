@@ -1,44 +1,38 @@
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
+const store = require('./lib/store');
+const { router: tasksRouter, checkRevision } = require('./routes/tasks');
 
 const app = express();
 const PORT = 3000;
-const DATA_DIR = path.join(__dirname, 'data');
-
-// 데이터 디렉토리 초기화
-if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
-}
+const DATA_DIR = store.DATA_DIR;
 
 app.use(express.json({ limit: '10mb' }));
 
-// JSON 파일 읽기 헬퍼
-const readJson = (filename) => {
-    const filepath = path.join(DATA_DIR, filename);
-    if (!fs.existsSync(filepath)) return null;
-    try {
-        return JSON.parse(fs.readFileSync(filepath, 'utf-8'));
-    } catch {
-        return null;
-    }
-};
+// JSON 파일 읽기 헬퍼 (settings/snapshots — 리비전 무관 파일)
+const readJson = (filename) => store.readJsonSafe(path.join(DATA_DIR, filename));
+const writeJson = (filename, data) => store.writeJsonAtomic(path.join(DATA_DIR, filename), data);
 
-// JSON 파일 쓰기 헬퍼
-const writeJson = (filename, data) => {
-    const filepath = path.join(DATA_DIR, filename);
-    fs.writeFileSync(filepath, JSON.stringify(data), 'utf-8');
-};
-
-// ── 프로젝트 데이터 ──────────────────────────────────
+// ── 프로젝트 데이터 (통짜 블롭 — 하위호환 유지, 리비전 지원 추가) ──
 app.get('/api/data', (req, res) => {
-    const data = readJson('data.json');
-    res.json({ ok: true, data });
+    const tasks = store.readTasks();
+    res.json({ ok: true, data: tasks.length > 0 ? tasks : null, revision: store.readMeta().revision });
 });
 
 app.post('/api/data', (req, res) => {
-    writeJson('data.json', req.body);
-    res.json({ ok: true });
+    // If-Match 헤더가 있으면 리비전 검사 (없으면 기존처럼 무조건 쓰기)
+    if (!checkRevision(req, res)) return;
+    const meta = store.writeTasks(req.body);
+    res.json({ ok: true, revision: meta.revision });
+});
+
+// ── 작업 단위 CRUD + 리비전 API (AI 연동용) ─────────
+app.use('/api', tasksRouter);
+
+// ── OpenAPI 스펙 ─────────────────────────────────────
+app.get('/api/openapi.yaml', (req, res) => {
+    res.type('text/yaml').sendFile(path.join(__dirname, 'openapi.yaml'));
 });
 
 // ── 설정 ─────────────────────────────────────────────

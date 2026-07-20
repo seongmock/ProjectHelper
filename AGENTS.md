@@ -2,21 +2,26 @@
 
 ## 프로젝트 개요
 
-React 18 + Vite 기반의 **클라이언트 전용** 프로젝트 타임라인·간트 차트 관리 도구.
-백엔드 없음. 모든 데이터는 `localStorage`에 저장.
+React 18 + Vite 프론트엔드 + 소형 Express API(`server/`, JSON 파일 영속화) 구조의
+프로젝트 타임라인·간트 차트 관리 도구. 스토리지는 **localStorage 캐시 + 서버 동기화 하이브리드**
+(서버 없이도 localStorage 폴백으로 동작). AI 에이전트용 REST/MCP 연동 포함.
+
+> 상세: `docs/ARCHITECTURE.md` · AI 연동: `docs/AI_INTEGRATION.md` · 변경 이력: `docs/REFACTORING_REPORT.md`
 
 ---
 
 ## 빌드 / 개발 명령어
 
 ```bash
-npm run dev      # 개발 서버 (http://localhost:5173, Hot-Reload)
-npm run build    # 프로덕션 빌드 → dist/
-npm run preview  # 빌드 결과물 로컬 미리보기
+npm run dev       # 개발 서버 (http://localhost:5173, Hot-Reload, /api → :3000 프록시)
+npm run dev:api   # Express API 서버 (:3000) — 서버 동기화·AI 연동 기능에 필요
+npm run build     # 프로덕션 빌드 → dist/
+npm run test:e2e  # Playwright E2E (dev 서버 자동 기동, 16 테스트)
+npm run preview   # 빌드 결과물 로컬 미리보기
 ```
 
-> 테스트 프레임워크 및 린터는 현재 설정되지 않음.
-> 코드 변경 후 반드시 `npm run build`로 빌드 성공 여부 확인.
+> 린터는 설정되지 않음. **코드 변경 후 `npm run build` + `npx playwright test` 필수.**
+> AI 동기화 테스트 2건은 API 서버 미실행 시 자동 skip.
 
 ---
 
@@ -71,17 +76,43 @@ App.jsx (중앙 상태 관리)
 }
 ```
 
-### localStorage 키
+### 스토리지 (하이브리드)
 
-| 키 | 내용 |
+읽기: 서버(`/api/*`) 우선 → 실패 시 localStorage 폴백. 쓰기: localStorage 즉시 + 서버 전송(1.5s 디바운스).
+
+| localStorage 키 | 내용 |
 |---|---|
-| `project-timeline-data` | 활성 작업 트리 |
+| `project-timeline-data` | 활성 작업 트리 캐시 |
 | `project-timeline-settings` | UI 설정 (timeScale, zoomLevel, darkMode 등) |
-| `project-timeline-snapshots` | 이름 지정 저장 슬롯 배열 |
+| `project-timeline-snapshots` | 이름 지정 저장 슬롯 캐시 |
+
+서버 파일(`server/data/`): `data.json`(bare 배열) · `meta.json`(**revision** — 모든 변경마다 +1) ·
+`settings.json` · `snapshots.json`
+
+**동시성**: 브라우저는 저장 시 `If-Match: <revision>` 전송(409 시 서버 우선 재로드),
+10초마다 `GET /api/revision` 폴링으로 외부(AI) 변경을 자동 반영. 외부 재로드는
+`setTasksSilent`를 사용하므로 undo 히스토리를 오염시키지 않는다.
 
 ---
 
 ## 핵심 유틸리티
+
+### `src/utils/taskTree.js` — 트리 조작 순수 함수 (필수 사용)
+
+| 함수 | 역할 |
+|---|---|
+| `updateTaskInTree(items, id, updates)` | 재귀 불변 업데이트 |
+| `deleteFromTree(items, id)` | 자식 포함 삭제 |
+| `addToParent(items, parentId, task)` | 하위 작업 추가 (부모 자동 확장) |
+| `findTaskAndParent(items, id)` | `{task, parent, index, list}` 탐색 |
+| `indentTask` / `outdentTask` | 들여쓰기/내어쓰기 |
+| `isDescendant(parent, id)` | 순환 이동 방지 검사 |
+| `regenerateIds(items)` | 가져오기 병합 시 ID 재생성 |
+| `recalcTaskBounds(ranges)` / `recalcTaskBoundsSafe` | timeRanges → 전체 시작/종료일 |
+| `findOwnerOfEntity(flatList, id)` | task/range/milestone ID의 소유 작업 탐색 |
+
+> 트리 재귀를 컴포넌트 안에서 다시 구현하지 말 것.
+> ⚠️ `server/lib/taskTree.js`는 이 파일의 CommonJS 미러 — 시그니처 변경 시 함께 갱신.
 
 ### `src/utils/dataModel.js`
 
@@ -170,6 +201,13 @@ JSX에서 **함수 호출 `filteredTasks()`가 아닌 변수 참조 `filteredTas
 ---
 
 ## 동작 검증 방법
+
+### 자동 검증 (권장 — 수동 체크리스트 대부분을 커버)
+
+```bash
+npm run build        # 빌드 성공 확인
+npx playwright test  # E2E 16개 (스모크 14 + AI 동기화 2)
+```
 
 ### 빌드 검증
 

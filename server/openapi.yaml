@@ -1,0 +1,379 @@
+openapi: 3.0.3
+info:
+  title: ProjectHelper Timeline API
+  description: |
+    프로젝트 타임라인(간트 차트) 데이터를 조작하는 REST API.
+    AI 에이전트가 작업(Task) 단위로 일정을 읽고 수정할 수 있도록 설계됨.
+
+    ## 동시성 (리비전)
+    - 모든 변경 응답에 `revision`(정수)이 포함된다. 데이터가 바뀔 때마다 1씩 증가.
+    - 변경 요청에 `If-Match: <revision>` 헤더를 보내면 서버 리비전과 다를 때 409를 반환한다.
+    - 헤더를 생략하면 무조건 쓰기(last-write-wins) — 기존 클라이언트 하위호환.
+    - 브라우저 앱은 10초마다 `GET /api/revision`을 폴링해 외부 변경을 자동 반영한다.
+  version: 1.0.0
+servers:
+  - url: http://localhost:3000/api
+    description: 로컬 API 서버 (dev는 vite proxy 경유 :5173/api)
+  - url: https://{host}/api
+    description: Caddy HTTPS 프록시 (basicauth 필요)
+    variables:
+      host:
+        default: localhost
+
+components:
+  parameters:
+    IfMatch:
+      name: If-Match
+      in: header
+      required: false
+      schema: { type: string }
+      description: 기대하는 현재 리비전. 불일치 시 409.
+  schemas:
+    Error:
+      type: object
+      properties:
+        ok: { type: boolean, example: false }
+        error: { type: string }
+        revision: { type: integer }
+    TimeRange:
+      type: object
+      properties:
+        id: { type: string }
+        startDate: { type: string, format: date, example: "2026-07-21" }
+        endDate: { type: string, format: date }
+        dependencies:
+          type: array
+          items: { type: string }
+          description: 선행 엔티티 ID 목록 (range/milestone/task ID)
+        color: { type: string, nullable: true, example: "#4A90E2" }
+        label: { type: string }
+    Milestone:
+      type: object
+      properties:
+        id: { type: string }
+        date: { type: string, format: date }
+        label: { type: string }
+        color: { type: string, example: "#5CB85C" }
+        shape: { type: string, enum: [diamond, circle, triangle, square, star, flag] }
+    Task:
+      type: object
+      description: 재귀 트리 노드. 날짜 정보는 timeRanges가 원본이며 startDate/endDate는 파생 캐시.
+      properties:
+        id: { type: string, example: "task-1784537581275-fe7oo66" }
+        name: { type: string }
+        timeRanges:
+          type: array
+          items: { $ref: '#/components/schemas/TimeRange' }
+        color: { type: string }
+        description: { type: string }
+        children:
+          type: array
+          items: { $ref: '#/components/schemas/Task' }
+        expanded: { type: boolean }
+        labels:
+          type: array
+          items: { type: string }
+        parentId: { type: string, nullable: true }
+        milestones:
+          type: array
+          items: { $ref: '#/components/schemas/Milestone' }
+        dependencies:
+          type: array
+          items: { type: string }
+          description: 레거시 — 로드 시 첫 timeRange로 마이그레이션되어 항상 빈 배열
+        divider:
+          type: object
+          properties:
+            enabled: { type: boolean }
+            thickness: { type: integer }
+            style: { type: string }
+            color: { type: string }
+  responses:
+    NotFound:
+      description: 대상 없음
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    BadRequest:
+      description: 검증 실패
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Conflict:
+      description: 리비전 불일치 (If-Match)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+
+paths:
+  /revision:
+    get:
+      summary: 현재 데이터 리비전 조회 (폴링용)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  revision: { type: integer }
+                  updatedAt: { type: string, format: date-time }
+
+  /data:
+    get:
+      summary: 전체 작업 트리 조회 (통짜 블롭)
+      responses:
+        '200':
+          description: OK. 데이터 없으면 data=null
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  revision: { type: integer }
+                  data:
+                    type: array
+                    nullable: true
+                    items: { $ref: '#/components/schemas/Task' }
+    post:
+      summary: 전체 작업 트리 교체 (통짜 블롭 — 주의해서 사용)
+      parameters: [{ $ref: '#/components/parameters/IfMatch' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items: { $ref: '#/components/schemas/Task' }
+      responses:
+        '200': { description: 'OK { ok, revision }' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /tasks:
+    get:
+      summary: 작업 목록 (트리 또는 평탄화)
+      parameters:
+        - name: flat
+          in: query
+          schema: { type: string, enum: ['true'] }
+          description: '"true"면 children 없이 level/parentId가 붙은 평탄 목록'
+      responses:
+        '200':
+          description: '{ ok, revision, tasks }'
+    post:
+      summary: 작업 생성
+      parameters: [{ $ref: '#/components/parameters/IfMatch' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string }
+                parentId: { type: string, nullable: true }
+                position: { type: integer, description: 형제 내 삽입 위치 (기본 맨 뒤) }
+                startDate: { type: string, format: date, description: endDate와 함께 지정 시 첫 timeRange 생성 }
+                endDate: { type: string, format: date }
+                color: { type: string }
+                description: { type: string }
+                labels: { type: array, items: { type: string } }
+      responses:
+        '201': { description: '{ ok, revision, task }' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /tasks/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      summary: 작업 단건 조회
+      responses:
+        '200': { description: '{ ok, revision, task, parentId }' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      summary: 작업 필드 부분 수정 (name/color/description/expanded/labels/divider)
+      parameters: [{ $ref: '#/components/parameters/IfMatch' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+                color: { type: string }
+                description: { type: string }
+                expanded: { type: boolean }
+                labels: { type: array, items: { type: string } }
+                divider: { type: object }
+      responses:
+        '200': { description: '{ ok, revision, task }' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+    delete:
+      summary: 작업 삭제 (하위 작업 포함)
+      parameters: [{ $ref: '#/components/parameters/IfMatch' }]
+      responses:
+        '200': { description: '{ ok, revision }' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /tasks/{id}/move:
+    post:
+      summary: 작업 이동 (재부모화/순서 변경)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [parentId]
+              properties:
+                parentId: { type: string, nullable: true, description: null이면 루트 레벨 }
+                position: { type: integer }
+      responses:
+        '200': { description: '{ ok, revision, task }' }
+        '400': { description: 자기 서브트리로 이동 시 }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /tasks/{id}/time-ranges:
+    post:
+      summary: 기간(바) 추가 — 작업의 startDate/endDate 캐시 자동 재계산
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [startDate, endDate]
+              properties:
+                startDate: { type: string, format: date }
+                endDate: { type: string, format: date }
+                label: { type: string }
+                color: { type: string, nullable: true }
+                dependencies: { type: array, items: { type: string } }
+      responses:
+        '201': { description: '{ ok, revision, timeRange }' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /tasks/{id}/time-ranges/{rangeId}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string }
+      - name: rangeId
+        in: path
+        required: true
+        schema: { type: string }
+    patch:
+      summary: 기간 수정 (날짜/라벨/색/의존성)
+      parameters: [{ $ref: '#/components/parameters/IfMatch' }]
+      responses:
+        '200': { description: '{ ok, revision, timeRange }' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+    delete:
+      summary: 기간 삭제
+      parameters: [{ $ref: '#/components/parameters/IfMatch' }]
+      responses:
+        '200': { description: '{ ok, revision }' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /tasks/{id}/milestones:
+    post:
+      summary: 마일스톤 추가
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [date]
+              properties:
+                date: { type: string, format: date }
+                label: { type: string }
+                color: { type: string }
+                shape: { type: string, enum: [diamond, circle, triangle, square, star, flag] }
+      responses:
+        '201': { description: '{ ok, revision, milestone }' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /tasks/{id}/milestones/{milestoneId}:
+    delete:
+      summary: 마일스톤 삭제
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+        - name: milestoneId
+          in: path
+          required: true
+          schema: { type: string }
+        - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '200': { description: '{ ok, revision }' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /snapshots:
+    get:
+      summary: 스냅샷(이름 지정 백업) 목록
+      responses:
+        '200': { description: '{ ok, data: [{id, name, date, data}] }' }
+    post:
+      summary: 스냅샷 저장 (대량 편집 전 백업 권장)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, data]
+              properties:
+                name: { type: string }
+                data: { type: array, items: { $ref: '#/components/schemas/Task' } }
+      responses:
+        '200': { description: '{ ok, snapshot }' }
+
+  /health:
+    get:
+      summary: 헬스체크
+      responses:
+        '200': { description: '{ ok, time }' }

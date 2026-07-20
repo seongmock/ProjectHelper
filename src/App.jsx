@@ -1,5 +1,17 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { getSampleData, createNewTask, generateId, flattenTasks, migrateTaskData } from './utils/dataModel';
+import {
+    updateTaskInTree,
+    deleteFromTree,
+    addToParent,
+    findTaskAndParent,
+    isDescendant,
+    indentTask,
+    outdentTask,
+    regenerateIds,
+    recalcTaskBounds,
+    findOwnerOfEntity,
+} from './utils/taskTree';
 import { storage } from './utils/storage';
 import { useUndoRedo } from './hooks/useUndoRedo';
 import { useToast } from './hooks/useToast';
@@ -95,6 +107,22 @@ function App() {
     // 팝오버 닫기
     const closePopover = useCallback(() => setPopoverInfo(null), []);
 
+    // 뷰 설정 일괄 적용 (서버 로드/가져오기 공용) — 존재하는 필드만 반영
+    const applyViewSettings = useCallback((settings) => {
+        if (!settings) return;
+        if (settings.viewMode) setViewMode(settings.viewMode);
+        if (settings.timeScale) setTimeScale(settings.timeScale);
+        if (settings.zoomLevel) setZoomLevel(settings.zoomLevel);
+        if (settings.showToday !== undefined) setShowToday(settings.showToday);
+        if (settings.isCompact !== undefined) setIsCompact(settings.isCompact);
+        if (settings.showTaskNames !== undefined) setShowTaskNames(settings.showTaskNames);
+        if (settings.snapEnabled !== undefined) setSnapEnabled(settings.snapEnabled);
+        if (settings.showBarLabels !== undefined) setShowBarLabels(settings.showBarLabels);
+        if (settings.showBarDates !== undefined) setShowBarDates(settings.showBarDates);
+        if (settings.darkMode !== undefined) setDarkMode(settings.darkMode);
+        if (settings.chartTheme) setChartTheme(settings.chartTheme);
+    }, []);
+
     // 초기 데이터 로드 (서버 우선 → localStorage 폴백 → 샘플)
     const {
         state: tasks,
@@ -115,18 +143,7 @@ function App() {
                 ]);
 
                 // 설정 적용
-                if (serverSettings) {
-                    if (serverSettings.timeScale) setTimeScale(serverSettings.timeScale);
-                    if (serverSettings.zoomLevel) setZoomLevel(serverSettings.zoomLevel);
-                    if (serverSettings.showToday !== undefined) setShowToday(serverSettings.showToday);
-                    if (serverSettings.isCompact !== undefined) setIsCompact(serverSettings.isCompact);
-                    if (serverSettings.showTaskNames !== undefined) setShowTaskNames(serverSettings.showTaskNames);
-                    if (serverSettings.snapEnabled !== undefined) setSnapEnabled(serverSettings.snapEnabled);
-                    if (serverSettings.showBarLabels !== undefined) setShowBarLabels(serverSettings.showBarLabels);
-                    if (serverSettings.showBarDates !== undefined) setShowBarDates(serverSettings.showBarDates);
-                    if (serverSettings.darkMode !== undefined) setDarkMode(serverSettings.darkMode);
-                    if (serverSettings.chartTheme) setChartTheme(serverSettings.chartTheme);
-                }
+                applyViewSettings(serverSettings);
 
                 // 작업 데이터 적용
                 if (serverData) {
@@ -144,14 +161,51 @@ function App() {
         })();
     }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+    // 외부(AI API 등) 변경 재로드 직후 저장 에코 방지 플래그
+    const skipNextSaveRef = useRef(false);
+
+    // 서버 데이터를 히스토리 오염 없이 반영 (외부 변경 수신용)
+    const reloadFromServer = useCallback(async () => {
+        const fresh = await storage.loadData();
+        if (fresh) {
+            const data = Array.isArray(fresh) ? fresh : fresh.data;
+            if (Array.isArray(data)) {
+                skipNextSaveRef.current = true;
+                setTasksSilent(() => migrateTaskData(data));
+            }
+        }
+    }, [setTasksSilent]);
+
     // 자동 저장 — 1.5초 debounce (매 변경마다 서버 요청 방지)
+    // 409(리비전 충돌) 시 서버 우선 정책: 외부(AI) 변경을 다시 로드해 반영
     useEffect(() => {
         if (isLoading) return; // 초기 로드 중에는 저장하지 않음
-        const timer = setTimeout(() => {
-            storage.saveData(tasks);
+        if (skipNextSaveRef.current) {
+            skipNextSaveRef.current = false;
+            return;
+        }
+        const timer = setTimeout(async () => {
+            const result = await storage.saveData(tasks);
+            if (result?.conflict) {
+                toast.info('외부에서 데이터가 변경되어 최신 상태를 불러왔습니다.');
+                await reloadFromServer();
+            }
         }, 1500);
         return () => clearTimeout(timer);
-    }, [tasks, isLoading]);
+    }, [tasks, isLoading, reloadFromServer, toast]);
+
+    // 리비전 폴링 — 외부(AI API)가 데이터를 변경하면 10초 내 자동 반영
+    useEffect(() => {
+        if (isLoading) return;
+        const id = setInterval(async () => {
+            if (document.hidden) return; // 백그라운드 탭은 폴링 생략
+            const rev = await storage.fetchRevision();
+            if (rev != null && storage.getKnownRevision() != null && rev !== storage.getKnownRevision()) {
+                await reloadFromServer();
+            }
+        }, 10000);
+        return () => clearInterval(id);
+    }, [isLoading, reloadFromServer]);
 
     // 다크모드 설정 저장
     // 다크모드 변경 시 DOM 적용
@@ -164,8 +218,9 @@ function App() {
         const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
 
         const handleChange = (e) => {
-            const saved = storage.loadSettings();
             // 사용자 설정이 없을 때만 시스템 설정 따름
+            // (버그 수정: loadSettings()는 async — 동기 캐시를 읽어야 저장된 설정이 존중됨)
+            const saved = loadSettingsSync();
             if (!saved || saved.darkMode === undefined) {
                 setDarkMode(e.matches);
             }
@@ -185,10 +240,11 @@ function App() {
     }, []);
 
     // 타임라인 설정 저장
+    // (버그 수정: 초기 로드 중 기본값이 서버 설정을 덮어쓰는 레이스 방지 — isLoading 가드.
+    //  saveSettings가 내부에서 localStorage 캐시와 병합하므로 별도 로드 불필요)
     useEffect(() => {
-        const settings = storage.loadSettings() || {};
+        if (isLoading) return;
         storage.saveSettings({
-            ...settings,
             timeScale,
             zoomLevel,
             showToday,
@@ -199,7 +255,7 @@ function App() {
             showBarDates,
             chartTheme,
         });
-    }, [timeScale, zoomLevel, showToday, isCompact, showTaskNames, snapEnabled, showBarLabels, showBarDates, chartTheme]);
+    }, [isLoading, timeScale, zoomLevel, showToday, isCompact, showTaskNames, snapEnabled, showBarLabels, showBarDates, chartTheme]);
 
     // 테마 변경 핸들러
     const handleThemeChange = useCallback((newTheme) => {
@@ -211,43 +267,17 @@ function App() {
     const handleAddTask = useCallback((parentId = null) => {
         const newTask = createNewTask('새 작업', parentId);
 
-        setTasks(prevTasks => {
-            if (parentId) {
-                const addToParent = (items) =>
-                    items.map(item => {
-                        if (item.id === parentId) {
-                            return { ...item, children: [...item.children, newTask], expanded: true };
-                        }
-                        if (item.children && item.children.length > 0) {
-                            return { ...item, children: addToParent(item.children) };
-                        }
-                        return item;
-                    });
-                return addToParent(prevTasks);
-            }
-            return [...prevTasks, newTask];
-        });
+        setTasks(prevTasks =>
+            parentId ? addToParent(prevTasks, parentId, newTask) : [...prevTasks, newTask]
+        );
 
         setSelectedTaskId(newTask.id);
     }, [setTasks]);
 
-    // 재귀적으로 특정 작업을 업데이트하는 헬퍼 (깊이 제한 없음)
-    const updateTaskInTree = useCallback((items, taskId, updates) => {
-        return items.map(task => {
-            if (task.id === taskId) {
-                return { ...task, ...updates };
-            }
-            if (task.children && task.children.length > 0) {
-                return { ...task, children: updateTaskInTree(task.children, taskId, updates) };
-            }
-            return task;
-        });
-    }, []);
-
     // 작업 업데이트
     const handleUpdateTask = useCallback((taskId, updates) => {
         setTasks(prevTasks => updateTaskInTree(prevTasks, taskId, updates));
-    }, [setTasks, updateTaskInTree]);
+    }, [setTasks]);
 
     // 여러 작업 동시 업데이트 처리 (Undo/Redo를 위해 한 번의 상태 변경으로 처리)
     const handleUpdateMultipleTasks = useCallback((updatesArray) => {
@@ -257,25 +287,17 @@ function App() {
                 prevTasks
             );
         });
-    }, [setTasks, updateTaskInTree]);
+    }, [setTasks]);
 
     // 작업 삭제 (불변 재귀 — 원본 객체 직접 변경 없음)
     const handleDeleteTask = useCallback((taskId) => {
-        const deleteFromTree = (items) =>
-            items
-                .filter(item => item.id !== taskId)
-                .map(item => ({
-                    ...item,
-                    children: deleteFromTree(item.children),
-                }));
-
-        setTasks(prev => deleteFromTree(prev));
+        setTasks(prev => deleteFromTree(prev, taskId));
         setSelectedTaskId(null);
     }, [setTasks]);
 
     // 팝오버 액션 핸들러들 (순서 변경됨)
     const handlePopoverUpdate = useCallback((id, updates) => {
-        handleUpdateTask(id, updates, true);
+        handleUpdateTask(id, updates);
     }, [handleUpdateTask]);
 
     const handlePopoverDelete = useCallback((id) => {
@@ -319,56 +341,8 @@ function App() {
 
     // 작업 들여쓰기 (Indent)
     const handleIndentTask = useCallback((taskId) => {
-        const indentTask = (items) => {
-            for (let i = 0; i < items.length; i++) {
-                if (items[i].id === taskId) {
-                    if (i === 0) return items; // 첫 번째 항목은 들여쓰기 불가
-
-                    const prevSibling = items[i - 1];
-                    const taskToMove = items[i];
-
-                    const newItems = [...items];
-                    newItems.splice(i, 1); // 현재 위치에서 제거
-
-                    // 이전 형제의 자식으로 추가
-                    const updatedPrevSibling = {
-                        ...prevSibling,
-                        children: [...prevSibling.children, taskToMove],
-                        expanded: true // 부모가 되면 자동 확장
-                    };
-
-                    newItems[i - 1] = updatedPrevSibling;
-                    return newItems;
-                }
-
-                if (items[i].children && items[i].children.length > 0) {
-                    const updatedChildren = indentTask(items[i].children);
-                    if (updatedChildren !== items[i].children) {
-                        return items.map((item, index) =>
-                            index === i ? { ...item, children: updatedChildren } : item
-                        );
-                    }
-                }
-            }
-            return items;
-        };
-
-        setTasks(prevTasks => indentTask(prevTasks));
+        setTasks(prevTasks => indentTask(prevTasks, taskId));
     }, [setTasks]);
-
-    // 작업/트리 검색을 위한 헬퍼 함수
-    const findTaskAndParent = (items, taskId, parent = null) => {
-        for (let i = 0; i < items.length; i++) {
-            if (items[i].id === taskId) {
-                return { task: items[i], parent, index: i, list: items };
-            }
-            if (items[i].children && items[i].children.length > 0) {
-                const result = findTaskAndParent(items[i].children, taskId, items[i]);
-                if (result) return result;
-            }
-        }
-        return null;
-    };
 
     // 작업 이동 핸들러 (DnD)
     const handleMoveTask = useCallback((activeId, overId) => {
@@ -381,14 +355,7 @@ function App() {
             // 같은 항목이면 무시
             if (activeId === overId) return prevTasks;
 
-            const newTasks = [...prevTasks];
-
-            // 1. 기존 위치에서 제거 (주의: 불변성 유지를 위해 깊은 복사 필요)
-            // 간단하게 하기 위해 전체 트리를 다시 빌드하는 대신,
-            // findTaskAndParent가 반환한 list를 수정하면 원본 참조를 수정하게 됨 (안됨).
-            // 따라서 재귀적으로 새로운 트리를 만들어야 함.
-
-            // 하지만 복잡성을 줄이기 위해 deep clone 후 처리
+            // 불변성 유지를 위해 deep clone 후 처리
             const clonedTasks = structuredClone(prevTasks);
 
             // 클론된 데이터에서 다시 찾기
@@ -397,18 +364,9 @@ function App() {
 
             if (!activeNode || !overNode) return prevTasks;
 
-            // 순환 참조 방지: overNode가 activeNode의 자손인지 확인
-            const isDescendant = (parent, targetId) => {
-                if (!parent.children) return false;
-                for (const child of parent.children) {
-                    if (child.id === targetId) return true;
-                    if (isDescendant(child, targetId)) return true;
-                }
-                return false;
-            };
-
+            // 순환 참조 방지: overNode가 activeNode의 자손이면 이동 불가
             if (isDescendant(activeNode.task, overId)) {
-                return prevTasks; // 자손으로 이동 불가
+                return prevTasks;
             }
 
             // 글로벌 인덱스로 이동 방향 판별 (평탄화된 리스트 기준)
@@ -428,8 +386,7 @@ function App() {
             let targetNode = overNode; // 기본값: overNode가 타겟
 
             if (activeFlatItem.level === 0 && overFlatItem.level > 0) {
-                // overId의 최상위 조상 찾기 (위쪽으로 탐색하여 레벨 0 찾기)
-                // 평탄화된 리스트에서 overIndex 위쪽으로 탐색
+                // overId의 최상위 조상 찾기 (평탄화 리스트에서 위쪽으로 탐색하여 레벨 0 찾기)
                 for (let i = overGlobalIndex; i >= 0; i--) {
                     if (flatList[i].level === 0) {
                         effectiveOverId = flatList[i].id;
@@ -437,11 +394,6 @@ function App() {
                         break;
                     }
                 }
-
-                // 타겟 변경 감지 시 노드 정보 재검색 (activeNode는 이미 메모리상 트리에서 삭제된 상태여야 함?
-                // 아니, 여기는 아직 삭제 전 로직임. activeNode.list.splice는 아래에서 함.)
-                // 순서 주의: activeNode 제거 전에 targetNode를 찾으면 참조 오류 가능성?
-                // 아니, findTaskAndParent는 clonedTasks에서 찾음. activeNode 제거 전임.
             }
 
             const isMovingDown = activeGlobalIndex < overGlobalIndex;
@@ -449,15 +401,8 @@ function App() {
             // 제거
             activeNode.list.splice(activeNode.index, 1);
 
-            // 타겟이 변경되었다면 다시 찾기 (activeNode 제거 후에도 유효한지? effectiveOverId는 Root이므로 유효)
+            // 타겟이 변경되었다면 다시 찾기 (effectiveOverId는 Root이므로 제거 후에도 유효)
             if (effectiveOverId !== overId) {
-                // activeNode가 Root였고 제거되었음.
-                // effectiveOverId가 overId(Child)의 Root Ancestor임.
-                // 만약 activeId === effectiveOverId 였다면? (자신 자식으로 드래그?)
-                // isDescendant 체크에서 걸러졌으므로 괜찮음.
-
-                // clonedTasks에서 다시 찾기
-                // activeNode가 제거된 상태의 clonedTasks에서.
                 const found = findTaskAndParent(clonedTasks, effectiveOverId);
                 if (found) {
                     targetNode = found;
@@ -500,102 +445,7 @@ function App() {
 
     // 작업 내어쓰기 (Outdent)
     const handleOutdentTask = useCallback((taskId) => {
-        let taskToMove = null;
-
-        // 1. 이동할 작업 찾기 및 제거
-        const removeTask = (items) => {
-            for (let i = 0; i < items.length; i++) {
-                if (items[i].id === taskId) {
-                    taskToMove = items[i];
-                    const newItems = [...items];
-                    newItems.splice(i, 1);
-                    return newItems;
-                }
-                if (items[i].children && items[i].children.length > 0) {
-                    const updatedChildren = removeTask(items[i].children);
-                    if (updatedChildren !== items[i].children) {
-                        return items.map((item, index) =>
-                            index === i ? { ...item, children: updatedChildren } : item
-                        );
-                    }
-                }
-            }
-            return items;
-        };
-
-        // 2. 부모의 형제로 추가
-        const insertTask = (items) => {
-            for (let i = 0; i < items.length; i++) {
-                // 자식 중에 제거된 작업이 있었던 부모를 찾음 (이 부분은 removeTask와 로직이 겹치므로 최적화 필요하지만, 
-                // 불변성 유지를 위해 전체 트리를 순회하며 재구성하는 방식이 안전함)
-
-                // 하지만 위 removeTask에서 이미 제거를 했으므로, 여기서는 
-                // "원래 부모였던 항목"을 찾는 것이 아니라, 
-                // "제거된 작업이 어디에 있었는지"를 알고 그 부모의 다음 위치에 넣어야 함.
-                // 따라서 로직을 분리하지 않고 한 번에 처리하는 것이 좋음.
-            }
-            return items;
-        };
-
-        // 재귀적으로 처리하는 단일 함수
-        const outdentTaskRecursive = (items, parent = null) => {
-            for (let i = 0; i < items.length; i++) {
-                if (items[i].id === taskId) {
-                    // 최상위 레벨이면 내어쓰기 불가
-                    if (!parent) return items;
-
-                    // 여기서 찾았음. 반환값으로 "이 항목을 제거하고, 부모 레벨에서 처리하도록 신호"를 보내야 함
-                    // 하지만 구조상 복잡하므로, 부모를 찾는 방식 변경
-                    return { found: true, task: items[i], index: i };
-                }
-
-                if (items[i].children && items[i].children.length > 0) {
-                    const result = outdentTaskRecursive(items[i].children, items[i]);
-
-                    // 자식에서 찾았고, 결과가 배열이 아니라 객체라면 (작업을 찾음)
-                    if (result && result.found) {
-                        const task = result.task;
-
-                        // 현재 items[i]가 부모임.
-                        // 1. 자식 목록에서 해당 작업 제거
-                        const newChildren = [...items[i].children];
-                        newChildren.splice(result.index, 1);
-
-                        // 2. 현재 부모(items[i]) 바로 뒤에 작업 추가해야 하는데,
-                        // 이는 현재 레벨(items)에서 처리해야 함.
-                        // 따라서 여기서도 "작업을 찾았고, 내 자식에서 뺐으며, 내 뒤에 붙여야 한다"는 신호를 위로 보내야 함?
-                        // 아니면 여기서 바로 처리가 안됨 (내 뒤에 붙이는 건 내 부모가 해야 함).
-
-                        // 내어쓰기는 "현재 부모의 자식에서 빼서, 현재 부모의 형제로 만드는 것"
-                        // 즉, items[i]의 자식에서 빼서, items 배열의 i+1 위치에 넣어야 함.
-
-                        const updatedParent = { ...items[i], children: newChildren };
-
-                        const newItems = [...items];
-                        newItems[i] = updatedParent;
-                        newItems.splice(i + 1, 0, task);
-
-                        return newItems;
-                    }
-
-                    // 이미 처리되어 배열이 반환된 경우 (더 상위 레벨로 전파)
-                    if (Array.isArray(result) && result !== items[i].children) {
-                        return items.map((item, index) =>
-                            index === i ? { ...item, children: result } : item
-                        );
-                    }
-                }
-            }
-            return items;
-        };
-
-        setTasks(prevTasks => {
-            const result = outdentTaskRecursive(prevTasks);
-            // 최상위 레벨에서 객체가 반환되면 (루트의 자식이 내어쓰기 시도됨 -> 불가)
-            if (!Array.isArray(result) && result.found) return prevTasks;
-            return result;
-        });
-
+        setTasks(prevTasks => outdentTask(prevTasks, taskId));
     }, [setTasks]);
 
     // 내보내기 데이터 생성 (객체만 반환)
@@ -616,7 +466,7 @@ function App() {
             },
             data: tasks
         };
-    }, [tasks, viewMode, timeScale, zoomLevel, showToday, isCompact, showTaskNames, darkMode]);
+    }, [tasks, viewMode, timeScale, zoomLevel, showToday, isCompact, showTaskNames, darkMode, snapEnabled]);
 
     // 내보내기 (파일 저장)
     const handleExport = useCallback(() => {
@@ -648,7 +498,7 @@ function App() {
             .catch(() => {
                 toast.error('클립보드 복사에 실패했습니다.');
             });
-    }, [tasks, darkMode, zoomLevel, showToday, showBarLabels, showBarDates, timeScale, isCompact, toast]);
+    }, [tasks, darkMode, zoomLevel, showToday, showBarLabels, showBarDates, showTaskNames, timeScale, isCompact, chartTheme, toast]);
 
     // 스냅샷 내보내기 핸들러
     const handleSnapshotExport = useCallback((snapshot) => {
@@ -678,15 +528,8 @@ function App() {
 
                 if (!isMerge && importedData.meta && importedData.meta.viewSettings) {
                     const settings = importedData.meta.viewSettings;
-                    if (settings.viewMode) setViewMode(settings.viewMode);
-                    if (settings.timeScale) setTimeScale(settings.timeScale);
-                    if (settings.zoomLevel) setZoomLevel(settings.zoomLevel);
-                    if (settings.showToday !== undefined) setShowToday(settings.showToday);
-                    if (settings.isCompact !== undefined) setIsCompact(settings.isCompact);
-                    if (settings.showTaskNames !== undefined) setShowTaskNames(settings.showTaskNames);
-                    if (settings.snapEnabled !== undefined) setSnapEnabled(settings.snapEnabled);
+                    applyViewSettings(settings);
                     if (settings.darkMode !== undefined) {
-                        setDarkMode(settings.darkMode);
                         storage.saveSettings({ darkMode: settings.darkMode });
                     }
                 }
@@ -695,24 +538,6 @@ function App() {
             }
 
             if (isMerge) {
-                const regenerateIds = (items) => {
-                    return items.map(item => {
-                        const newId = generateId();
-                        const newChildren = item.children ? regenerateIds(item.children) : [];
-                        const newMilestones = item.milestones ? item.milestones.map(ms => ({
-                            ...ms,
-                            id: generateId()
-                        })) : [];
-                        return {
-                            ...item,
-                            id: newId,
-                            children: newChildren,
-                            milestones: newMilestones,
-                            dependencies: []
-                        };
-                    });
-                };
-
                 const processedTasks = regenerateIds(newTasks);
                 setTasks(prev => [...prev, ...processedTasks]);
             } else {
@@ -722,7 +547,7 @@ function App() {
             console.error('Failed to process data:', error);
             toast.error('데이터 처리 중 오류가 발생했습니다.');
         }
-    }, [setViewMode, setTimeScale, setZoomLevel, setShowToday, setIsCompact, setShowTaskNames, setSnapEnabled, setDarkMode, setTasks, toast]);
+    }, [applyViewSettings, setTasks, toast]);
 
     // 가져오기 (파일)
     const handleImport = useCallback((file, isMerge = false) => {
@@ -888,6 +713,7 @@ function App() {
                         onOpenMilestoneAdd={setMilestoneModalInfo}
                         toast={toast}
                         chartTheme={chartTheme}
+                        darkMode={darkMode}
                     />
                 )}
                     </>
@@ -970,54 +796,34 @@ function App() {
                             });
 
                             // 전체 시작/종료일 업데이트
-                            const allStarts = newRanges.map(r => new Date(r.startDate).getTime());
-                            const allEnds = newRanges.map(r => new Date(r.endDate).getTime());
-                            const minStart = new Date(Math.min(...allStarts));
-                            const maxEnd = new Date(Math.max(...allEnds));
+                            const bounds = recalcTaskBounds(newRanges);
 
                             handlePopoverUpdate(taskId, {
                                 timeRanges: newRanges,
-                                startDate: minStart.toISOString().split('T')[0],
-                                endDate: maxEnd.toISOString().split('T')[0]
+                                ...bounds,
                             });
                         }}
                         onRemoveDependency={(holderId, dependencyId) => {
-                            // holderId: The entity holding the dependency (Task/Range/Milestone ID)
-                            // dependencyId: The ID to remove from holder's dependencies
+                            // holderId: 의존성을 보유한 엔티티 (Task/Range/Milestone ID)
+                            // dependencyId: holder의 dependencies에서 제거할 ID
                             const flatList = flattenTasks(tasks);
+                            const owner = findOwnerOfEntity(flatList, holderId);
+                            if (!owner) return;
 
-                            // 1. Check if holder is Task
-                            let holderTask = flatList.find(t => t.id === holderId);
-                            if (holderTask) {
-                                const newDeps = (holderTask.dependencies || []).filter(id => id !== dependencyId);
-                                handleUpdateTask(holderId, { dependencies: newDeps });
-                                return;
-                            }
+                            const stripDep = (deps) => (deps || []).filter(id => id !== dependencyId);
 
-                            // 2. Check if holder is Range
-                            holderTask = flatList.find(t => t.timeRanges && t.timeRanges.some(r => r.id === holderId));
-                            if (holderTask) {
-                                const newRanges = holderTask.timeRanges.map(r => {
-                                    if (r.id === holderId) {
-                                        return { ...r, dependencies: (r.dependencies || []).filter(id => id !== dependencyId) };
-                                    }
-                                    return r;
-                                });
-                                handleUpdateTask(holderTask.id, { timeRanges: newRanges });
-                                return;
-                            }
-
-                            // 3. Check if holder is Milestone
-                            holderTask = flatList.find(t => t.milestones && t.milestones.some(m => m.id === holderId));
-                            if (holderTask) {
-                                const newMilestones = holderTask.milestones.map(m => {
-                                    if (m.id === holderId) {
-                                        return { ...m, dependencies: (m.dependencies || []).filter(id => id !== dependencyId) };
-                                    }
-                                    return m;
-                                });
-                                handleUpdateTask(holderTask.id, { milestones: newMilestones });
-                                return;
+                            if (owner.kind === 'task') {
+                                handleUpdateTask(holderId, { dependencies: stripDep(owner.task.dependencies) });
+                            } else if (owner.kind === 'range') {
+                                const newRanges = owner.task.timeRanges.map(r =>
+                                    r.id === holderId ? { ...r, dependencies: stripDep(r.dependencies) } : r
+                                );
+                                handleUpdateTask(owner.task.id, { timeRanges: newRanges });
+                            } else if (owner.kind === 'milestone') {
+                                const newMilestones = owner.task.milestones.map(m =>
+                                    m.id === holderId ? { ...m, dependencies: stripDep(m.dependencies) } : m
+                                );
+                                handleUpdateTask(owner.task.id, { milestones: newMilestones });
                             }
                         }}
                     />

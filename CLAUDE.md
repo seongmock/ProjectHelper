@@ -2,24 +2,24 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-> There is also a detailed Korean guide in `AGENTS.md`. It is thorough on data-model
-> internals and manual test checklists, but **outdated on one point**: it says the app is
-> "backend 없음 / localStorage only." That is no longer true — see the Architecture note below.
+> Related docs: `AGENTS.md` (Korean dev guide), `docs/ARCHITECTURE.md` (full architecture +
+> known limitations), `docs/AI_INTEGRATION.md` (REST/MCP usage), `docs/REFACTORING_REPORT.md`.
+> Project skills in `.claude/skills/`: `timeline-api` (AI data manipulation), `verify-app`
+> (verification procedure), `deploy`.
 
 ## Commands
 
 ```bash
-npm run dev      # Vite dev server, http://localhost:5173, hot-reload
-npm run build    # Production build → dist/
-npm run preview  # Preview the built dist/ locally
-
-# API server (separate CommonJS Express app)
-cd server && npm install && npm start   # runs on port 3000
+npm run dev       # Vite dev server, http://localhost:5173, hot-reload
+npm run dev:api   # Express API server on :3000 (dev proxies /api to it)
+npm run build     # Production build → dist/
+npm run test:e2e  # Playwright E2E (auto-starts vite dev server)
 ```
 
-There is **no test runner and no linter configured**. The only automated verification is
-`npm run build` succeeding. Verify behavior changes manually in the running app (AGENTS.md
-has a detailed manual test checklist).
+**After any code change, run `npm run build` && `npx playwright test`** — 16 E2E tests
+(14 smoke + 2 AI-sync; the AI-sync pair auto-skips if the API server isn't running).
+There is no linter configured. Test selector conventions are documented in
+`.claude/skills/verify-app/SKILL.md`.
 
 ### Deployment
 
@@ -47,19 +47,30 @@ localStorage-only:
   refresh the localStorage cache on success, and **fall back to localStorage** on any network
   error. So the app keeps working offline.
 - **Writes** (`saveData`/`saveSettings`): write localStorage **immediately (synchronously)**,
-  then fire the server request asynchronously; a failed server write is logged but never
-  blocks the UI.
-- `App.jsx` **debounces `saveData` by 1.5s** (see the auto-save `useEffect`) to avoid a server
+  then send to the server; a failed server write is logged but never blocks the UI.
+- `App.jsx` **debounces `saveData` by 1.5s** (auto-save `useEffect`) to avoid a server
   request per keystroke/drag. Settings changes call `storage.saveSettings` directly.
-- The API base is `/api`, so in production Caddy must proxy `/api/*` to the server; in dev
-  there is currently **no Vite proxy** for `/api`, so server reads fail and the app silently
-  uses the localStorage fallback.
+- **Revision-based sync with external (AI) writers**: every server mutation bumps a revision
+  counter (`server/data/meta.json`). The browser sends `If-Match: <revision>` on save — a 409
+  means an external writer (AI) changed data first, and the app reloads server state
+  (server-wins, via `setTasksSilent` so undo history isn't polluted). A 10s polling effect
+  on `GET /api/revision` picks up external changes in open tabs.
+- API base is `/api`: dev uses the Vite proxy to :3000 (vite.config.js), prod uses Caddy.
 
-The server (`server/index.js`) is deliberately trivial: Express reads/writes three JSON files
-under `server/data/` — `data.json`, `settings.json`, `snapshots.json`. No database, no auth at
-the app layer (auth is Caddy basicauth).
+The server (`server/`) is a small CommonJS Express app: `index.js` (blob + settings +
+snapshots routes), `routes/tasks.js` (per-task CRUD for AI integration, validated, 409 on
+If-Match mismatch), `lib/store.js` (atomic writes + revision), `lib/taskTree.js` (**CJS
+mirror of `src/utils/taskTree.js` — keep signatures in sync**), `lib/validate.js`.
+Data lives in JSON files under `server/data/`. No database; auth is Caddy basicauth only.
 
-### State management (`src/App.jsx`, ~1000 lines — the hub)
+### AI integration surface
+
+AI agents manipulate timeline data via per-task REST endpoints (`server/openapi.yaml` is the
+spec) or the **MCP server** (`mcp/index.js`, 12 tools, registered via `.mcp.json` —
+`list-tasks`/`add-task`/`reschedule`/etc.). See `docs/AI_INTEGRATION.md` and the
+`timeline-api` skill. Prefer per-task endpoints over blob `POST /api/data`.
+
+### State management (`src/App.jsx`, ~880 lines — the hub)
 
 `App.jsx` owns essentially all state and passes handlers down. Key pieces:
 
@@ -95,8 +106,10 @@ Dependencies now live at the range level.
 
 ### Tree-update invariants (critical for correctness)
 
-Because the tree feeds undo/redo history, **never mutate task objects in place**. Update
-immutably via recursive helpers (`updateTaskInTree`, `deleteFromTree` patterns shown in
-AGENTS.md), and deep-clone with `structuredClone`, not `JSON.parse(JSON.stringify(...))`.
-`filteredTasks` in `App.jsx` is a `useMemo` **value** — reference it as `filteredTasks`, not
-`filteredTasks()`.
+Because the tree feeds undo/redo history, **never mutate task objects in place**. Use the
+pure helpers in **`src/utils/taskTree.js`** (`updateTaskInTree`, `deleteFromTree`,
+`findTaskAndParent`, `indentTask`, `outdentTask`, `recalcTaskBounds*`, `findOwnerOfEntity`,
+…) — don't reimplement tree recursion inline. Deep-clone with `structuredClone`, not
+`JSON.parse(JSON.stringify(...))`. `filteredTasks` in `App.jsx` is a `useMemo` **value** —
+reference it as `filteredTasks`, not `filteredTasks()`. If you change a taskTree.js
+signature, update the CJS mirror `server/lib/taskTree.js` too.

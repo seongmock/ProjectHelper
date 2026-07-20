@@ -1,11 +1,6 @@
 // 날짜 계산 및 포맷팅 유틸리티
 
 export const dateUtils = {
-    // 날짜 문자열을 Date 객체로 변환
-    parseDate: (dateStr) => {
-        return new Date(dateStr);
-    },
-
     // Date 객체를 YYYY-MM-DD 형식으로 변환
     formatDate: (date) => {
         if (typeof date === 'string') return date;
@@ -76,29 +71,11 @@ export const dateUtils = {
         return quarters;
     },
 
-    // 월의 일수 계산
-    getDaysInMonth: (year, month) => {
-        return new Date(year, month, 0).getDate();
-    },
-
-    // 특정 날짜가 범위 내에 있는지 확인
-    isInRange: (date, rangeStart, rangeEnd) => {
-        const d = new Date(date);
-        const start = new Date(rangeStart);
-        const end = new Date(rangeEnd);
-        return d >= start && d <= end;
-    },
-
     // 날짜에 일수 추가
     addDays: (date, days) => {
         const result = new Date(date);
         result.setDate(result.getDate() + days);
         return result;
-    },
-
-    // 오늘 날짜
-    getToday: () => {
-        return new Date();
     },
 
     // 날짜 범위의 전체 폭 계산 (픽셀)

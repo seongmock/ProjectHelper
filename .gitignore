@@ -37,3 +37,7 @@ restored-data.json
 server/data/
 tmp/
 
+# Playwright
+test-results/
+playwright-report/
+

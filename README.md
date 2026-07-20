@@ -17,7 +17,7 @@ React 기반의 인터랙티브한 프로젝트 타임라인 및 간트 차트 �
 - **⌛ 멀티 타임라인**: 하나의 작업에 여러 개의 기간(Time Ranges) 추가 및 개별 관리
 - **🏷️ 라벨 옵션**: 바 라벨(이름)과 날짜 표시를 개별적으로 제어 가능
 - **🌙 다크 모드**: 라이트/다크 테마 지원
-
+- **🤖 AI 연동 (REST/MCP)**: AI 에이전트(Claude Code 등)가 일정을 직접 조회/수정 — 열린 브라우저에 10초 내 자동 반영 ([docs/AI_INTEGRATION.md](docs/AI_INTEGRATION.md))
 - **⌨️ 키보드 단축키**: Ctrl+Z, Ctrl+Y, Ctrl+S 등
 
 ## 🚀 시작하기
@@ -48,9 +48,15 @@ Caddy가 자동으로 내부용 인증서를 생성 및 관리합니다.
 ### 수동 설치 (Node.js)
 ```bash
 npm install
+npm run dev:api &   # API 서버 :3000 (저장 동기화·AI 연동용, 선택)
 npm run dev
 ```
 브라우저에서 http://localhost:5173 접속
+
+### 테스트
+```bash
+npm run test:e2e    # Playwright E2E (dev 서버 자동 기동)
+```
 
 ### 프로덕션 빌드
 ```bash

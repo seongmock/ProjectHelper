@@ -1,0 +1,11 @@
+{
+  "name": "project-helper-mcp",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "ProjectHelper 타임라인을 조작하는 MCP 서버 (REST API 래퍼)",
+  "main": "index.js",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "zod": "^4.4.3"
+  }
+}

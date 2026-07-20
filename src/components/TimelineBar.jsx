@@ -23,7 +23,6 @@ function TimelineBar({
     showLabel = true,
     showBarLabels = true, // Toolbar toggle
     showBarDates = true, // Toolbar toggle
-    showPeriodLabels = false,
     timeScale = 'monthly',
     snapEnabled = true,
     chartTheme = 'default',

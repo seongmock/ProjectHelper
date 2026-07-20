@@ -9,5 +9,9 @@ export default defineConfig({
       usePolling: true,
     },
     host: true, // Listen on all local IPs
+    proxy: {
+      // 개발 모드에서 Express API 서버(3000)로 프록시
+      '/api': 'http://localhost:3000',
+    },
   }
 })

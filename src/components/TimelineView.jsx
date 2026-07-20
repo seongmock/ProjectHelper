@@ -17,7 +17,6 @@ import { CSS } from '@dnd-kit/utilities';
 import { dateUtils } from '../utils/dateUtils';
 import TimelineHeader from './TimelineHeader';
 import TimelineBar from './TimelineBar';
-import TimelineBarPopover from './TimelineBarPopover';
 import MilestoneEditPopover from './MilestoneEditPopover';
 import { generateId, flattenTasks } from '../utils/dataModel';
 import html2canvas from 'html2canvas';
@@ -521,7 +520,7 @@ const TimelineView = forwardRef(({
             }
 
             if (onUpdateTasks) {
-                onUpdateTasks(updates, true);
+                onUpdateTasks(updates);
             } else {
                 updates.forEach(u => onUpdateTask(u.taskId, u.updates, true));
             }
@@ -549,7 +548,7 @@ const TimelineView = forwardRef(({
                 timeRanges: newRanges,
                 startDate: dateUtils.formatDate(minDate),
                 endDate: dateUtils.formatDate(maxDate)
-            }, true);
+            });
         }
     }, [flatTasks, onUpdateTask, onUpdateTasks, getTaskFromY]);
 
@@ -590,7 +589,7 @@ const TimelineView = forwardRef(({
                     ? { ...m, date: newDate }
                     : m
             );
-            onUpdateTask(sourceTaskId, { milestones: updatedMilestones }, true);
+            onUpdateTask(sourceTaskId, { milestones: updatedMilestones });
             setDragTargetTaskId(null);
             return;
         }
@@ -625,7 +624,7 @@ const TimelineView = forwardRef(({
             finalTargetMilestones = [...updatedSourceMilestones, newMilestone];
 
             // Single Update
-            onUpdateTask(sourceTaskId, { milestones: finalTargetMilestones }, true);
+            onUpdateTask(sourceTaskId, { milestones: finalTargetMilestones });
         } else {
             // Cross Task
             // Source Update (if changed)
@@ -648,7 +647,7 @@ const TimelineView = forwardRef(({
             });
 
             if (onUpdateTasks) {
-                onUpdateTasks(updates, true);
+                onUpdateTasks(updates);
             } else {
                 updates.forEach(u => onUpdateTask(u.taskId, u.updates, true));
             }
@@ -1411,21 +1410,8 @@ const TimelineView = forwardRef(({
                                 const daysFromStart = Math.round((x / contentWidth) * totalDays);
                                 const clickedDate = dateUtils.addDays(dateRange.start, daysFromStart);
 
-                                // Use new context menu prop for empty space too?
-                                // User request was "Right click on TableView".
-                                // For Timeline empty space "Add Milestone" is existing feature.
-                                // I should preserve "Add Milestone" logic here if I can't pass it to App easily.
-                                // NOTE: I am moving 'Context Menu' logic to App, but 'Add Milestone' modal logic is still local.
-                                // So I will keep this logic but maybe invoke it differently?
-                                // Actually user didn't ask to change Timeline Empty Space behavior.
-                                // But `TimelineBar` right click behaviour WAS changed to use `handleContextMenu`.
-                                // Let's keep empty space behavior as is (Milestone Add), OR unify?
-                                // User said "Support context menu in TableView".
-                                // TimelineView already had context menu on Tasks.
-                                // I moved the 'Task Settings' popover to App.
-                                // So TimelineBar right click triggers App's popover.
-                                // Empty space right click triggers... Milestone Modal (local state). This is fine.
-
+                                // 빈 영역 우클릭은 로컬 '마일스톤 추가' 모달 유지
+                                // (바 우클릭은 App 레벨 컨텍스트 메뉴 팝오버 사용)
                                 const targetTask = flatTasks.find(t => t.id === selectedTaskId) || flatTasks[0];
 
                                 if (targetTask) {
@@ -1483,7 +1469,6 @@ const TimelineView = forwardRef(({
                 </div>
             </div>
 
-            {/* Remove TimelineBarPopover as it is now in App.jsx */}
 
 
 
