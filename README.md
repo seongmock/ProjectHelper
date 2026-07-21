@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="public/favicon.svg" width="96" alt="ProjectHelper 로고">
+</p>
+
 # 프로젝트 타임라인 관리 도구
 
 React 기반의 인터랙티브한 프로젝트 타임라인 및 간트 차트 관리 도구입니다.
