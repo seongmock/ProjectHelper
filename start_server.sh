@@ -36,7 +36,8 @@ if [ -n "$COMPOSE_CMD" ] && command -v docker &> /dev/null; then
         fi
         
         # Clean up any orphan containers from other modes
-        sudo $COMPOSE_CMD down -v --remove-orphans &> /dev/null || true
+        # 주의: -v(볼륨 삭제) 금지 — api_data 볼륨에 운영 데이터가 있음
+        sudo $COMPOSE_CMD down --remove-orphans &> /dev/null || true
         
         echo "Building and starting containers..."
         if ! sudo $COMPOSE_CMD $COMPOSE_FILES up -d --build; then

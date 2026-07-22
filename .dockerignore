@@ -1,0 +1,15 @@
+node_modules
+dist
+test-results
+playwright-report
+tests
+mcp/node_modules
+server/node_modules
+server/data
+.git
+.tokensave
+.claude
+tmp
+certs
+*.log
+restored-data.json
