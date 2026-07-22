@@ -59,6 +59,7 @@ function TableView({
     selectedTaskId,
     onSelectTask,
     onUpdateTask,
+    onUpdateTaskSilent,
     onDeleteTask,
     onAddTask,
     onReorderTasks,
@@ -86,14 +87,25 @@ function TableView({
     // 드래그 시작 시 확장된 작업 접기 (시각적 그룹화)
     const [draggedTaskExpanded, setDraggedTaskExpanded] = React.useState(false);
 
+    // 드래그 접기/펼치기는 시각적 임시 상태 — undo 히스토리에 남기지 않음
+    const silentUpdate = onUpdateTaskSilent || onUpdateTask;
+
     const handleDragStart = (event) => {
         const { active } = event;
         const task = flatTasks.find(t => t.id === active.id);
 
         if (task && task.children && task.children.length > 0 && task.expanded) {
             setDraggedTaskExpanded(true);
-            onUpdateTask(task.id, { expanded: false });
+            silentUpdate(task.id, { expanded: false });
         } else {
+            setDraggedTaskExpanded(false);
+        }
+    };
+
+    // 드래그 취소(Escape 등) 시 접힌 상태 복구
+    const handleDragCancel = (event) => {
+        if (draggedTaskExpanded && event.active) {
+            silentUpdate(event.active.id, { expanded: true });
             setDraggedTaskExpanded(false);
         }
     };
@@ -106,7 +118,7 @@ function TableView({
 
         // 원래 상태 복구 (드랍 후 다시 펼치기)
         if (draggedTaskExpanded) {
-            onUpdateTask(active.id, { expanded: true });
+            silentUpdate(active.id, { expanded: true });
             setDraggedTaskExpanded(false);
         }
 
@@ -152,6 +164,7 @@ function TableView({
                             collisionDetection={closestCenter}
                             onDragStart={handleDragStart}
                             onDragEnd={handleDragEnd}
+                            onDragCancel={handleDragCancel}
                         >
                             <SortableContext
                                 items={items}

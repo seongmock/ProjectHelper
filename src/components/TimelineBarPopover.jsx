@@ -86,6 +86,23 @@ function TimelineBarPopover({ position, task, clickedDate, clickedRangeId, succe
                 </div>
             )}
 
+            {/* 진행률 (Progress) — 작업 레벨 속성이므로 양쪽 모드에서 표시 */}
+            <div className="popover-section">
+                <div className="section-title">
+                    진행률 (Progress) — {task.progress ?? 0}%
+                </div>
+                <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    step="5"
+                    value={task.progress ?? 0}
+                    data-testid="progress-slider"
+                    onChange={(e) => onUpdate(task.id, { progress: Number(e.target.value) })}
+                    style={{ width: '100%', accentColor: 'var(--color-primary)' }}
+                />
+            </div>
+
             {/* [NEW] 기간 추가 버튼: 주 메뉴로 이동 권장 */}
             {!clickedRangeId && (
                 <div className="popover-section" style={{ paddingBottom: '0' }}>

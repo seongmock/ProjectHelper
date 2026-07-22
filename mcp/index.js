@@ -89,13 +89,14 @@ server.tool(
 
 server.tool(
     'update-task',
-    '작업 이름/색상/설명/라벨 수정. 날짜 변경은 reschedule 도구 사용.',
+    '작업 이름/색상/설명/라벨/진행률 수정. 날짜 변경은 reschedule 도구 사용.',
     {
         taskId: z.string(),
         name: z.string().optional(),
         color: z.string().optional(),
         description: z.string().optional(),
         labels: z.array(z.string()).optional(),
+        progress: z.number().int().min(0).max(100).optional().describe('진행률 % (0-100)'),
     },
     run(({ taskId, ...body }) => api(`/tasks/${taskId}`, { method: 'PATCH', body }))
 );

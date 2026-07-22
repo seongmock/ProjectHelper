@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { generateId, formatDate } from '../utils/dataModel';
+import { recalcTaskBoundsSafe, isTaskOverdue } from '../utils/taskTree';
 import ColorPicker from './ColorPicker';
 import Modal from './Modal';
 import './TaskRow.css';
@@ -23,6 +25,13 @@ function TaskRow({
 
     const isSelected = task.id === selectedTaskId;
     const hasChildren = task.children && task.children.length > 0;
+
+    // 날짜의 원본은 timeRanges — 표에서는 시간순 첫 번째 기간을 편집한다
+    const firstRange = (task.timeRanges && task.timeRanges.length > 0)
+        ? [...task.timeRanges].sort((a, b) => new Date(a.startDate) - new Date(b.startDate))[0]
+        : null;
+    const extraRangeCount = (task.timeRanges?.length || 0) - 1;
+    const overdue = isTaskOverdue(task, formatDate(new Date()));
 
     // 펼치기/접기
     const handleToggleExpand = (e) => {
@@ -66,9 +75,19 @@ function TaskRow({
         }
     };
 
-    // 날짜 변경
+    // 날짜 변경 — 첫 timeRange를 수정하고 전체 시작/종료 캐시 재계산 (타임라인과 동기화)
     const handleDateChange = (field, value) => {
-        onUpdateTask(task.id, { [field]: value });
+        if (!value) return; // 입력이 비워진 경우 무시
+        let ranges;
+        if (!firstRange) {
+            // 기간이 없는 작업: 선택한 날짜로 1일짜리 기간 생성
+            ranges = [{ id: generateId(), startDate: value, endDate: value, dependencies: [], color: null, label: '' }];
+        } else {
+            ranges = task.timeRanges.map(r =>
+                r.id === firstRange.id ? { ...r, [field]: value } : r
+            );
+        }
+        onUpdateTask(task.id, { timeRanges: ranges, ...recalcTaskBoundsSafe(ranges) });
     };
 
     // 색상 변경
@@ -94,7 +113,7 @@ function TaskRow({
         const milestones = task.milestones || [];
         const newMilestone = {
             id: `m-${Date.now()}`,
-            date: task.startDate,
+            date: firstRange?.startDate || formatDate(new Date()),
             label: '새 마일스톤',
             color: '#5CB85C',
             shape: 'diamond'
@@ -205,26 +224,37 @@ function TaskRow({
                             {task.name}
                         </span>
                     )}
+                    {(task.progress ?? 0) > 0 && (
+                        <span className="progress-badge" title={`진행률 ${task.progress}%`}>{task.progress}%</span>
+                    )}
                 </div>
 
-                {/* 시작일 */}
+                {/* 시작일 (첫 번째 기간 기준) */}
                 <div className="col-dates">
                     <input
                         type="date"
-                        value={task.startDate}
+                        value={firstRange?.startDate || ''}
                         onChange={(e) => handleDateChange('startDate', e.target.value)}
                         onClick={(e) => e.stopPropagation()}
                     />
                 </div>
 
-                {/* 종료일 */}
-                <div className="col-dates">
+                {/* 종료일 (첫 번째 기간 기준) — 지연 시 경고색 */}
+                <div className={`col-dates ${overdue ? 'overdue' : ''}`}>
                     <input
                         type="date"
-                        value={task.endDate}
+                        value={firstRange?.endDate || ''}
                         onChange={(e) => handleDateChange('endDate', e.target.value)}
                         onClick={(e) => e.stopPropagation()}
                     />
+                    {extraRangeCount > 0 && (
+                        <span
+                            className="range-count-badge"
+                            title={`기간 ${extraRangeCount + 1}개 — 나머지는 타임라인에서 편집`}
+                        >
+                            +{extraRangeCount}
+                        </span>
+                    )}
                 </div>
 
                 {/* 마일스톤 */}

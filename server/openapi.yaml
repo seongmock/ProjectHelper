@@ -66,6 +66,7 @@ components:
           items: { $ref: '#/components/schemas/TimeRange' }
         color: { type: string }
         description: { type: string }
+        progress: { type: integer, minimum: 0, maximum: 100, description: 진행률 % }
         children:
           type: array
           items: { $ref: '#/components/schemas/Task' }
@@ -200,7 +201,7 @@ paths:
         '200': { description: '{ ok, revision, task, parentId }' }
         '404': { $ref: '#/components/responses/NotFound' }
     patch:
-      summary: 작업 필드 부분 수정 (name/color/description/expanded/labels/divider)
+      summary: 작업 필드 부분 수정 (name/color/description/expanded/labels/divider/progress)
       parameters: [{ $ref: '#/components/parameters/IfMatch' }]
       requestBody:
         required: true
@@ -215,6 +216,7 @@ paths:
                 expanded: { type: boolean }
                 labels: { type: array, items: { type: string } }
                 divider: { type: object }
+                progress: { type: integer, minimum: 0, maximum: 100 }
       responses:
         '200': { description: '{ ok, revision, task }' }
         '400': { $ref: '#/components/responses/BadRequest' }

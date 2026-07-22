@@ -25,7 +25,6 @@ import ImportExportModal from './components/ImportExportModal';
 import SaveLoadModal from './components/SaveLoadModal';
 import MilestoneQuickAdd from './components/MilestoneQuickAdd';
 import ToastContainer from './components/Toast';
-import { exportToHtml } from './utils/htmlExporter';
 import { getTheme } from './themes/index.js';
 import './themes/themes.css';
 import './App.css';
@@ -279,6 +278,11 @@ function App() {
         setTasks(prevTasks => updateTaskInTree(prevTasks, taskId, updates));
     }, [setTasks]);
 
+    // 히스토리에 남기지 않는 작업 업데이트 (드래그 중 접기/펼치기 등 시각적 임시 상태용)
+    const handleUpdateTaskSilent = useCallback((taskId, updates) => {
+        setTasksSilent(prevTasks => updateTaskInTree(prevTasks, taskId, updates));
+    }, [setTasksSilent]);
+
     // 여러 작업 동시 업데이트 처리 (Undo/Redo를 위해 한 번의 상태 변경으로 처리)
     const handleUpdateMultipleTasks = useCallback((updatesArray) => {
         setTasks(prevTasks => {
@@ -475,8 +479,9 @@ function App() {
         storage.exportData(exportData, `project-timeline-${timestamp}.json`);
     }, [getExportDataObject, customExportData]);
 
-    // HTML 내보내기
-    const handleHtmlExport = useCallback(() => {
+    // HTML 내보내기 (exporter 모듈은 사용 시점에 지연 로드 — 번들 축소)
+    const handleHtmlExport = useCallback(async () => {
+        const { exportToHtml } = await import('./utils/htmlExporter');
         const settings = {
             darkMode,
             dayWidth: zoomLevel * 40,
@@ -675,6 +680,7 @@ function App() {
                         selectedTaskId={selectedTaskId}
                         onSelectTask={setSelectedTaskId}
                         onUpdateTask={handleUpdateTask}
+                        onUpdateTaskSilent={handleUpdateTaskSilent}
                         onUpdateTasks={handleUpdateMultipleTasks}
                         onDeleteTask={handleDeleteTask}
                         onAddTask={handleAddTask}
@@ -694,6 +700,7 @@ function App() {
                         selectedTaskId={selectedTaskId}
                         onSelectTask={setSelectedTaskId}
                         onUpdateTask={handleUpdateTask}
+                        onUpdateTaskSilent={handleUpdateTaskSilent}
                         onUpdateTasks={handleUpdateMultipleTasks}
                         onDeleteTask={handleDeleteTask}
                         onAddTask={handleAddTask}

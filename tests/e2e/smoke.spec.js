@@ -135,8 +135,10 @@ test.describe('가져오기 / 내보내기', () => {
         // 내보내기: JSON 복사 탭에서 텍스트 획득
         await page.getByRole('button', { name: '📤 내보내기' }).click();
         await page.getByRole('button', { name: '📋 JSON 복사' }).click();
-        const jsonText = await page.locator('textarea').inputValue();
-        expect(jsonText).toContain('"data"');
+        // textarea는 비동기로 채워짐 — 값이 채워질 때까지 대기 (전체 실행 시 레이스 방지)
+        const exportArea = page.locator('textarea');
+        await expect(exportArea).toHaveValue(/"data"/, { timeout: 5000 });
+        const jsonText = await exportArea.inputValue();
         await page.locator('.close-button').click();
 
         // 데이터 전부 삭제 후 가져오기로 복원

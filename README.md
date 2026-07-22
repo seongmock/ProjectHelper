@@ -2,9 +2,21 @@
   <img src="public/favicon.svg" width="96" alt="ProjectHelper 로고">
 </p>
 
+<p align="center">
+  <a href="https://github.com/seongmock/ProjectHelper/actions/workflows/ci.yml"><img src="https://github.com/seongmock/ProjectHelper/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <img src="https://img.shields.io/badge/React-18-4A90E2" alt="React 18">
+  <img src="https://img.shields.io/badge/AI-MCP%20%2B%20REST-FFD166" alt="AI Integration">
+  <img src="https://img.shields.io/badge/E2E-Playwright-2E9E5B" alt="Playwright">
+</p>
+
 # 프로젝트 타임라인 관리 도구
 
 React 기반의 인터랙티브한 프로젝트 타임라인 및 간트 차트 관리 도구입니다.
+
+<p align="center">
+  <img src="docs/screenshots/demo-light.png" alt="ProjectHelper — 자기 로드맵을 자기 도구로 표시한 셀프 데모 (라이트)" width="90%">
+</p>
+<p align="center"><sub>↑ 이 도구로 그린 이 프로젝트 자신의 로드맵 (셀프 데모) · <a href="docs/screenshots/demo-dark.png">다크 모드 보기</a></sub></p>
 
 ## 🎯 주요 기능
 
@@ -20,9 +32,13 @@ React 기반의 인터랙티브한 프로젝트 타임라인 및 간트 차트 �
 - **📤 가져오기/내보내기**: JSON 백업, **HTML(인터랙티브)** 내보내기
 - **⌛ 멀티 타임라인**: 하나의 작업에 여러 개의 기간(Time Ranges) 추가 및 개별 관리
 - **🏷️ 라벨 옵션**: 바 라벨(이름)과 날짜 표시를 개별적으로 제어 가능
+- **📈 진행률 표시**: 작업별 진행률(%) 슬라이더 + 바 채움 오버레이
+- **⚠️ 지연 하이라이트**: 종료일이 지난 미완료 작업 자동 경고 표시
 - **🌙 다크 모드**: 라이트/다크 테마 지원
 - **🤖 AI 연동 (REST/MCP)**: AI 에이전트(Claude Code 등)가 일정을 직접 조회/수정 — 열린 브라우저에 10초 내 자동 반영 ([docs/AI_INTEGRATION.md](docs/AI_INTEGRATION.md))
 - **⌨️ 키보드 단축키**: Ctrl+Z, Ctrl+Y, Ctrl+S 등
+
+> 🗺️ 개발 계획: [ROADMAP.md](ROADMAP.md) — 이 로드맵은 앱 자체에 간트 차트로 주입되어 있습니다 (셀프 데모)
 
 ## 🚀 시작하기
 

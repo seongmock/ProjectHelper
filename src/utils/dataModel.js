@@ -21,6 +21,7 @@ export const createNewTask = (name = '새 작업', parentId = null) => {
         ],
         color: '#4A90E2',
         description: '',
+        progress: 0, // 진행률 0~100 (%)
         children: [],
         expanded: true,
         labels: [],
@@ -105,6 +106,11 @@ export const migrateTaskData = (tasks) => {
             // Task 레벨에서는 제거 (혼란 방지)
             newTask.dependencies = [];
         }
+
+        // 진행률 백필 및 0~100 클램프 (구버전 데이터/외부 가져오기 정규화)
+        newTask.progress = Number.isInteger(newTask.progress)
+            ? Math.max(0, Math.min(100, newTask.progress))
+            : 0;
 
         // 자식들도 재귀적으로 마이그레이션 (children 없으면 빈 배열 보장)
         if (!newTask.children) newTask.children = [];

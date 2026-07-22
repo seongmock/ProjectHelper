@@ -28,7 +28,7 @@ npm run dev:api   # 또는 cd server && npm start (포트 3000)
 | `list-tasks` | 작업 ID 탐색 (flat 목록: id/name/level/dates) — **항상 이걸로 ID부터 확인** |
 | `get-task` | 단건 상세 (timeRanges/milestones 포함) |
 | `add-task` | 생성 (`parentId`로 하위 작업, `startDate`+`endDate`로 기간 지정) |
-| `update-task` | 이름/색/설명/라벨 수정 |
+| `update-task` | 이름/색/설명/라벨/진행률(progress 0~100) 수정 |
 | `reschedule` | 날짜 변경 (`shiftDays`로 통째 밀기 가능) |
 | `move-task` | 재부모화/순서 변경 (`parentId: null` = 루트) |
 | `add-time-range` / `delete-time-range` | 한 작업의 복수 기간(바) 관리 |
@@ -65,6 +65,7 @@ curl -s -X POST -H 'Content-Type: application/json' \
 ## 데이터 모델 핵심
 
 - Task는 **재귀 트리** (`children`). 날짜의 원본은 `timeRanges[]` — task의 `startDate`/`endDate`는 파생 캐시로 서버가 자동 재계산한다.
+- `progress`: 0~100 정수 진행률. 100이면 지연(overdue) 표시가 해제된다. `PATCH /api/tasks/:id`로 수정.
 - 의존성(`dependencies`)은 **timeRange/milestone 레벨**에 있다 (task 레벨은 레거시, 항상 빈 배열).
 - 날짜는 `YYYY-MM-DD` 문자열. 색상은 `#RRGGBB`.
 - milestone `shape`: diamond | circle | triangle | square | star | flag

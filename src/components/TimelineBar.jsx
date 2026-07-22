@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { dateUtils } from '../utils/dateUtils';
+import { isTaskOverdue } from '../utils/taskTree';
 import Tooltip from './Tooltip';
 import './TimelineBar.css';
 
@@ -51,6 +52,10 @@ function TimelineBar({
     const timeRanges = (task.timeRanges && task.timeRanges.length > 0)
         ? task.timeRanges
         : [{ id: 'legacy', startDate: task.startDate, endDate: task.endDate }];
+
+    // 진행률/지연 상태 (렌더 시 계산 — 저장 상태 없음)
+    const progress = task.progress ?? 0;
+    const overdue = isTaskOverdue(task, dateUtils.formatDate(new Date()));
 
     // Handle Drag Start for a specific range
     const handleMouseDown = (e, type, range) => {
@@ -535,8 +540,10 @@ function TimelineBar({
                     ? Math.max(1, dateUtils.getDaysBetween(range.startDate, range.endDate))
                     : null;
 
-                // LG 선택/기본 테두리 색상
-                const lgBorderColor = isLg && isSelected ? '#a50034' : '#9e9e9e';
+                // LG 선택/기본 테두리 색상 (지연 시 경고색)
+                const lgBorderColor = isLg && isSelected
+                    ? '#a50034'
+                    : (overdue ? 'var(--color-overdue, #d9534f)' : '#9e9e9e');
 
                 const barStyle = isLg
                     ? {
@@ -568,7 +575,7 @@ function TimelineBar({
                     <div
                         key={range.id}
                         ref={(el) => (barRefs.current[range.id] = el)}
-                        className={`timeline-bar ${isSelected ? 'selected' : ''} ${isActive ? 'dragging' : ''} ${isLg ? 'theme-lg' : ''}`}
+                        className={`timeline-bar ${isSelected ? 'selected' : ''} ${isActive ? 'dragging' : ''} ${isLg ? 'theme-lg' : ''} ${overdue && !isLg ? 'overdue' : ''}`}
                         style={barStyle}
                         title={`${task.name} (${dateUtils.formatDate(new Date(range.startDate), 'YYYY.MM.DD')} ~ ${dateUtils.formatDate(new Date(range.endDate), 'YYYY.MM.DD')})`}
                         onClick={(e) => {
@@ -661,6 +668,10 @@ function TimelineBar({
                                     />
                                 </svg>
                             </>
+                        )}
+                        {/* 진행률 채움 오버레이 (기본 테마 전용 — LG 화살표 바와는 충돌) */}
+                        {!isLg && progress > 0 && (
+                            <div className="bar-progress-fill" style={{ width: `${progress}%` }} />
                         )}
                         {isActive && isCopyMode && (
                             <div style={{

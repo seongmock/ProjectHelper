@@ -23,6 +23,9 @@ npx playwright test
   잘못된 JSON 에러 토스트, 스냅샷/프롬프트 모달
 - `tests/e2e/ai-sync.spec.js` — 2개 AI 연동 시나리오: 외부 API 쓰기 → 10초 폴링 반영,
   편집 충돌(409) → 서버 우선 재로드. **API 서버(3000)가 꺼져 있으면 자동 skip**
+- `tests/e2e/features.spec.js` — v1.1 기능 6개: 진행률 슬라이더/배지, 지연(overdue)
+  표시·해제(API 경유), 표 날짜 편집→타임라인 동기화, 표 마일스톤 기본 날짜,
+  드래그 후 Ctrl+Z 1회 복원
 
 전체(16개)를 돌리려면 API 서버를 먼저 켠다: `npm run dev:api &`
 

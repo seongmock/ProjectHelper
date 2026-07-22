@@ -19,7 +19,6 @@ import TimelineHeader from './TimelineHeader';
 import TimelineBar from './TimelineBar';
 import MilestoneEditPopover from './MilestoneEditPopover';
 import { generateId, flattenTasks } from '../utils/dataModel';
-import html2canvas from 'html2canvas';
 import './TimelineView.css';
 
 // Sortable Wrapper for Task Name
@@ -102,6 +101,7 @@ const TimelineView = forwardRef(({
     selectedTaskId,
     onSelectTask,
     onUpdateTask,
+    onUpdateTaskSilent,
     onUpdateTasks,
     onDeleteTask,
     onMoveTask,
@@ -157,14 +157,25 @@ const TimelineView = forwardRef(({
     // 드래그 시작 시 확장된 작업 접기
     const [draggedTaskExpanded, setDraggedTaskExpanded] = useState(false);
 
+    // 드래그 접기/펼치기는 시각적 임시 상태 — undo 히스토리에 남기지 않음
+    const silentUpdate = onUpdateTaskSilent || onUpdateTask;
+
     const handleDragStart = (event) => {
         const { active } = event;
         const task = flatTasks.find(t => t.id === active.id);
 
         if (task && task.children && task.children.length > 0 && task.expanded) {
             setDraggedTaskExpanded(true);
-            onUpdateTask(task.id, { expanded: false });
+            silentUpdate(task.id, { expanded: false });
         } else {
+            setDraggedTaskExpanded(false);
+        }
+    };
+
+    // 드래그 취소(Escape 등) 시 접힌 상태 복구
+    const handleDragCancel = (event) => {
+        if (draggedTaskExpanded && event.active) {
+            silentUpdate(event.active.id, { expanded: true });
             setDraggedTaskExpanded(false);
         }
     };
@@ -174,7 +185,7 @@ const TimelineView = forwardRef(({
 
         // 원래 상태 복구
         if (draggedTaskExpanded) {
-            onUpdateTask(active.id, { expanded: true });
+            silentUpdate(active.id, { expanded: true });
             setDraggedTaskExpanded(false);
         }
 
@@ -989,6 +1000,9 @@ const TimelineView = forwardRef(({
                 timelineContent.style.height = '100%'; // 컨테이너 높이에 맞춤
             }
 
+            // html2canvas는 캡처 시에만 필요 — 별도 청크로 지연 로드 (번들 축소)
+            const { default: html2canvas } = await import('html2canvas');
+
             // html2canvas 옵션에 측정된 높이 적용
             const canvas = await html2canvas(captureRef.current, {
                 scale: 2, // 고해상도
@@ -1305,6 +1319,7 @@ const TimelineView = forwardRef(({
                                     collisionDetection={closestCenter}
                                     onDragStart={handleDragStart}
                                     onDragEnd={handleDragEnd}
+                                    onDragCancel={handleDragCancel}
                                 >
                                     <SortableContext
                                         items={items}

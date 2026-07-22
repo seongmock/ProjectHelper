@@ -29,6 +29,26 @@
     z-index: 10;
 }
 
+/* 진행률 채움 오버레이 — 바 색상과 무관하게 어두운 반투명으로 표시 */
+.bar-progress-fill {
+    position: absolute;
+    left: 0;
+    top: 0;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.22);
+    border-radius: var(--border-radius) 0 0 var(--border-radius);
+    pointer-events: none;
+    z-index: 0;
+}
+
+/* 지연(overdue): 종료일이 지났고 미완료 — 오른쪽 끝에 경고 엣지 */
+.timeline-bar.overdue {
+    box-shadow: inset -4px 0 0 0 var(--color-overdue, #d9534f), 0 2px 4px rgba(0, 0, 0, 0.15);
+}
+.timeline-bar.overdue.selected {
+    box-shadow: inset -4px 0 0 0 var(--color-overdue, #d9534f), 0 0 0 3px rgba(74, 144, 226, 0.3);
+}
+
 .timeline-bar.dragging {
     z-index: 999 !important;
     box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3);

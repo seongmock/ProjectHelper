@@ -760,7 +760,12 @@ export const exportToHtml = (tasks, settings = {}) => {
                             lgLabelHtml +
                         '</div>';
                     } else {
-                        html += '<div class="timeline-bar" style="left:' + leftPerc + '%;width:' + widthPerc + '%;top:' + rowCenter + 'px;height:' + barH + 'px;background-color:' + color + ';" title="' + title + '">' +
+                        // 진행률 채움 오버레이 (앱과 동일한 표현)
+                        var progHtml = (task.progress > 0)
+                            ? '<div style="position:absolute;left:0;top:0;height:100%;width:' + Math.min(100, task.progress) + '%;background:rgba(0,0,0,0.22);border-radius:4px 0 0 4px;pointer-events:none;"></div>'
+                            : '';
+                        html += '<div class="timeline-bar" style="left:' + leftPerc + '%;width:' + widthPerc + '%;top:' + rowCenter + 'px;height:' + barH + 'px;background-color:' + color + ';overflow:hidden;" title="' + title + '">' +
+                            progHtml +
                             labelHtml +
                         '</div>';
                     }

@@ -171,6 +171,14 @@ export const recalcTaskBoundsSafe = (timeRanges) => {
     };
 };
 
+// 지연(overdue) 판정: 완료(progress>=100)가 아니고 마지막 기간의 종료일이 오늘보다 과거
+// todayStr: 'YYYY-MM-DD' (호출부에서 렌더당 1회 계산) — ISO 문자열 비교는 안전
+export const isTaskOverdue = (task, todayStr) => {
+    if ((task.progress ?? 0) >= 100) return false;
+    const { endDate } = recalcTaskBoundsSafe(task.timeRanges);
+    return !!endDate && endDate < todayStr;
+};
+
 // 평탄화된 작업 목록에서 특정 ID(작업/기간/마일스톤)의 소유자 탐색
 // 반환: { task, kind: 'task' | 'range' | 'milestone' } 또는 null
 export const findOwnerOfEntity = (flatList, entityId) => {

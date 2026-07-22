@@ -8,6 +8,7 @@
   --color-success: #5CB85C;
   --color-warning: #F0AD4E;
   --color-danger: #D9534F;
+  --color-overdue: #D9534F;
 
   /* 배경 색상 */
   --color-bg-primary: #FFFFFF;
@@ -66,6 +67,7 @@
 
   --color-border: #404040;
   --color-grid: #333333;
+  --color-overdue: #FF6B6B;
 
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
   --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.4);

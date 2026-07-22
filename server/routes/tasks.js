@@ -123,12 +123,16 @@ const PATCH_SPEC = {
     expanded: { type: 'bool' },
     labels: { type: 'stringArray' },
     divider: { type: 'object' },
+    progress: { type: 'int' },
 };
 
 router.patch('/tasks/:id', (req, res) => {
     const err = validate(req.body, PATCH_SPEC);
     if (err) return badRequest(res, err);
     if (Object.keys(req.body).length === 0) return badRequest(res, 'empty update');
+    if (req.body.progress !== undefined && (req.body.progress < 0 || req.body.progress > 100)) {
+        return badRequest(res, 'progress must be 0-100');
+    }
     if (!checkRevision(req, res)) return;
 
     let updated = null;

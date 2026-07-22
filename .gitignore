@@ -41,3 +41,7 @@ tmp/
 test-results/
 playwright-report/
 
+# Session tooling artifacts
+.tokensave/
+.claude/.headroom_wrap_marker.json
+

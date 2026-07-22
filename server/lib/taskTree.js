@@ -35,6 +35,7 @@ const createNewTask = (name = '새 작업', parentId = null, startDate = null, e
         ],
         color: '#4A90E2',
         description: '',
+        progress: 0,
         children: [],
         expanded: true,
         labels: [],

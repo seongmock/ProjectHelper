@@ -42,10 +42,13 @@ Task는 재귀 트리(`children`). **날짜의 단일 진실은 `timeRanges[]`**
 
 ```
 Task { id, name, timeRanges[{id, startDate, endDate, dependencies[], color, label}],
-       color, description, children[], expanded, labels[], parentId,
+       color, description, progress(0~100), children[], expanded, labels[], parentId,
        milestones[{id, date, label, color, shape}], dependencies[](레거시),
        divider{enabled, thickness, style, color} }
 ```
+
+`progress`(진행률 %)는 v1.1에 추가 — `migrateTaskData`가 구버전 데이터에 0으로 백필하고 0~100으로 클램프한다.
+지연(overdue) 판정은 저장 상태가 아니라 렌더 시 `isTaskOverdue(task, today)`(taskTree.js) 순수 함수로 계산한다.
 
 `data.json`은 **bare Task 배열**로 표준화됨 (과거 `{ok,data}` 엔벨로프 오염은 store.js가 읽기 시 정규화).
 
