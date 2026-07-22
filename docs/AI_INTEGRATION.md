@@ -5,8 +5,19 @@ ProjectHelper는 AI 에이전트(Claude Code 등)가 프로젝트 일정을 직�
 | 레이어 | 대상 | 위치 |
 |---|---|---|
 | REST API (작업 단위 CRUD) | 모든 HTTP 클라이언트 | `server/routes/tasks.js` |
+| **셀프 디스커버리** (`GET /api` → `GET /api/guide`) | 사전 지식 없는 AI CLI | `server/lib/aiGuide.js` |
 | OpenAPI 3.0 스펙 | 스펙 기반 도구/코드젠 | `server/openapi.yaml` · `GET /api/openapi.yaml` |
-| MCP 서버 (12개 도구) | Claude Code, MCP 클라이언트 | `mcp/index.js` · `.mcp.json` |
+| MCP 서버 (13개 도구) | Claude Code, MCP 클라이언트 | `mcp/index.js` · `.mcp.json` |
+
+## 셀프 디스커버리 — 사전 지식 없는 AI가 처음부터 계획을 작성하는 법
+
+어떤 AI CLI든 API 주소 하나만 알면 사용법을 스스로 발견할 수 있다:
+
+1. `GET /api` → `start_here: "/api/guide"` 진입점 응답
+2. `GET /api/guide` → 데이터 모델·형식(JSON 예시)·**"계획을 처음부터 작성하는 6단계 워크플로우"**·동시성 규약·금지사항을 기계가 읽는 형태로 반환
+3. 가이드의 절차대로: 스냅샷 백업 → 최상위 단계 `POST /tasks` → 하위 작업(`parentId`) → 마일스톤 → `PATCH progress` → `GET /tasks?flat=true`로 확인 (flat 목록은 계산된 시작/종료일 포함)
+
+MCP 경유 시에는 `get-guide` 도구가 같은 가이드를 반환한다 (처음 사용 시 호출 권장).
 
 ## 빠른 시작 (Claude Code)
 

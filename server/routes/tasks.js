@@ -37,7 +37,12 @@ router.get('/tasks', (req, res) => {
     const tasks = store.readTasks();
     const revision = store.readMeta().revision;
     if (req.query.flat === 'true') {
-        return res.json({ ok: true, revision, tasks: tree.flattenAll(tasks) });
+        // 평탄 목록에는 timeRanges에서 계산한 시작/종료일을 포함 (AI의 ID/일정 탐색용)
+        const flat = tree.flattenAll(tasks).map(t => ({
+            ...t,
+            ...tree.recalcTaskBounds(t.timeRanges),
+        }));
+        return res.json({ ok: true, revision, tasks: flat });
     }
     res.json({ ok: true, revision, tasks });
 });

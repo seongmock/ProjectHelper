@@ -19,12 +19,19 @@ npm run dev:api   # 또는 cd server && npm start (포트 3000)
 브라우저 앱(dev: 5173)은 `/api` 프록시로 같은 서버를 쓴다.
 **열린 브라우저 탭은 10초 폴링으로 외부 변경을 자동 반영한다** — 수정 후 사용자에게 새로고침을 요구할 필요 없음.
 
+## 사용법을 모르면: 셀프 디스커버리
+
+`GET /api` → `start_here`가 가리키는 `GET /api/guide`에 데이터 모델·형식 예시·
+"계획을 처음부터 작성하는 워크플로우"·동시성 규약이 기계가 읽는 JSON으로 담겨 있다.
+MCP에서는 `get-guide` 도구가 동일 내용 반환.
+
 ## 방법 1: MCP 도구 (우선)
 
 `project-helper` MCP 서버가 등록되어 있으면 (프로젝트 루트 `.mcp.json`) 도구를 직접 호출:
 
 | 도구 | 용도 |
 |---|---|
+| `get-guide` | API 사용 가이드 (처음 사용 시 먼저 호출) |
 | `list-tasks` | 작업 ID 탐색 (flat 목록: id/name/level/dates) — **항상 이걸로 ID부터 확인** |
 | `get-task` | 단건 상세 (timeRanges/milestones 포함) |
 | `add-task` | 생성 (`parentId`로 하위 작업, `startDate`+`endDate`로 기간 지정) |

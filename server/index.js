@@ -2,6 +2,7 @@ const express = require('express');
 const fs = require('fs');
 const path = require('path');
 const store = require('./lib/store');
+const aiGuide = require('./lib/aiGuide');
 const { router: tasksRouter, checkRevision } = require('./routes/tasks');
 
 const app = express();
@@ -13,6 +14,23 @@ app.use(express.json({ limit: '10mb' }));
 // JSON 파일 읽기 헬퍼 (settings/snapshots — 리비전 무관 파일)
 const readJson = (filename) => store.readJsonSafe(path.join(DATA_DIR, filename));
 const writeJson = (filename, data) => store.writeJsonAtomic(path.join(DATA_DIR, filename), data);
+
+// ── AI 셀프 디스커버리: 루트 진입점 + 가이드 ────────
+// 사전 지식 없는 AI가 GET /api 만으로 사용법을 발견할 수 있게 한다
+app.get('/api', (req, res) => {
+    res.json({
+        ok: true,
+        name: 'ProjectHelper Timeline API',
+        revision: store.readMeta().revision,
+        start_here: '/api/guide',
+        openapi: '/api/openapi.yaml',
+        endpoints: ['/api/guide', '/api/openapi.yaml', '/api/tasks', '/api/revision', '/api/data', '/api/snapshots', '/api/health'],
+    });
+});
+
+app.get('/api/guide', (req, res) => {
+    res.json({ ok: true, guide: aiGuide });
+});
 
 // ── 프로젝트 데이터 (통짜 블롭 — 하위호환 유지, 리비전 지원 추가) ──
 app.get('/api/data', (req, res) => {

@@ -107,6 +107,20 @@ components:
           schema: { $ref: '#/components/schemas/Error' }
 
 paths:
+  /:
+    get:
+      summary: API 루트 — AI 셀프 디스커버리 진입점 (start_here → /guide)
+      responses:
+        '200':
+          description: '{ ok, name, revision, start_here, openapi, endpoints[] }'
+
+  /guide:
+    get:
+      summary: AI 에이전트용 사용 가이드 (데이터 모델·형식·계획 작성 워크플로우·동시성 규약)
+      responses:
+        '200':
+          description: '{ ok, guide }'
+
   /revision:
     get:
       summary: 현재 데이터 리비전 조회 (폴링용)

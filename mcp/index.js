@@ -42,6 +42,13 @@ const SHAPES = ['diamond', 'circle', 'triangle', 'square', 'star', 'flag'];
 const server = new McpServer({ name: 'project-helper', version: '1.0.0' });
 
 server.tool(
+    'get-guide',
+    '이 API의 사용 가이드(데이터 모델, 형식, 일정 계획 작성 워크플로우, 동시성 규약)를 반환. 처음 사용할 때 먼저 호출 권장.',
+    {},
+    run(() => api('/guide'))
+);
+
+server.tool(
     'list-tasks',
     '모든 작업 목록 조회. flat=true(기본)면 id/name/level/parentId/timeRanges가 붙은 평탄 목록 — 작업 ID를 찾을 때 사용.',
     { flat: z.boolean().default(true).describe('평탄 목록 여부 (false면 재귀 트리)') },
