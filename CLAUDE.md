@@ -16,8 +16,9 @@ npm run build     # Production build → dist/
 npm run test:e2e  # Playwright E2E (auto-starts vite dev server)
 ```
 
-**After any code change, run `npm run build` && `npx playwright test`** — 16 E2E tests
-(14 smoke + 2 AI-sync; the AI-sync pair auto-skips if the API server isn't running).
+**After any code change, run `npm run build` && `npx playwright test`** — 28 E2E tests
+(14 smoke + 6 features + 6 projects + 2 AI-sync; server-dependent specs auto-skip if the
+API server isn't running).
 There is no linter configured. Test selector conventions are documented in
 `.claude/skills/verify-app/SKILL.md`.
 
@@ -57,11 +58,22 @@ localStorage-only:
   on `GET /api/revision` picks up external changes in open tabs.
 - API base is `/api`: dev uses the Vite proxy to :3000 (vite.config.js), prod uses Caddy.
 
-The server (`server/`) is a small CommonJS Express app: `index.js` (blob + settings +
-snapshots routes), `routes/tasks.js` (per-task CRUD for AI integration, validated, 409 on
-If-Match mismatch), `lib/store.js` (atomic writes + revision), `lib/taskTree.js` (**CJS
-mirror of `src/utils/taskTree.js` — keep signatures in sync**), `lib/validate.js`.
-Data lives in JSON files under `server/data/`. No database; auth is Caddy basicauth only.
+The server (`server/`) is a small CommonJS Express app. **Data is multi-project** (v1.5):
+`server/data/projects/<pid>/{data,meta,snapshots}.json` + `projects.json` registry, with
+per-project revision counters. Routers get `req.projectStore` injected by middleware and are
+mounted twice: `/api/projects/:pid/*` (scoped) and `/api/*` (alias → 'default' project,
+backward compat). Key modules: `routes/tasks.js` (per-task CRUD, validated, 409 on If-Match
+mismatch), `routes/data.js` (blob+snapshots), `routes/projects.js`, `lib/store.js`
+(`getProjectStore(pid)`, atomic writes + revision), `lib/registry.js` (project CRUD +
+legacy migration on boot), `lib/taskTree.js` (**CJS mirror of `src/utils/taskTree.js` —
+keep signatures in sync**), `lib/validate.js`, `lib/aiGuide.js` (machine-readable guide at
+`GET /api/guide`). No database. Auth is Caddy basicauth; the authenticated user is forwarded
+as `X-Auth-User` and recorded (owner/createdBy) but not yet enforced.
+
+**Frontend project switching** (App.jsx `handleSwitchProject`) is order-sensitive: cancel
+pending debounce → flush if dirty → `storage.setProject` (bumps epoch, guards stale
+responses) → load + `resetTasks` (undo history reset — never skip this; stale history would
+let Ctrl+Z restore another project's tree and auto-save it).
 
 ### AI integration surface
 

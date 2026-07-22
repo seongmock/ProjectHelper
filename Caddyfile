@@ -13,7 +13,10 @@
     }
 
     handle /api/* {
-        reverse_proxy project-helper-api:3000
+        reverse_proxy project-helper-api:3000 {
+            # basicauth 인증 사용자를 서버에 전달 (멀티유저 대비 — 서버는 owner/createdBy 기록에 사용)
+            header_up X-Auth-User {http.auth.user.id}
+        }
     }
 
     handle {

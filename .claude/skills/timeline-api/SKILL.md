@@ -19,6 +19,13 @@ npm run dev:api   # 또는 cd server && npm start (포트 3000)
 브라우저 앱(dev: 5173)은 `/api` 프록시로 같은 서버를 쓴다.
 **열린 브라우저 탭은 10초 폴링으로 외부 변경을 자동 반영한다** — 수정 후 사용자에게 새로고침을 요구할 필요 없음.
 
+## 다중 프로젝트 (중요)
+
+데이터는 프로젝트 단위로 격리된다. **새 일정 계획은 새 프로젝트에 작성하라**:
+`create-project`(MCP) 또는 `POST /api/projects {name}` → 반환된 id를 도구의 `projectId`
+파라미터 / `/api/projects/{pid}/...` 경로에 사용. projectId 생략 시 default 프로젝트.
+사용자는 헤더의 프로젝트 드롭다운에서 전환해 확인한다.
+
 ## 사용법을 모르면: 셀프 디스커버리
 
 `GET /api` → `start_here`가 가리키는 `GET /api/guide`에 데이터 모델·형식 예시·

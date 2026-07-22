@@ -26,6 +26,9 @@ npx playwright test
 - `tests/e2e/features.spec.js` — v1.1 기능 6개: 진행률 슬라이더/배지, 지연(overdue)
   표시·해제(API 경유), 표 날짜 편집→타임라인 동기화, 표 마일스톤 기본 날짜,
   드래그 후 Ctrl+Z 1회 복원
+- `tests/e2e/projects.spec.js` — 다중 프로젝트 6개: 생성/전환, 격리, 전환 후 undo
+  차단(히스토리 리셋), 이름변경 유지, 삭제 가드, AI 생성 프로젝트 전환 확인
+  (**API 서버 필요** — 없으면 자동 skip)
 
 전체(16개)를 돌리려면 API 서버를 먼저 켠다: `npm run dev:api &`
 

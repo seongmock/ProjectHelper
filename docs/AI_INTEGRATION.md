@@ -14,10 +14,18 @@ ProjectHelper는 AI 에이전트(Claude Code 등)가 프로젝트 일정을 직�
 어떤 AI CLI든 API 주소 하나만 알면 사용법을 스스로 발견할 수 있다:
 
 1. `GET /api` → `start_here: "/api/guide"` 진입점 응답
-2. `GET /api/guide` → 데이터 모델·형식(JSON 예시)·**"계획을 처음부터 작성하는 6단계 워크플로우"**·동시성 규약·금지사항을 기계가 읽는 형태로 반환
-3. 가이드의 절차대로: 스냅샷 백업 → 최상위 단계 `POST /tasks` → 하위 작업(`parentId`) → 마일스톤 → `PATCH progress` → `GET /tasks?flat=true`로 확인 (flat 목록은 계산된 시작/종료일 포함)
+2. `GET /api/guide` → 데이터 모델·형식(JSON 예시)·**"계획을 처음부터 작성하는 워크플로우"**·동시성 규약·금지사항을 기계가 읽는 형태로 반환
+3. 가이드의 절차대로: **`POST /api/projects`로 새 프로젝트 생성** → 그 안에 최상위 단계 `POST /projects/{pid}/tasks` → 하위 작업(`parentId`) → 마일스톤 → `PATCH progress` → flat 목록으로 확인
 
 MCP 경유 시에는 `get-guide` 도구가 같은 가이드를 반환한다 (처음 사용 시 호출 권장).
+
+## 다중 프로젝트 (v1.5)
+
+- **새 계획은 새 프로젝트에**: `POST /api/projects {name}` → 반환된 `project.id`로 `/api/projects/{pid}/...` 경로 사용. 기존 데이터와 완전 격리 (독립 revision).
+- 프로젝트 없는 경로(`/api/tasks` 등)는 **default 프로젝트의 별칭** (하위호환).
+- MCP: `list-projects`/`create-project` 도구 + 모든 도구의 선택적 `projectId` 파라미터.
+- 사용자는 헤더의 프로젝트 드롭다운으로 전환해 확인 — 드롭다운을 열 때 목록을 다시 가져오므로 AI가 만든 프로젝트가 바로 보인다.
+- 멀티유저 배포 시 Caddy basicauth 사용자가 `X-Auth-User`로 전달되어 `owner`/`createdBy`에 기록된다.
 
 ## 빠른 시작 (Claude Code)
 

@@ -11,9 +11,25 @@ module.exports = {
     discovery: {
         guide: 'GET /api/guide (이 문서)',
         openapi: 'GET /api/openapi.yaml (전체 스펙)',
-        revision: 'GET /api/revision (경량 변경 감지)',
+        projects: 'GET /api/projects (프로젝트 목록 — 각각 독립된 작업 트리/리비전)',
+        revision: 'GET /api/projects/{pid}/revision (경량 변경 감지)',
         health: 'GET /api/health',
-        mcp: '프로젝트 루트 .mcp.json 등록 시 12개 MCP 도구 사용 가능 (list-tasks, add-task, reschedule 등)',
+        mcp: '프로젝트 루트 .mcp.json 등록 시 15개 MCP 도구 사용 가능 (get-guide, list-projects, create-project, add-task, reschedule 등)',
+    },
+
+    projects: {
+        description:
+            '데이터는 프로젝트 단위로 격리된다. 각 프로젝트는 독립된 작업 트리·리비전·스냅샷을 가진다. ' +
+            '/api/tasks 등 프로젝트 없는 경로는 default 프로젝트의 별칭(하위호환). ' +
+            '**새 일정 계획은 새 프로젝트를 만들어 그 안에 작성할 것** — 기존 데이터를 오염시키지 않는다.',
+        endpoints: {
+            list: 'GET /api/projects',
+            create: 'POST /api/projects {name} → 201 {project:{id,...}} — 이후 모든 경로에 이 id 사용',
+            rename: 'PATCH /api/projects/{pid} {name}',
+            delete: 'DELETE /api/projects/{pid} (마지막 프로젝트는 400)',
+            scoped: '/api/projects/{pid}/tasks | /data | /revision | /snapshots — 프로젝트 없는 경로와 동일한 형태',
+        },
+        multiUser: '멀티유저 배포 시 Caddy basicauth 사용자가 X-Auth-User로 전달되어 owner/createdBy에 기록된다.',
     },
 
     formats: {
@@ -45,21 +61,22 @@ module.exports = {
 
     workflows: {
         createPlanFromScratch: {
-            description: '빈 상태(또는 기존 데이터 위)에서 일정 계획을 처음부터 작성하는 권장 절차',
+            description: '새 일정 계획을 처음부터 작성하는 권장 절차 — 반드시 새 프로젝트 안에서',
             steps: [
-                '0. (기존 데이터가 있으면) POST /api/snapshots {name, data: <GET /api/data 의 data>} 로 백업',
-                '1. 최상위 단계(phase)별로 POST /api/tasks {name, startDate, endDate, color?, description?} → 응답의 task.id 저장',
-                '2. 하위 작업은 POST /api/tasks {name, parentId: <상위 id>, startDate, endDate}',
-                '3. 주요 이벤트는 POST /api/tasks/{id}/milestones {date, label, shape?}',
-                '4. 진행 상황은 PATCH /api/tasks/{id} {progress: 0~100}',
-                '5. 확인은 GET /api/tasks?flat=true (id/name/level/parentId/날짜 요약)',
+                "1. POST /api/projects {name: '<계획 이름>'} → project.id 획득 (이하 {pid})",
+                '2. 최상위 단계(phase)별로 POST /api/projects/{pid}/tasks {name, startDate, endDate, color?, description?} → 응답의 task.id 저장',
+                '3. 하위 작업은 POST /api/projects/{pid}/tasks {name, parentId: <상위 id>, startDate, endDate}',
+                '4. 주요 이벤트는 POST /api/projects/{pid}/tasks/{id}/milestones {date, label, shape?}',
+                '5. 진행 상황은 PATCH /api/projects/{pid}/tasks/{id} {progress: 0~100}',
+                '6. 확인은 GET /api/projects/{pid}/tasks?flat=true — 사용자는 헤더의 프로젝트 드롭다운에서 전환해 확인',
             ],
             example: [
-                "curl -X POST -H 'Content-Type: application/json' -d '{\"name\":\"1단계: 기획\",\"startDate\":\"2026-08-03\",\"endDate\":\"2026-08-14\",\"color\":\"#4A90E2\"}' $BASE/tasks",
-                "curl -X POST -H 'Content-Type: application/json' -d '{\"name\":\"요구사항 정의\",\"parentId\":\"<위 응답의 task.id>\",\"startDate\":\"2026-08-03\",\"endDate\":\"2026-08-07\"}' $BASE/tasks",
-                "curl -X POST -H 'Content-Type: application/json' -d '{\"date\":\"2026-08-14\",\"label\":\"기획 승인\",\"shape\":\"diamond\"}' $BASE/tasks/<id>/milestones",
+                "PID=$(curl -sX POST -H 'Content-Type: application/json' -d '{\"name\":\"신제품 출시\"}' $BASE/projects | jq -r .project.id)",
+                "curl -X POST -H 'Content-Type: application/json' -d '{\"name\":\"1단계: 기획\",\"startDate\":\"2026-08-03\",\"endDate\":\"2026-08-14\",\"color\":\"#4A90E2\"}' $BASE/projects/$PID/tasks",
+                "curl -X POST -H 'Content-Type: application/json' -d '{\"name\":\"요구사항 정의\",\"parentId\":\"<위 응답의 task.id>\",\"startDate\":\"2026-08-03\",\"endDate\":\"2026-08-07\"}' $BASE/projects/$PID/tasks",
             ],
         },
+        modifyExistingProject: '기존 계획 수정 시: GET /api/projects로 대상 프로젝트 확인 → 스코프 경로로 조작. 대량 편집 전 POST /api/projects/{pid}/snapshots 백업 권장.',
         reschedule: 'PATCH /api/tasks/{id}/time-ranges/{rangeId} {startDate?, endDate?} — rangeId는 GET /api/tasks/{id} 의 timeRanges[].id',
         move: 'POST /api/tasks/{id}/move {parentId(null=루트), position?} — 자기 서브트리 안으로는 이동 불가(400)',
         deleteSafely: 'DELETE /api/tasks/{id} 는 하위 전체 삭제 — 대량 삭제 전 스냅샷 권장',

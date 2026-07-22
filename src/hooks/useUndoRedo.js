@@ -56,6 +56,11 @@ export const useUndoRedo = (initialState) => {
         });
     }, []);
 
+    // 히스토리 전체 교체 — 프로젝트 전환 시 이전 프로젝트 상태로의 undo를 차단
+    const reset = useCallback((newState) => {
+        setHookState({ history: [newState], index: 0 });
+    }, []);
+
     const canUndo = hookState.index > 0;
     const canRedo = hookState.index < hookState.history.length - 1;
 
@@ -81,6 +86,7 @@ export const useUndoRedo = (initialState) => {
         state: currentState,
         setState,
         setStateSilent, // 드래그 중 등 임시 상태 업데이트용
+        reset, // 프로젝트 전환 시 히스토리 초기화
         undo,
         redo,
         canUndo,

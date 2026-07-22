@@ -52,6 +52,27 @@ Task { id, name, timeRanges[{id, startDate, endDate, dependencies[], color, labe
 
 `data.json`은 **bare Task 배열**로 표준화됨 (과거 `{ok,data}` 엔벨로프 오염은 store.js가 읽기 시 정규화).
 
+## 다중 프로젝트 (v1.5)
+
+데이터는 프로젝트 단위로 완전 격리된다:
+
+```
+server/data/
+├── projects.json              # 레지스트리 [{id, name, owner, createdAt, updatedAt}]
+├── settings.json              # 전역 설정 (사용자별 설정은 v2.0 과제)
+└── projects/<pid>/            # 프로젝트별: data.json + meta.json(독립 revision) + snapshots.json
+```
+
+- 라우팅: `/api/projects/:pid/{tasks,data,revision,snapshots}` (스코프) + `/api/{tasks,data,...}` (default 프로젝트 별칭 — 하위호환). 같은 라우터를 두 곳에 마운트하고 미들웨어가 `req.projectStore`를 주입.
+- 부팅 시 레거시 단일 `data.json` → `projects/default/`로 멱등 마이그레이션 (`registry.ensureLayout`).
+- 프로젝트 삭제는 `_trash/`로 이동 (안전망), 마지막 프로젝트는 삭제 불가(400).
+- 프론트: 헤더 ProjectSwitcher 드롭다운. 전환 시퀀스는 (1) 디바운스 동기 취소 → (2) dirty면 이전 프로젝트 flush → (3) 스코프 전환(epoch++ — 늦은 응답 무효화) → (4) 새 데이터 로드 + **undo 히스토리 리셋**(`useUndoRedo.reset`) 순서 — 이 순서가 프로젝트 간 데이터 오염을 막는다.
+- localStorage 캐시 키도 프로젝트별(`project-timeline-data:<pid>`).
+
+### 멀티유저 대비 (기록만, 강제 없음)
+
+Caddy basicauth 인증 사용자가 `X-Auth-User` 헤더로 전달되어 (`Caddyfile header_up`) 서버가 `req.user`로 읽고 프로젝트 `owner`·스냅샷 `createdBy`에 기록한다. 권한 강제(예: owner만 삭제)는 실제 멀티유저 도입 시 라우트에 추가하면 된다 — 구조는 준비됨. dev 환경(프록시 없음)에서는 `local`로 기록.
+
 ## 동시성 모델 (AI ↔ 브라우저)
 
 문제: 브라우저는 트리 전체를 1.5s 디바운스로 통짜 POST → 외부(AI) 쓰기가 조용히 덮어써졌다.

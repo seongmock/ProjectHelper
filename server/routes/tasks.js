@@ -1,18 +1,18 @@
 // 작업 단위 CRUD API — AI 에이전트가 트리 전체를 다루지 않고 개별 작업을 조작할 수 있게 한다.
 // 응답: 성공 { ok:true, revision, ... } / 오류 { ok:false, error, revision? }
 // 모든 변경 요청은 선택적 If-Match 헤더(리비전)를 지원 — 불일치 시 409.
+// 프로젝트 스코프: req.projectStore(getProjectStore(pid))가 상위 미들웨어에서 주입됨.
 const express = require('express');
-const store = require('../lib/store');
 const tree = require('../lib/taskTree');
 const { validate } = require('../lib/validate');
 
-const router = express.Router();
+const router = express.Router({ mergeParams: true });
 
 // If-Match 리비전 검사 (없으면 통과 — 하위호환)
 const checkRevision = (req, res) => {
     const ifMatch = req.get('If-Match');
     if (ifMatch === undefined) return true;
-    const current = store.readMeta().revision;
+    const current = req.projectStore.readMeta().revision;
     if (String(current) !== ifMatch.trim()) {
         res.status(409).json({ ok: false, error: 'revision mismatch', revision: current });
         return false;
@@ -20,22 +20,22 @@ const checkRevision = (req, res) => {
     return true;
 };
 
-const notFound = (res, what = 'task') =>
-    res.status(404).json({ ok: false, error: `${what} not found`, revision: store.readMeta().revision });
+const notFound = (req, res, what = 'task') =>
+    res.status(404).json({ ok: false, error: `${what} not found`, revision: req.projectStore.readMeta().revision });
 
-const badRequest = (res, error) =>
-    res.status(400).json({ ok: false, error, revision: store.readMeta().revision });
+const badRequest = (req, res, error) =>
+    res.status(400).json({ ok: false, error, revision: req.projectStore.readMeta().revision });
 
 // ── 리비전 폴링 ──────────────────────────────────────
 router.get('/revision', (req, res) => {
-    const meta = store.readMeta();
+    const meta = req.projectStore.readMeta();
     res.json({ ok: true, revision: meta.revision, updatedAt: meta.updatedAt });
 });
 
 // ── 작업 목록 ────────────────────────────────────────
 router.get('/tasks', (req, res) => {
-    const tasks = store.readTasks();
-    const revision = store.readMeta().revision;
+    const tasks = req.projectStore.readTasks();
+    const revision = req.projectStore.readMeta().revision;
     if (req.query.flat === 'true') {
         // 평탄 목록에는 timeRanges에서 계산한 시작/종료일을 포함 (AI의 ID/일정 탐색용)
         const flat = tree.flattenAll(tasks).map(t => ({
@@ -49,12 +49,12 @@ router.get('/tasks', (req, res) => {
 
 // ── 작업 단건 조회 ───────────────────────────────────
 router.get('/tasks/:id', (req, res) => {
-    const tasks = store.readTasks();
+    const tasks = req.projectStore.readTasks();
     const found = tree.findTaskAndParent(tasks, req.params.id);
-    if (!found) return notFound(res);
+    if (!found) return notFound(req, res);
     res.json({
         ok: true,
-        revision: store.readMeta().revision,
+        revision: req.projectStore.readMeta().revision,
         task: found.task,
         parentId: found.parent ? found.parent.id : null,
     });
@@ -74,15 +74,15 @@ const CREATE_SPEC = {
 
 router.post('/tasks', (req, res) => {
     const err = validate(req.body, CREATE_SPEC);
-    if (err) return badRequest(res, err);
+    if (err) return badRequest(req, res, err);
     if (!checkRevision(req, res)) return;
 
     const { name, parentId = null, position, startDate, endDate, color, description, labels } = req.body;
     if ((startDate && !endDate) || (!startDate && endDate)) {
-        return badRequest(res, 'startDate and endDate must be provided together');
+        return badRequest(req, res, 'startDate and endDate must be provided together');
     }
     if (startDate && endDate && endDate < startDate) {
-        return badRequest(res, 'endDate must be >= startDate');
+        return badRequest(req, res, 'endDate must be >= startDate');
     }
 
     const newTask = tree.createNewTask(name, parentId, startDate, endDate);
@@ -91,7 +91,7 @@ router.post('/tasks', (req, res) => {
     if (labels) newTask.labels = labels;
 
     let created = null;
-    const result = store.withTasks((tasks) => {
+    const result = req.projectStore.withTasks((tasks) => {
         if (parentId) {
             const parent = tree.findTask(tasks, parentId);
             if (!parent) return undefined; // 저장 안 함
@@ -107,7 +107,7 @@ router.post('/tasks', (req, res) => {
         return next;
     });
 
-    if (!result || !created) return notFound(res, 'parent task');
+    if (!result || !created) return notFound(req, res, 'parent task');
     res.status(201).json({ ok: true, revision: result.meta.revision, task: newTask });
 });
 
@@ -133,15 +133,15 @@ const PATCH_SPEC = {
 
 router.patch('/tasks/:id', (req, res) => {
     const err = validate(req.body, PATCH_SPEC);
-    if (err) return badRequest(res, err);
-    if (Object.keys(req.body).length === 0) return badRequest(res, 'empty update');
+    if (err) return badRequest(req, res, err);
+    if (Object.keys(req.body).length === 0) return badRequest(req, res, 'empty update');
     if (req.body.progress !== undefined && (req.body.progress < 0 || req.body.progress > 100)) {
-        return badRequest(res, 'progress must be 0-100');
+        return badRequest(req, res, 'progress must be 0-100');
     }
     if (!checkRevision(req, res)) return;
 
     let updated = null;
-    const result = store.withTasks((tasks) => {
+    const result = req.projectStore.withTasks((tasks) => {
         const found = tree.findTask(tasks, req.params.id);
         if (!found) return undefined;
         const next = tree.updateTaskInTree(tasks, req.params.id, req.body);
@@ -149,7 +149,7 @@ router.patch('/tasks/:id', (req, res) => {
         return next;
     });
 
-    if (!result) return notFound(res);
+    if (!result) return notFound(req, res);
     res.json({ ok: true, revision: result.meta.revision, task: updated });
 });
 
@@ -158,13 +158,13 @@ router.delete('/tasks/:id', (req, res) => {
     if (!checkRevision(req, res)) return;
 
     let existed = false;
-    const result = store.withTasks((tasks) => {
+    const result = req.projectStore.withTasks((tasks) => {
         if (!tree.findTask(tasks, req.params.id)) return undefined;
         existed = true;
         return tree.deleteFromTree(tasks, req.params.id);
     });
 
-    if (!result || !existed) return notFound(res);
+    if (!result || !existed) return notFound(req, res);
     res.json({ ok: true, revision: result.meta.revision });
 });
 
@@ -174,14 +174,14 @@ router.post('/tasks/:id/move', (req, res) => {
         parentId: { type: 'string', nullable: true, required: true },
         position: { type: 'int' },
     });
-    if (err) return badRequest(res, err);
+    if (err) return badRequest(req, res, err);
     if (!checkRevision(req, res)) return;
 
     const { parentId, position } = req.body;
     let moved = null;
     let failReason = null;
 
-    const result = store.withTasks((tasks) => {
+    const result = req.projectStore.withTasks((tasks) => {
         const found = tree.findTaskAndParent(tasks, req.params.id);
         if (!found) { failReason = 'task not found'; return undefined; }
 
@@ -212,8 +212,8 @@ router.post('/tasks/:id/move', (req, res) => {
     });
 
     if (!result) {
-        if (failReason === 'cannot move a task into its own subtree') return badRequest(res, failReason);
-        return notFound(res, failReason === 'parent task not found' ? 'parent task' : 'task');
+        if (failReason === 'cannot move a task into its own subtree') return badRequest(req, res, failReason);
+        return notFound(req, res, failReason === 'parent task not found' ? 'parent task' : 'task');
     }
     res.json({ ok: true, revision: result.meta.revision, task: moved });
 });
@@ -229,8 +229,8 @@ const RANGE_SPEC = {
 
 router.post('/tasks/:id/time-ranges', (req, res) => {
     const err = validate(req.body, RANGE_SPEC);
-    if (err) return badRequest(res, err);
-    if (req.body.endDate < req.body.startDate) return badRequest(res, 'endDate must be >= startDate');
+    if (err) return badRequest(req, res, err);
+    if (req.body.endDate < req.body.startDate) return badRequest(req, res, 'endDate must be >= startDate');
     if (!checkRevision(req, res)) return;
 
     const newRange = {
@@ -242,7 +242,7 @@ router.post('/tasks/:id/time-ranges', (req, res) => {
         label: req.body.label || '',
     };
 
-    const result = store.withTasks((tasks) => {
+    const result = req.projectStore.withTasks((tasks) => {
         const task = tree.findTask(tasks, req.params.id);
         if (!task) return undefined;
         const timeRanges = [...(task.timeRanges || []), newRange];
@@ -252,7 +252,7 @@ router.post('/tasks/:id/time-ranges', (req, res) => {
         });
     });
 
-    if (!result) return notFound(res);
+    if (!result) return notFound(req, res);
     res.status(201).json({ ok: true, revision: result.meta.revision, timeRange: newRange });
 });
 
@@ -264,13 +264,13 @@ router.patch('/tasks/:id/time-ranges/:rangeId', (req, res) => {
         color: { type: 'color', nullable: true },
         dependencies: { type: 'stringArray' },
     });
-    if (err) return badRequest(res, err);
-    if (Object.keys(req.body).length === 0) return badRequest(res, 'empty update');
+    if (err) return badRequest(req, res, err);
+    if (Object.keys(req.body).length === 0) return badRequest(req, res, 'empty update');
     if (!checkRevision(req, res)) return;
 
     let updatedRange = null;
     let failReason = null;
-    const result = store.withTasks((tasks) => {
+    const result = req.projectStore.withTasks((tasks) => {
         const task = tree.findTask(tasks, req.params.id);
         if (!task) { failReason = 'task'; return undefined; }
         const ranges = task.timeRanges || [];
@@ -289,8 +289,8 @@ router.patch('/tasks/:id/time-ranges/:rangeId', (req, res) => {
     });
 
     if (!result) {
-        if (failReason === 'invalid-dates') return badRequest(res, 'endDate must be >= startDate');
-        return notFound(res, failReason || 'task');
+        if (failReason === 'invalid-dates') return badRequest(req, res, 'endDate must be >= startDate');
+        return notFound(req, res, failReason || 'task');
     }
     res.json({ ok: true, revision: result.meta.revision, timeRange: updatedRange });
 });
@@ -299,7 +299,7 @@ router.delete('/tasks/:id/time-ranges/:rangeId', (req, res) => {
     if (!checkRevision(req, res)) return;
 
     let failReason = null;
-    const result = store.withTasks((tasks) => {
+    const result = req.projectStore.withTasks((tasks) => {
         const task = tree.findTask(tasks, req.params.id);
         if (!task) { failReason = 'task'; return undefined; }
         const ranges = task.timeRanges || [];
@@ -312,7 +312,7 @@ router.delete('/tasks/:id/time-ranges/:rangeId', (req, res) => {
         });
     });
 
-    if (!result) return notFound(res, failReason || 'task');
+    if (!result) return notFound(req, res, failReason || 'task');
     res.json({ ok: true, revision: result.meta.revision });
 });
 
@@ -324,7 +324,7 @@ router.post('/tasks/:id/milestones', (req, res) => {
         color: { type: 'color' },
         shape: { enum: ['diamond', 'circle', 'triangle', 'square', 'star', 'flag'] },
     });
-    if (err) return badRequest(res, err);
+    if (err) return badRequest(req, res, err);
     if (!checkRevision(req, res)) return;
 
     const milestone = {
@@ -335,7 +335,7 @@ router.post('/tasks/:id/milestones', (req, res) => {
         shape: req.body.shape || 'diamond',
     };
 
-    const result = store.withTasks((tasks) => {
+    const result = req.projectStore.withTasks((tasks) => {
         const task = tree.findTask(tasks, req.params.id);
         if (!task) return undefined;
         return tree.updateTaskInTree(tasks, req.params.id, {
@@ -343,7 +343,7 @@ router.post('/tasks/:id/milestones', (req, res) => {
         });
     });
 
-    if (!result) return notFound(res);
+    if (!result) return notFound(req, res);
     res.status(201).json({ ok: true, revision: result.meta.revision, milestone });
 });
 
@@ -351,7 +351,7 @@ router.delete('/tasks/:id/milestones/:milestoneId', (req, res) => {
     if (!checkRevision(req, res)) return;
 
     let failReason = null;
-    const result = store.withTasks((tasks) => {
+    const result = req.projectStore.withTasks((tasks) => {
         const task = tree.findTask(tasks, req.params.id);
         if (!task) { failReason = 'task'; return undefined; }
         const milestones = task.milestones || [];
@@ -361,7 +361,7 @@ router.delete('/tasks/:id/milestones/:milestoneId', (req, res) => {
         });
     });
 
-    if (!result) return notFound(res, failReason || 'task');
+    if (!result) return notFound(req, res, failReason || 'task');
     res.json({ ok: true, revision: result.meta.revision });
 });
 

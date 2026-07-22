@@ -1,11 +1,25 @@
+import ProjectSwitcher from './ProjectSwitcher';
 import './Header.css';
 
-function Header({ darkMode, onToggleDarkMode, onExport, onImport, canUndo, canRedo, onUndo, onRedo, onOpenPromptGuide, onOpenSnapshots, snapEnabled, onToggleSnap }) {
+function Header({
+    darkMode, onToggleDarkMode, onExport, onImport, canUndo, canRedo, onUndo, onRedo,
+    onOpenPromptGuide, onOpenSnapshots, snapEnabled, onToggleSnap,
+    projects, activeProjectId, onSwitchProject, onCreateProject, onRenameProject, onDeleteProject, onOpenProjectList,
+}) {
     return (
         <header className="header">
             <div className="header-content">
                 <div className="header-left">
                     <h1 className="header-title">📊 프로젝트 타임라인 관리</h1>
+                    <ProjectSwitcher
+                        projects={projects || []}
+                        activeProjectId={activeProjectId}
+                        onSwitch={onSwitchProject}
+                        onCreate={onCreateProject}
+                        onRename={onRenameProject}
+                        onDelete={onDeleteProject}
+                        onOpen={onOpenProjectList}
+                    />
                 </div>
 
                 <div className="header-right flex items-center gap-sm">

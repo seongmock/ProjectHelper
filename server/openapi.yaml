@@ -112,7 +112,49 @@ paths:
       summary: API 루트 — AI 셀프 디스커버리 진입점 (start_here → /guide)
       responses:
         '200':
-          description: '{ ok, name, revision, start_here, openapi, endpoints[] }'
+          description: '{ ok, name, start_here, openapi, endpoints[] }'
+
+  /projects:
+    get:
+      summary: 프로젝트 목록 (각 프로젝트는 독립된 작업 트리/리비전/스냅샷)
+      responses:
+        '200':
+          description: '{ ok, projects: [{id, name, owner, createdAt, updatedAt}] }'
+    post:
+      summary: 프로젝트 생성 — 새 일정 계획은 새 프로젝트에 작성 권장
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string }
+      responses:
+        '201': { description: '{ ok, project }' }
+
+  /projects/{pid}:
+    parameters:
+      - name: pid
+        in: path
+        required: true
+        schema: { type: string }
+    patch:
+      summary: 프로젝트 이름 변경
+      responses:
+        '200': { description: '{ ok, project }' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      summary: 프로젝트 삭제 (마지막 프로젝트는 400, 데이터는 _trash로 보존)
+      responses:
+        '200': { description: '{ ok }' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  # 아래 모든 경로는 두 형태로 제공된다:
+  #   /projects/{pid}/...  — 프로젝트 스코프 (권장)
+  #   /...                 — default 프로젝트 별칭 (하위호환)
 
   /guide:
     get:

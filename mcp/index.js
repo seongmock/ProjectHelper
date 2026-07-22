@@ -39,6 +39,10 @@ const run = (fn) => async (args) => {
 const DATE = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'YYYY-MM-DD 형식');
 const SHAPES = ['diamond', 'circle', 'triangle', 'square', 'star', 'flag'];
 
+// 프로젝트 스코프: projectId 생략 시 legacy 별칭(= default 프로젝트)으로 동작
+const PROJECT = z.string().optional().describe('프로젝트 ID (생략 시 default 프로젝트)');
+const pp = (projectId) => (projectId ? `/projects/${projectId}` : '');
+
 const server = new McpServer({ name: 'project-helper', version: '1.0.0' });
 
 server.tool(
@@ -49,11 +53,25 @@ server.tool(
 );
 
 server.tool(
+    'list-projects',
+    '프로젝트 목록 조회. 각 프로젝트는 독립된 작업 트리/리비전을 가진다.',
+    {},
+    run(() => api('/projects'))
+);
+
+server.tool(
+    'create-project',
+    '새 프로젝트 생성 — 새 일정 계획은 기존 데이터와 격리된 새 프로젝트에 작성하는 것을 권장. 반환된 project.id를 이후 도구들의 projectId로 사용.',
+    { name: z.string() },
+    run(({ name }) => api('/projects', { method: 'POST', body: { name } }))
+);
+
+server.tool(
     'list-tasks',
     '모든 작업 목록 조회. flat=true(기본)면 id/name/level/parentId/timeRanges가 붙은 평탄 목록 — 작업 ID를 찾을 때 사용.',
-    { flat: z.boolean().default(true).describe('평탄 목록 여부 (false면 재귀 트리)') },
-    run(async ({ flat }) => {
-        const res = await api(`/tasks${flat ? '?flat=true' : ''}`);
+    { flat: z.boolean().default(true).describe('평탄 목록 여부 (false면 재귀 트리)'), projectId: PROJECT },
+    run(async ({ flat, projectId }) => {
+        const res = await api(`${pp(projectId)}/tasks${flat ? '?flat=true' : ''}`);
         if (!flat) return res;
         // 평탄 목록은 핵심 필드만 추려 토큰 절약
         return {
@@ -75,8 +93,8 @@ server.tool(
 server.tool(
     'get-task',
     '작업 단건 상세 조회 (timeRanges/milestones/children 포함).',
-    { taskId: z.string() },
-    run(({ taskId }) => api(`/tasks/${taskId}`))
+    { taskId: z.string(), projectId: PROJECT },
+    run(({ taskId, projectId }) => api(`${pp(projectId)}/tasks/${taskId}`))
 );
 
 server.tool(
@@ -90,8 +108,9 @@ server.tool(
         endDate: DATE.optional(),
         color: z.string().optional().describe('#RRGGBB'),
         description: z.string().optional(),
+        projectId: PROJECT,
     },
-    run((args) => api('/tasks', { method: 'POST', body: args }))
+    run(({ projectId, ...body }) => api(`${pp(projectId)}/tasks`, { method: 'POST', body }))
 );
 
 server.tool(
@@ -104,15 +123,16 @@ server.tool(
         description: z.string().optional(),
         labels: z.array(z.string()).optional(),
         progress: z.number().int().min(0).max(100).optional().describe('진행률 % (0-100)'),
+        projectId: PROJECT,
     },
-    run(({ taskId, ...body }) => api(`/tasks/${taskId}`, { method: 'PATCH', body }))
+    run(({ taskId, projectId, ...body }) => api(`${pp(projectId)}/tasks/${taskId}`, { method: 'PATCH', body }))
 );
 
 server.tool(
     'delete-task',
     '작업 삭제 (하위 작업 전체 포함 — 되돌릴 수 없으므로 대량 삭제 전 create-snapshot 권장).',
-    { taskId: z.string() },
-    run(({ taskId }) => api(`/tasks/${taskId}`, { method: 'DELETE' }))
+    { taskId: z.string(), projectId: PROJECT },
+    run(({ taskId, projectId }) => api(`${pp(projectId)}/tasks/${taskId}`, { method: 'DELETE' }))
 );
 
 server.tool(
@@ -122,8 +142,9 @@ server.tool(
         taskId: z.string(),
         parentId: z.string().nullable().describe('새 부모 ID, null이면 루트 레벨'),
         position: z.number().int().optional(),
+        projectId: PROJECT,
     },
-    run(({ taskId, ...body }) => api(`/tasks/${taskId}/move`, { method: 'POST', body }))
+    run(({ taskId, projectId, ...body }) => api(`${pp(projectId)}/tasks/${taskId}/move`, { method: 'POST', body }))
 );
 
 server.tool(
@@ -135,9 +156,10 @@ server.tool(
         startDate: DATE.optional(),
         endDate: DATE.optional(),
         shiftDays: z.number().int().optional().describe('기존 날짜에서 며칠 이동 (음수 = 앞당김)'),
+        projectId: PROJECT,
     },
-    run(async ({ taskId, rangeId, startDate, endDate, shiftDays }) => {
-        const { task } = await api(`/tasks/${taskId}`);
+    run(async ({ taskId, rangeId, startDate, endDate, shiftDays, projectId }) => {
+        const { task } = await api(`${pp(projectId)}/tasks/${taskId}`);
         const ranges = task.timeRanges || [];
         if (ranges.length === 0) throw new Error('이 작업에는 기간(timeRange)이 없습니다. add-time-range를 사용하세요.');
         const target = rangeId ? ranges.find(r => r.id === rangeId) : ranges[0];
@@ -157,7 +179,7 @@ server.tool(
             if (endDate) body.endDate = endDate;
             if (Object.keys(body).length === 0) throw new Error('startDate/endDate 또는 shiftDays를 지정하세요.');
         }
-        return api(`/tasks/${taskId}/time-ranges/${target.id}`, { method: 'PATCH', body });
+        return api(`${pp(projectId)}/tasks/${taskId}/time-ranges/${target.id}`, { method: 'PATCH', body });
     })
 );
 
@@ -170,15 +192,16 @@ server.tool(
         endDate: DATE,
         label: z.string().optional(),
         color: z.string().optional(),
+        projectId: PROJECT,
     },
-    run(({ taskId, ...body }) => api(`/tasks/${taskId}/time-ranges`, { method: 'POST', body }))
+    run(({ taskId, projectId, ...body }) => api(`${pp(projectId)}/tasks/${taskId}/time-ranges`, { method: 'POST', body }))
 );
 
 server.tool(
     'delete-time-range',
     '작업의 기간(바) 삭제.',
-    { taskId: z.string(), rangeId: z.string() },
-    run(({ taskId, rangeId }) => api(`/tasks/${taskId}/time-ranges/${rangeId}`, { method: 'DELETE' }))
+    { taskId: z.string(), rangeId: z.string(), projectId: PROJECT },
+    run(({ taskId, rangeId, projectId }) => api(`${pp(projectId)}/tasks/${taskId}/time-ranges/${rangeId}`, { method: 'DELETE' }))
 );
 
 server.tool(
@@ -190,24 +213,25 @@ server.tool(
         label: z.string().optional(),
         shape: z.enum(SHAPES).optional().describe('기본 diamond'),
         color: z.string().optional(),
+        projectId: PROJECT,
     },
-    run(({ taskId, ...body }) => api(`/tasks/${taskId}/milestones`, { method: 'POST', body }))
+    run(({ taskId, projectId, ...body }) => api(`${pp(projectId)}/tasks/${taskId}/milestones`, { method: 'POST', body }))
 );
 
 server.tool(
     'delete-milestone',
     '작업의 마일스톤 삭제.',
-    { taskId: z.string(), milestoneId: z.string() },
-    run(({ taskId, milestoneId }) => api(`/tasks/${taskId}/milestones/${milestoneId}`, { method: 'DELETE' }))
+    { taskId: z.string(), milestoneId: z.string(), projectId: PROJECT },
+    run(({ taskId, milestoneId, projectId }) => api(`${pp(projectId)}/tasks/${taskId}/milestones/${milestoneId}`, { method: 'DELETE' }))
 );
 
 server.tool(
     'create-snapshot',
     '현재 전체 일정의 이름 지정 백업 생성 — 대량 편집/삭제 전 안전망으로 사용.',
-    { name: z.string() },
-    run(async ({ name }) => {
-        const { data } = await api('/data');
-        const res = await api('/snapshots', { method: 'POST', body: { name, data: data || [] } });
+    { name: z.string(), projectId: PROJECT },
+    run(async ({ name, projectId }) => {
+        const { data } = await api(`${pp(projectId)}/data`);
+        const res = await api(`${pp(projectId)}/snapshots`, { method: 'POST', body: { name, data: data || [] } });
         return { ok: true, snapshot: { id: res.snapshot.id, name: res.snapshot.name, date: res.snapshot.date } };
     })
 );

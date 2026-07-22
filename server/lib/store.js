@@ -1,17 +1,19 @@
-// 데이터 저장소 — data.json(작업 트리) + meta.json(리비전) 관리
-// 모든 쓰기는 원자적(tmp + rename)이며 리비전을 증가시킨다.
+// 데이터 저장소 — 프로젝트별 스코프 저장 (v1.5 다중 프로젝트)
+// 구조: data/projects/<pid>/{data.json, meta.json, snapshots.json} + data/projects.json(레지스트리)
+// 모든 쓰기는 원자적(tmp + rename)이며 해당 프로젝트의 리비전을 증가시킨다.
 const fs = require('fs');
 const path = require('path');
 
 const DATA_DIR = path.join(__dirname, '..', 'data');
-const DATA_FILE = path.join(DATA_DIR, 'data.json');
-const META_FILE = path.join(DATA_DIR, 'meta.json');
+const PROJECTS_DIR = path.join(DATA_DIR, 'projects');
 
-if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
-}
+// 경로 이스케이프 방지 — 프로젝트 id는 소문자/숫자/하이픈만
+const PID_RE = /^[a-z0-9][a-z0-9-]{0,63}$/;
+const isValidPid = (pid) => typeof pid === 'string' && PID_RE.test(pid);
 
-// ── 원자적 JSON 쓰기 ─────────────────────────────────
+if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+
+// ── 공용 JSON 헬퍼 ───────────────────────────────────
 const writeJsonAtomic = (filepath, data) => {
     const tmp = filepath + '.tmp';
     fs.writeFileSync(tmp, JSON.stringify(data), 'utf-8');
@@ -27,51 +29,71 @@ const readJsonSafe = (filepath) => {
     }
 };
 
-// ── 리비전 (meta.json) ───────────────────────────────
-const readMeta = () => {
-    const meta = readJsonSafe(META_FILE);
-    if (meta && typeof meta.revision === 'number') return meta;
-    return { revision: 1, updatedAt: new Date().toISOString() };
-};
+// ── 프로젝트 스코프 스토어 ───────────────────────────
+const projectDir = (pid) => path.join(PROJECTS_DIR, pid);
 
-const bumpRevision = () => {
-    const meta = readMeta();
-    const next = { revision: meta.revision + 1, updatedAt: new Date().toISOString() };
-    writeJsonAtomic(META_FILE, next);
-    return next;
-};
+const getProjectStore = (pid) => {
+    if (!isValidPid(pid)) throw new Error(`invalid project id: ${pid}`);
+    const dir = projectDir(pid);
+    const dataFile = path.join(dir, 'data.json');
+    const metaFile = path.join(dir, 'meta.json');
+    const snapshotsFile = path.join(dir, 'snapshots.json');
 
-// ── 작업 트리 (data.json) ────────────────────────────
-// 과거에 실수로 저장된 {ok, data} 엔벨로프도 허용해 bare array로 정규화
-const readTasks = () => {
-    const raw = readJsonSafe(DATA_FILE);
-    if (Array.isArray(raw)) return raw;
-    if (raw && Array.isArray(raw.data)) return raw.data;
-    return [];
-};
+    const ensureDir = () => {
+        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    };
 
-const writeTasks = (tasks) => {
-    writeJsonAtomic(DATA_FILE, tasks);
-    return bumpRevision();
-};
+    const readMeta = () => {
+        const meta = readJsonSafe(metaFile);
+        if (meta && typeof meta.revision === 'number') return meta;
+        return { revision: 1, updatedAt: new Date().toISOString() };
+    };
 
-// 읽기 → 변경 → 쓰기 헬퍼. mutator가 새 트리(배열)를 반환하면 저장 후
-// { tasks, meta }를, 아니면(변경 없음) null을 반환한다.
-const withTasks = (mutator) => {
-    const tasks = readTasks();
-    const result = mutator(tasks);
-    if (!Array.isArray(result)) return null;
-    const meta = writeTasks(result);
-    return { tasks: result, meta };
+    const bumpRevision = () => {
+        ensureDir();
+        const next = { revision: readMeta().revision + 1, updatedAt: new Date().toISOString() };
+        writeJsonAtomic(metaFile, next);
+        return next;
+    };
+
+    // 과거에 실수로 저장된 {ok, data} 엔벨로프도 허용해 bare array로 정규화
+    const readTasks = () => {
+        const raw = readJsonSafe(dataFile);
+        if (Array.isArray(raw)) return raw;
+        if (raw && Array.isArray(raw.data)) return raw.data;
+        return [];
+    };
+
+    const writeTasks = (tasks) => {
+        ensureDir();
+        writeJsonAtomic(dataFile, tasks);
+        return bumpRevision();
+    };
+
+    // 읽기 → 변경 → 쓰기. mutator가 배열을 반환하면 저장, 아니면 null
+    const withTasks = (mutator) => {
+        const tasks = readTasks();
+        const result = mutator(tasks);
+        if (!Array.isArray(result)) return null;
+        const meta = writeTasks(result);
+        return { tasks: result, meta };
+    };
+
+    const readSnapshots = () => readJsonSafe(snapshotsFile) || [];
+    const writeSnapshots = (snapshots) => {
+        ensureDir();
+        writeJsonAtomic(snapshotsFile, snapshots);
+    };
+
+    return { pid, readTasks, writeTasks, withTasks, readMeta, bumpRevision, readSnapshots, writeSnapshots };
 };
 
 module.exports = {
-    readTasks,
-    writeTasks,
-    withTasks,
-    readMeta,
-    bumpRevision,
+    getProjectStore,
+    isValidPid,
+    projectDir,
     readJsonSafe,
     writeJsonAtomic,
     DATA_DIR,
+    PROJECTS_DIR,
 };

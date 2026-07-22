@@ -122,11 +122,21 @@ function App() {
         if (settings.chartTheme) setChartTheme(settings.chartTheme);
     }, []);
 
+    // 프로젝트 상태 (다중 프로젝트 — 각각 독립된 작업 트리/리비전)
+    const [projects, setProjects] = useState([]);
+    const [activeProjectId, setActiveProjectId] = useState(
+        () => localStorage.getItem('project-timeline-active-project') || 'default'
+    );
+    const isSwitchingRef = useRef(false); // 전환 중 재진입 방지
+    const dirtyRef = useRef(false);       // 디바운스 예약됐지만 아직 flush 안 된 편집 존재
+    const saveTimerRef = useRef(null);    // 예약된 디바운스 타이머 (전환 시 동기 취소용)
+
     // 초기 데이터 로드 (서버 우선 → localStorage 폴백 → 샘플)
     const {
         state: tasks,
         setState: setTasks,
         setStateSilent: setTasksSilent,
+        reset: resetTasks,
         undo,
         redo,
         canUndo,
@@ -136,6 +146,24 @@ function App() {
     useEffect(() => {
         (async () => {
             try {
+                // 1. 프로젝트 목록 해석 (저장된 활성 프로젝트 검증, 없으면 default → 첫 항목)
+                let list;
+                try {
+                    list = await storage.listProjects();
+                } catch {
+                    list = [{ id: 'default', name: '기본 프로젝트' }]; // 오프라인 폴백
+                }
+                setProjects(list);
+
+                const saved = localStorage.getItem('project-timeline-active-project');
+                const resolved = list.find(p => p.id === saved)
+                    ?? list.find(p => p.id === 'default')
+                    ?? list[0];
+                setActiveProjectId(resolved.id);
+                localStorage.setItem('project-timeline-active-project', resolved.id);
+                storage.setProject(resolved.id); // loadData 전에 스코프 설정
+
+                // 2. 데이터/설정 로드
                 const [serverData, serverSettings] = await Promise.all([
                     storage.loadData(),
                     storage.loadSettings(),
@@ -183,17 +211,20 @@ function App() {
             skipNextSaveRef.current = false;
             return;
         }
-        const timer = setTimeout(async () => {
+        dirtyRef.current = true;
+        saveTimerRef.current = setTimeout(async () => {
             const result = await storage.saveData(tasks);
+            if (result?.ok) dirtyRef.current = false;
             if (result?.conflict) {
                 toast.info('외부에서 데이터가 변경되어 최신 상태를 불러왔습니다.');
                 await reloadFromServer();
             }
         }, 1500);
-        return () => clearTimeout(timer);
+        return () => clearTimeout(saveTimerRef.current);
     }, [tasks, isLoading, reloadFromServer, toast]);
 
     // 리비전 폴링 — 외부(AI API)가 데이터를 변경하면 10초 내 자동 반영
+    // (activeProjectId 의존: 프로젝트 전환 시 인터벌 재생성 — storage가 새 스코프를 폴링)
     useEffect(() => {
         if (isLoading) return;
         const id = setInterval(async () => {
@@ -204,7 +235,84 @@ function App() {
             }
         }, 10000);
         return () => clearInterval(id);
-    }, [isLoading, reloadFromServer]);
+    }, [isLoading, reloadFromServer, activeProjectId]);
+
+    // ── 프로젝트 전환/관리 ────────────────────────────
+    // 전환 시퀀스 — 순서가 중요:
+    // (1) 예약된 디바운스 저장을 동기적으로 취소 (새 프로젝트로의 유입 차단)
+    // (2) isLoading으로 저장/폴링 게이트
+    // (3) 미저장 편집(dirty)이 있으면 이전 프로젝트에 flush (취소만 하면 최근 1.5초 편집이 유실됨)
+    // (4) 스코프 전환 → (6) 새 데이터 로드 → (7) undo 히스토리 리셋
+    //     (리셋 없으면 Ctrl+Z가 이전 프로젝트 트리를 복원해 새 프로젝트에 저장되는 오염 발생)
+    const handleSwitchProject = useCallback(async (nextPid) => {
+        if (nextPid === activeProjectId || isSwitchingRef.current) return;
+        isSwitchingRef.current = true;
+        clearTimeout(saveTimerRef.current);
+        setIsLoading(true);
+        try {
+            if (dirtyRef.current) {
+                const r = await storage.saveData(tasks);
+                if (r?.conflict) toast.info('이전 프로젝트에 외부 변경이 있어 서버 상태가 유지됩니다.');
+                dirtyRef.current = false;
+            }
+            storage.setProject(nextPid);
+            setActiveProjectId(nextPid);
+            localStorage.setItem('project-timeline-active-project', nextPid);
+
+            const fresh = await storage.loadData();
+            const arr = Array.isArray(fresh) ? fresh : fresh?.data;
+            skipNextSaveRef.current = true;
+            resetTasks(migrateTaskData(Array.isArray(arr) ? arr : []));
+            setSelectedTaskId(null);
+            setSearchQuery('');
+            closePopover();
+        } finally {
+            setIsLoading(false);
+            isSwitchingRef.current = false;
+        }
+    }, [activeProjectId, tasks, toast, resetTasks, closePopover]);
+
+    const refreshProjects = useCallback(async () => {
+        try {
+            setProjects(await storage.listProjects());
+        } catch { /* 오프라인 — 기존 목록 유지 */ }
+    }, []);
+
+    const handleCreateProject = useCallback(async (name) => {
+        try {
+            const p = await storage.createProject(name);
+            await refreshProjects();
+            await handleSwitchProject(p.id);
+            toast.success(`'${name}' 프로젝트가 생성되었습니다.`);
+        } catch {
+            toast.error('프로젝트 생성에 실패했습니다.');
+        }
+    }, [refreshProjects, handleSwitchProject, toast]);
+
+    const handleRenameProject = useCallback(async (pid, name) => {
+        try {
+            await storage.renameProject(pid, name);
+            await refreshProjects();
+        } catch {
+            toast.error('이름 변경에 실패했습니다.');
+        }
+    }, [refreshProjects, toast]);
+
+    const handleDeleteProject = useCallback(async (pid) => {
+        try {
+            await storage.deleteProject(pid);
+        } catch (e) {
+            if (e.status === 400) toast.warn('마지막 프로젝트는 삭제할 수 없습니다.');
+            else toast.error('프로젝트 삭제에 실패했습니다.');
+            return;
+        }
+        const remaining = projects.filter(p => p.id !== pid);
+        setProjects(remaining);
+        toast.success('프로젝트가 삭제되었습니다.');
+        if (pid === activeProjectId && remaining.length > 0) {
+            await handleSwitchProject(remaining[0].id);
+        }
+    }, [projects, activeProjectId, handleSwitchProject, toast]);
 
     // 다크모드 설정 저장
     // 다크모드 변경 시 DOM 적용
@@ -635,6 +743,13 @@ function App() {
                 onRedo={redo}
                 onOpenPromptGuide={() => setIsPromptGuideOpen(true)}
                 onOpenSnapshots={() => setIsSaveLoadModalOpen(true)}
+                projects={projects}
+                activeProjectId={activeProjectId}
+                onSwitchProject={handleSwitchProject}
+                onCreateProject={handleCreateProject}
+                onRenameProject={handleRenameProject}
+                onDeleteProject={handleDeleteProject}
+                onOpenProjectList={refreshProjects}
             />
 
             <Toolbar
