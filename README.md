@@ -42,40 +42,61 @@ React 기반의 인터랙티브한 프로젝트 타임라인 및 간트 차트 �
 
 ## 🚀 시작하기
 
-### 배포 (HTTP 기본)
-원격 접속 호환성이 가장 좋은 기본 모드입니다. (클립보드 기능은 다운로드로 대체됨)
+### 배포 (Docker Compose + HTTPS)
+
+Caddy가 HTTPS(자체 서명 인증서)와 Basic 인증을 처리합니다.
+
 ```bash
+# 1) 인증 정보 설정 (최초 1회)
+cp .env.example .env
+docker run --rm caddy:2.10-alpine caddy hash-password --plaintext '원하는비밀번호'
+#   → 출력된 해시를 .env 의 BASIC_AUTH_HASH 에 넣고, BASIC_AUTH_USER 도 지정
+
+# 2) 배포 (실행 전 자동으로 데이터 백업 → 빌드 → 헬스체크)
 ./start_server.sh
+
+# 3) 배포 검증
+./scripts/verify-deploy.sh
 ```
 
-### 배포 (HTTPS 모드) - 내부망/사내 추천 🏢
-IP 주소(`10.x.x.x` 등)로 HTTPS 접속이 필요할 때 사용합니다.
-Caddy가 자동으로 내부용 인증서를 생성 및 관리합니다.
-```bash
-./start_https.sh
-```
-> 실행 전 `Caddyfile`의 IP 주소를 본인 서버 IP로 수정해주세요.
-> 브라우저 접속 시 "안전하지 않음" 경고가 뜨면 `고급 -> 무시하고 진행`을 누르세요.
+> Docker를 쓸 수 없으면 자동으로 로컬 Node 정적 서빙(HTTP:8080)으로 폴백합니다.
+> 이 폴백 모드에는 **인증도 API 서버도 없습니다** — 임시 확인용으로만 쓰세요.
 
-> **Caddy**를 통해 HTTPS(8080포트) 환경을 구축합니다. IP 접속 시 "안전하지 않음" 경고를 무시하고 진행하세요.
+> 브라우저에서 "안전하지 않음" 경고가 뜨면 `고급 → 무시하고 진행`을 누르세요.
+> (자체 서명 인증서라 정상입니다. HSTS는 의도적으로 끄고 있습니다 — 켜면 이 우회가 막힙니다.)
 
 ### 개발 모드 (Hot-Reload)
 ```bash
-./start_dev.sh
+./start_server.sh --dev
 ```
-> 소스 수정 시 즉시 반영되는 개발 서버를 띄웁니다.
 
-### 수동 설치 (Node.js)
+### 수동 실행 (Node.js)
 ```bash
 npm install
-npm run dev:api &   # API 서버 :3000 (저장 동기화·AI 연동용, 선택)
-npm run dev
+npm install --prefix server
+
+PORT=3100 npm run dev:api &                        # API 서버 (저장 동기화·AI 연동)
+VITE_API_TARGET=http://localhost:3100 npm run dev  # 프론트엔드
 ```
 브라우저에서 http://localhost:5173 접속
 
+> 포트 3000이 다른 서비스에 점유돼 있으면 위처럼 `PORT` / `VITE_API_TARGET` 을 맞춰주세요.
+
+### 데이터 백업 / 복원
+```bash
+./scripts/backup-data.sh                 # 즉시 백업 (무결성 검증 포함)
+./scripts/backup-data.sh --install-cron  # 매일 03:00 자동 백업 등록
+./scripts/backup-data.sh --list          # 백업 목록
+./scripts/backup-data.sh --restore <아카이브>
+```
+
 ### 테스트
 ```bash
-npm run test:e2e    # Playwright E2E (dev 서버 자동 기동)
+npm run lint         # ESLint
+npm run test:unit    # 단위 테스트 (도메인 순수함수 + XSS 회귀)
+npm run test:server  # 서버 테스트 (검증 로직 + 저장소 내구성)
+npm run test:e2e     # Playwright E2E 28건 (API·dev 서버 자동 기동)
+npm run verify       # 위 전부 + 빌드
 ```
 
 ### 프로덕션 빌드
@@ -86,9 +107,12 @@ npm run build
 ## 🛠️ 기술 스택
 
 - **React 18** - UI 프레임워크
-- **Vite** - 빌드 도구
+- **Vite 6** - 빌드 도구
 - **Vanilla CSS** - 스타일링
-- **localStorage** - 데이터 저장
+- **Express** (`server/`) - JSON 파일 영속화 + REST API
+- **localStorage** - 오프라인 캐시 (서버 장애 시 폴백)
+- **Caddy** - HTTPS 리버스 프록시 + Basic 인증
+- **Playwright / Vitest / node:test** - E2E 28건 + 단위 테스트
 
 ## 📖 사용법
 

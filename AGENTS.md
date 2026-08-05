@@ -16,12 +16,15 @@ React 18 + Vite 프론트엔드 + 소형 Express API(`server/`, JSON 파일 영�
 npm run dev       # 개발 서버 (http://localhost:5173, Hot-Reload, /api → :3000 프록시)
 npm run dev:api   # Express API 서버 (:3000) — 서버 동기화·AI 연동 기능에 필요
 npm run build     # 프로덕션 빌드 → dist/
-npm run test:e2e  # Playwright E2E (dev 서버 자동 기동, 16 테스트)
+npm run test:e2e  # Playwright E2E (API·dev 서버 자동 기동, 28 테스트)
 npm run preview   # 빌드 결과물 로컬 미리보기
 ```
 
-> 린터는 설정되지 않음. **코드 변경 후 `npm run build` + `npx playwright test` 필수.**
-> AI 동기화 테스트 2건은 API 서버 미실행 시 자동 skip.
+> **코드 변경 후 `npm run verify` 필수** (lint + 단위 + 서버 + 빌드 + E2E 28건).
+> E2E는 playwright.config.js가 API 서버까지 자동 기동하므로 skip이 발생하지 않는다.
+> skip이 1건이라도 있으면 그 테스트는 아무것도 검증하지 않은 것이다 — 불합격으로 본다.
+
+> 진행 중인 개선 작업 상태와 데이터 관련 절대 규칙은 `HANDOVER.md` 를 먼저 읽어라.
 
 ---
 
@@ -34,7 +37,7 @@ App.jsx (중앙 상태 관리)
   ├── useUndoRedo(tasks)         ← 작업 트리 전체를 히스토리와 함께 관리
   ├── useToast()                 ← 전역 토스트 알림
   ├── useState(viewMode)         ← 'table' | 'timeline' | 'split'
-  ├── useState(settings...)      ← timeScale, zoomLevel, showToday, 등 9개
+  ├── useState(settings...)      ← timeScale, zoomLevel, showToday, 등 10개
   │
   ├── TableView                  ← 계층적 표 편집
   ├── TimelineView               ← 간트 차트 + DnD (@dnd-kit)

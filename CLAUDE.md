@@ -2,38 +2,99 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-> Related docs: `AGENTS.md` (Korean dev guide), `docs/ARCHITECTURE.md` (full architecture +
+> **⚠️ 세션 시작 시 `HANDOVER.md`를 먼저 읽어라.** 진행 중인 개선 작업의 상태, 데이터 소실을
+> 막는 절대 규칙, 검증 절차, 태스크 보드가 거기 있다. 이 파일(CLAUDE.md)은 *변하지 않는*
+> 코드베이스 규약이고, `HANDOVER.md`는 *매번 변하는* 진행 상태다. 작업을 마치면
+> `HANDOVER.md`의 태스크 보드와 세션 로그를 갱신하고 끝낸다.
+>
+> Related docs: `HANDOVER.md` (진행 상태 — 먼저 읽기),
+> `docs/TECHNICAL_DUE_DILIGENCE.md` (기술 실사: 문제점·근거·로드맵),
+> `AGENTS.md` (Korean dev guide), `docs/ARCHITECTURE.md` (full architecture +
 > known limitations), `docs/AI_INTEGRATION.md` (REST/MCP usage), `docs/REFACTORING_REPORT.md`.
 > Project skills in `.claude/skills/`: `timeline-api` (AI data manipulation), `verify-app`
 > (verification procedure), `deploy`.
+>
+> (2026-08-05: `.github/copilot-instructions.md`, `AGENTS.md`, `README.md` 의 낡은 서술은
+> 실사 후 모두 교정됐다. 다시 드리프트가 생기면 여기에 기록할 것.)
 
 ## Commands
 
 ```bash
-npm run dev       # Vite dev server, http://localhost:5173, hot-reload
-npm run dev:api   # Express API server on :3000 (dev proxies /api to it)
-npm run build     # Production build → dist/
-npm run test:e2e  # Playwright E2E (auto-starts vite dev server)
+npm run dev          # Vite dev server, http://localhost:5173, hot-reload
+npm run dev:api      # Express API server (PORT env, default 3000)
+npm run build        # Production build → dist/
+npm run lint         # ESLint 9 (flat config)
+npm run test:unit    # Vitest — 도메인 순수함수 + XSS 회귀 (46건)
+npm run test:server  # node:test — 검증 로직 + 저장소 내구성 (31건)
+npm run test:e2e     # Playwright E2E 28건 (API·dev 서버 자동 기동)
+npm run verify       # 위 전부 + 빌드 — 변경 후 이것을 돌려라
 ```
 
-**After any code change, run `npm run build` && `npx playwright test`** — 28 E2E tests
-(14 smoke + 6 features + 6 projects + 2 AI-sync; server-dependent specs auto-skip if the
-API server isn't running).
+`server/` and `mcp/` are **separate npm packages** with their own `package.json` — install them
+before running the API or MCP server: `npm install --prefix server`, `npm install --prefix mcp`.
+
+Running a subset of the tests:
+
+```bash
+npx vitest run tests/unit/taskTree.test.js          # one unit file
+npx vitest                                          # watch mode
+node --test server/test/validate.test.js            # one server file
+npx playwright test tests/e2e/features.spec.js      # one E2E spec
+npx playwright test -g "프로젝트"                   # by test-title substring
+npx playwright test --headed --debug                # watch it / step through
+```
+
+**변경 후에는 `npm run verify`** — 합격 기준은 lint 0 error · unit 46/46 · server 31/31 ·
+빌드 성공 · **E2E 28/28 (skip 0)**.
+
+`playwright.config.js` 는 **API 서버와 dev 서버를 모두 자동 기동**하며, API는
+`PH_DATA_DIR=.tmp-e2e-data` 로 격리된다. 예전에는 API 서버를 수동으로 띄우지 않으면 8건이
+조용히 skip 되고 1건이 404로 실패해서(19/1/8) "통과"가 아무것도 보증하지 않았다.
+**skip은 불합격으로 취급한다** — CI에도 skip 검사 게이트가 있다.
+
+Env overrides that matter on this host: **포트 3000은 무관한 uvicorn 서비스가 점유 중**이다.
+`PORT=3100 npm run dev:api` 로 띄우고 프론트는 `VITE_API_TARGET=http://localhost:3100 npm run dev`
+로 맞춘다. `PH_DATA_DIR` 로 데이터 위치를 격리할 수 있다.
+
 There is no linter configured. Test selector conventions are documented in
 `.claude/skills/verify-app/SKILL.md`.
+
+`node scripts/seed-roadmap.mjs` (API server must be up) injects `ROADMAP.md` into the app as a
+task tree — the self-demo used for the README screenshots. It snapshots current data first.
 
 ### Deployment
 
 ```bash
-./start_server.sh          # Docker Compose (HTTPS via Caddy); falls back to `serve -s dist` on HTTP:8080 if Docker is unavailable
-./start_server.sh --dev    # Compose with hot-reload overlay (docker-compose.dev.yml)
+cp .env.example .env       # 최초 1회 — BASIC_AUTH_USER / BASIC_AUTH_HASH 필수
+./start_server.sh          # 백업 → 빌드 → 기동 → 헬스게이트 (Docker 불가 시 HTTP:8080 폴백)
+./start_server.sh --dev    # hot-reload 오버레이 (docker-compose.dev.yml)
+./scripts/verify-deploy.sh # 배포 후 검증 — 인증경계·gzip·보안헤더·non-root·백업 최신성
 ```
+
+`start_server.sh` 는 **배포 전에 자동으로 데이터 백업을 수행하고, 실패하면 배포를 중단한다.**
+API 컨테이너는 non-root(uid 1000)로 실행되므로, non-root 전환 전에 만들어진 볼륨 파일의
+소유권을 배포 스크립트가 멱등하게 조정한다. 자격증명은 `.env` 에서 주입된다 —
+`Caddyfile` 에 해시를 다시 하드코딩하지 마라.
 
 Docker Compose runs three services: the static frontend (nginx/`80`), the Express API
 (`project-helper-api`, `3000`), and **Caddy** as the HTTPS reverse proxy (`443`). Caddy
 routes `/api/*` → API container and everything else → frontend, and terminates TLS with an
 internal cert (`tls internal`). Edit the IP/host in `Caddyfile` for your server. Note
 `Caddyfile` also has HTTP basic auth enabled.
+
+**Never run `docker compose down -v`** (or otherwise prune volumes): the `api_data` named
+volume mounted at `/app/data` in the API container holds live production timeline data.
+`start_server.sh` deliberately runs `down --remove-orphans` without `-v`. Compose commands in
+this project need `sudo`.
+
+**운영 API에 쓰기 요청을 보내지 마라.** 2026-08-05 실사 중 검증 없는 `POST /api/data` 로
+운영 데이터가 소실됐다(`docs/TECHNICAL_DUE_DILIGENCE.md` 부록 A). 그 경로는 이후 차단됐지만,
+운영은 테스트 환경이 아니다. 쓰기 검증이 필요하면 `PH_DATA_DIR` 로 격리한 로컬 인스턴스를 쓴다.
+
+데이터 보호 장치는 3중이다: ① `scripts/backup-data.sh` 일일 볼륨 백업(크론 03:00, 14일 보관)
+② `store.js` 의 쓰기 전 세대 백업(`data.json.bak.1~5`, 10분 간격 + 트리가 절반 이하로
+줄어드는 파괴적 쓰기는 간격 무시하고 보존) ③ `validateTaskTree()` 로 라우트 검증 +
+`writeTasks()` 의 배열 타입 가드(라우트를 우회한 경로도 막는다).
 
 ## Architecture
 
@@ -57,6 +118,11 @@ localStorage-only:
   (server-wins, via `setTasksSilent` so undo history isn't polluted). A 10s polling effect
   on `GET /api/revision` picks up external changes in open tabs.
 - API base is `/api`: dev uses the Vite proxy to :3000 (vite.config.js), prod uses Caddy.
+- **Cache keys are project-scoped, settings are not**: `project-timeline-data:<pid>` and
+  `project-timeline-snapshots:<pid>` per project, but `project-timeline-settings` is a single
+  global blob (server-side too — `GET/POST /api/settings` is outside the project scope). The
+  active project id lives in `project-timeline-active-project`. storage.js runs a one-time
+  migration of the old suffix-less keys to `:default` at module load.
 
 The server (`server/`) is a small CommonJS Express app. **Data is multi-project** (v1.5):
 `server/data/projects/<pid>/{data,meta,snapshots}.json` + `projects.json` registry, with
@@ -65,10 +131,12 @@ mounted twice: `/api/projects/:pid/*` (scoped) and `/api/*` (alias → 'default'
 backward compat). Key modules: `routes/tasks.js` (per-task CRUD, validated, 409 on If-Match
 mismatch), `routes/data.js` (blob+snapshots), `routes/projects.js`, `lib/store.js`
 (`getProjectStore(pid)`, atomic writes + revision), `lib/registry.js` (project CRUD +
-legacy migration on boot), `lib/taskTree.js` (**CJS mirror of `src/utils/taskTree.js` —
-keep signatures in sync**), `lib/validate.js`, `lib/aiGuide.js` (machine-readable guide at
-`GET /api/guide`). No database. Auth is Caddy basicauth; the authenticated user is forwarded
-as `X-Auth-User` and recorded (owner/createdBy) but not yet enforced.
+legacy migration on boot), `lib/taskTree.js` (**partial CJS port of the client tree helpers —
+overlapping functions must stay behavior-compatible**; note it also owns `createNewTask`, which
+on the client lives in `dataModel.js` and takes different args, plus server-only `flattenAll`/
+`findTask`), `lib/validate.js`, `lib/aiGuide.js` (machine-readable guide at `GET /api/guide`).
+No database. Auth is Caddy basicauth; the authenticated user is forwarded as `X-Auth-User` and
+recorded (owner/createdBy) but not yet enforced.
 
 **Frontend project switching** (App.jsx `handleSwitchProject`) is order-sensitive: cancel
 pending debounce → flush if dirty → `storage.setProject` (bumps epoch, guards stale
@@ -78,11 +146,12 @@ let Ctrl+Z restore another project's tree and auto-save it).
 ### AI integration surface
 
 AI agents manipulate timeline data via per-task REST endpoints (`server/openapi.yaml` is the
-spec) or the **MCP server** (`mcp/index.js`, 12 tools, registered via `.mcp.json` —
-`list-tasks`/`add-task`/`reschedule`/etc.). See `docs/AI_INTEGRATION.md` and the
-`timeline-api` skill. Prefer per-task endpoints over blob `POST /api/data`.
+spec) or the **MCP server** (`mcp/index.js`, 15 tools, registered via `.mcp.json` —
+`list-tasks`/`add-task`/`reschedule`/etc.; the 12 data tools take an optional `projectId`,
+defaulting to the 'default' project).
+See `docs/AI_INTEGRATION.md` and the `timeline-api` skill. Prefer per-task endpoints over blob `POST /api/data`.
 
-### State management (`src/App.jsx`, ~880 lines — the hub)
+### State management (`src/App.jsx`, ~1000 lines — the hub)
 
 `App.jsx` owns essentially all state and passes handlers down. Key pieces:
 
@@ -107,10 +176,17 @@ Dependencies now live at the range level.
   called on every load (including in `getSampleData`), so loaded data is always normalized.
 - **`flattenTasks()`** — flattens the tree to an ordered array while respecting each node's
   `expanded` flag; this is what the views render.
+- Besides `timeRanges`, a task carries `milestones: [{ id, date, label, color, shape }]`
+  (`shape`: diamond|circle|triangle|square), `progress` (0–100), and
+  `divider: { enabled, thickness, style, color }`.
+- **Dates are always `YYYY-MM-DD` strings** — never `Date` objects in stored data. Use
+  `formatDate()` (dataModel.js) or `dateUtils` (dateUtils.js).
+- **All ids come from `generateId()`** — tasks, time ranges, and milestones alike.
 
 ### Component conventions
 
-- Each component is a `Foo.jsx` + `Foo.css` pair.
+- Each component is a `Foo.jsx` + `Foo.css` pair. **Vanilla CSS only** — no CSS-in-JS, no
+  utility framework.
 - Dark mode is done purely with the `[data-theme="dark"]` CSS selector — no JS theming for it.
   Chart color themes are separate, in `src/themes/`.
 - Timeline drag-and-drop uses **@dnd-kit** (`TimelineView.jsx` / `TimelineBar.jsx`).
@@ -124,4 +200,4 @@ pure helpers in **`src/utils/taskTree.js`** (`updateTaskInTree`, `deleteFromTree
 …) — don't reimplement tree recursion inline. Deep-clone with `structuredClone`, not
 `JSON.parse(JSON.stringify(...))`. `filteredTasks` in `App.jsx` is a `useMemo` **value** —
 reference it as `filteredTasks`, not `filteredTasks()`. If you change a taskTree.js
-signature, update the CJS mirror `server/lib/taskTree.js` too.
+signature, update its CJS counterpart `server/lib/taskTree.js` too.
