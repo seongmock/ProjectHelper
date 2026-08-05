@@ -8,7 +8,14 @@
     "build": "vite build",
     "preview": "vite preview",
     "dev:api": "node server/index.js",
-    "test:e2e": "playwright test"
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "test:unit": "vitest run",
+    "test:watch": "vitest",
+    "test:server": "node --test server/test/*.test.js",
+    "test:e2e": "playwright test",
+    "test": "npm run lint && npm run test:unit && npm run test:server && npm run build",
+    "verify": "npm run test && npm run test:e2e"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -19,11 +26,18 @@
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.5",
     "@playwright/test": "^1.61.1",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.4",
-    "vite": "^6.0.3"
+    "eslint": "^9.39.5",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.3",
+    "globals": "^17.9.0",
+    "vite": "^6.0.3",
+    "vitest": "^3.2.7"
   },
   "allowScripts": {
     "esbuild@0.25.12": true

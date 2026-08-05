@@ -7,9 +7,10 @@ on:
     branches: [main]
 
 jobs:
-  build-and-test:
+  # 빠른 게이트 — 린트/단위테스트/빌드. E2E보다 먼저 실패해야 피드백이 빠르다.
+  checks:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 
@@ -18,28 +19,82 @@ jobs:
           node-version: 22
           cache: npm
 
-      - name: Install dependencies
-        run: npm ci
+      - run: npm ci
 
-      - name: Build
-        run: npm run build
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit tests (도메인 순수함수 + XSS 회귀)
+        run: npm run test:unit
 
       - name: Install API server dependencies
         run: npm ci --prefix server
 
-      - name: Start API server (background)
-        run: node server/index.js &
+      - name: Server tests (검증 로직 + 저장소 내구성)
+        run: npm run test:server
+
+      - name: Build
+        run: npm run build
+
+      # 취약점은 빌드를 막는다. high 이상만 실패시켜 노이즈를 줄인다.
+      - name: Audit (frontend)
+        run: npm audit --audit-level=high
+      - name: Audit (server)
+        run: npm audit --audit-level=high --prefix server
+
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: checks
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+      - run: npm ci --prefix server
 
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
 
-      - name: Run E2E tests
-        run: npx playwright test
+      # playwright.config.js 가 API 서버와 vite dev 서버를 모두 기동한다.
+      # (예전에는 API 서버를 수동으로 띄웠고, 누락되면 8건이 조용히 skip 됐다)
+      - name: Run E2E tests (28건, skip 0 이어야 한다)
+        run: npx playwright test --reporter=list,json
+        env:
+          PLAYWRIGHT_JSON_OUTPUT_NAME: pw-results.json
+
+      # skip 된 테스트는 아무것도 검증하지 않은 것이다 — 실패로 간주한다.
+      - name: Assert no tests were skipped
+        run: |
+          SKIPPED=$(node -e "
+            const r = require('./pw-results.json');
+            let n = 0;
+            const walk = (suites) => (suites || []).forEach(s => {
+              (s.specs || []).forEach(sp => (sp.tests || []).forEach(t => {
+                if (t.status === 'skipped' || t.results?.some(x => x.status === 'skipped')) n++;
+              }));
+              walk(s.suites);
+            });
+            walk(r.suites);
+            console.log(n);
+          ")
+          echo "skipped: $SKIPPED"
+          if [ "$SKIPPED" != "0" ]; then
+            echo "::error::E2E 테스트 ${SKIPPED}건이 skip 되었다. API 서버 기동을 확인하라."
+            exit 1
+          fi
 
       - name: Upload test results on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: playwright-report
-          path: test-results/
+          path: |
+            test-results/
+            playwright-report/
+            pw-results.json
           retention-days: 7
