@@ -2,6 +2,7 @@
 const fs = require('fs');
 const path = require('path');
 const store = require('./store');
+const { logger } = require('./logger');
 
 const REGISTRY_FILE = path.join(store.DATA_DIR, 'projects.json');
 const TRASH_DIR = path.join(store.PROJECTS_DIR, '_trash');
@@ -65,7 +66,7 @@ const ensureLayout = () => {
         if (!fs.existsSync(path.join(defaultDir, 'data.json'))) {
             store.writeJsonAtomic(path.join(defaultDir, 'data.json'), []);
         }
-        console.log('[migrate] legacy data → projects/default/');
+        logger.info('legacy data migrated', { to: 'projects/default/' });
     }
 
     // 레지스트리에 default 보장

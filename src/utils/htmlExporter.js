@@ -5,8 +5,20 @@
  * @param {Object} settings - View settings (darkMode, etc. - mostly for initial state)
  * @returns {string} - The complete HTML string
  */
+// <script> 블록 안에 JSON을 안전하게 심는다.
+// 작업명에 "</script>" 가 들어가면 스크립트 블록을 탈출해 임의 코드가 실행된다.
+// < 형태의 이스케이프는 JSON 문법상 동일한 문자열이므로 데이터는 그대로 보존된다.
+// U+2028/2029 는 JS 소스에서 줄바꿈으로 해석되어 구문 오류를 만든다.
+const toSafeJson = (value) =>
+    JSON.stringify(value)
+        .replace(/</g, '\\u003c')
+        .replace(/>/g, '\\u003e')
+        .replace(/&/g, '\\u0026')
+        .replace(/\u2028/g, '\\u2028')
+        .replace(/\u2029/g, '\\u2029');
+
 export const exportToHtml = (tasks, settings = {}) => {
-    const tasksJson = JSON.stringify(tasks);
+    const tasksJson = toSafeJson(tasks);
     const darkMode = settings.darkMode ? 'dark' : 'light';
 
     // Generate unique ID for scope isolation
@@ -460,6 +472,19 @@ export const exportToHtml = (tasks, settings = {}) => {
         if (!root) return;
 
         const RAW_DATA = ${tasksJson};
+
+        // 사용자 입력(작업명·라벨)은 innerHTML 로 들어가므로 반드시 이스케이프한다.
+        // 이 파일이 만드는 HTML은 Confluence 등 사내 위키에 임베드되는 것이 주 용도라,
+        // 미이스케이프 시 self-XSS 가 아니라 열어보는 모든 사람에게 실행되는 저장형 XSS 가 된다.
+        function esc(v) {
+            return String(v == null ? '' : v)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
         const ZOOM_LEVEL = ${zoomLevel};
         const TIME_SCALE = '${settings.timeScale || 'monthly'}';
         const CHART_THEME = '${settings.chartTheme || 'default'}';
@@ -560,7 +585,7 @@ export const exportToHtml = (tasks, settings = {}) => {
         // Render Functions
         function renderTaskList() {
             elTaskList.innerHTML = DATA.map(task => {
-                return \`<div class="task-item level-\${task.level}" title="\${task.name}">\${task.name}</div>\`;
+                return \`<div class="task-item level-\${task.level}" title="\${esc(task.name)}">\${esc(task.name)}</div>\`;
             }).join('');
         }
 
@@ -706,7 +731,8 @@ export const exportToHtml = (tasks, settings = {}) => {
                     if (start > maxDate || end < startDate) return;
 
                     var color = range.color || task.color || '#4a90e2';
-                    var title = task.name + ' (' + formatDate(start) + ' ~ ' + formatDate(end) + ')';
+                    // title 은 아래에서 속성값으로 삽입된다 (line ~757, ~767)
+                    var title = esc(task.name) + ' (' + formatDate(start) + ' ~ ' + formatDate(end) + ')';
                     
                     // 바 높이: range.barHeight 오버라이드 → 레벨별 기본값
                     var barH = (range.barHeight != null) ? range.barHeight : LEVEL_BAR_H;
@@ -716,7 +742,7 @@ export const exportToHtml = (tasks, settings = {}) => {
                     var labelText = '';
                     
                     if (!${settings.showTaskNames} || ${settings.showBarLabels}) {
-                         labelText += (range.label || task.name);
+                         labelText += esc(range.label || task.name);
                     }
                     if (${settings.showBarDates}) {
                          if (labelText) labelText += ' ';
@@ -901,9 +927,9 @@ export const exportToHtml = (tasks, settings = {}) => {
                         var shapeClasses = 'milestone-shape';
                         if (shape === 'diamond') shapeClasses += ' diamond';
                         
-                        html += '<div class="milestone-marker" style="left: ' + leftPerc + '%; top: ' + rowCenter + 'px;" title="' + m.label + ' (' + formatDate(date) + ')">' +
+                        html += '<div class="milestone-marker" style="left: ' + leftPerc + '%; top: ' + rowCenter + 'px;" title="' + esc(m.label) + ' (' + formatDate(date) + ')">' +
                             '<div class="' + shapeClasses + '">' + shapeHtml + '</div>' +
-                            '<div class="milestone-label" style="' + labelStyle + '">' + m.label + '</div>' +
+                            '<div class="milestone-label" style="' + labelStyle + '">' + esc(m.label) + '</div>' +
                         '</div>';
                     });
                 }

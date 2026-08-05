@@ -1,4 +1,5 @@
-version: '3'
+# 주의: `docker compose down -v` 금지.
+# api_data 볼륨에 운영 데이터의 유일한 사본이 있다 (백업: ./scripts/backup-data.sh).
 
 services:
   project-management-app:
@@ -9,6 +10,10 @@ services:
     restart: always
     expose:
       - "80"
+    # 로그가 디스크를 채우지 않게 상한을 둔다
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
 
   project-helper-api:
     build:
@@ -18,23 +23,47 @@ services:
     restart: always
     expose:
       - "3000"
+    environment:
+      # 이것이 없으면 Express가 development로 동작해 스택트레이스를 응답에 노출한다
+      NODE_ENV: production
+      PORT: "3000"
+      LOG_LEVEL: "${LOG_LEVEL:-info}"
     volumes:
       - api_data:/app/data
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/api/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
 
   caddy:
-    image: caddy:2-alpine
+    # 태그 고정 — 부동 태그(caddy:2-alpine)는 무관한 시점에 동작이 바뀔 수 있다
+    image: caddy:2.10-alpine
     container_name: caddy-https
     restart: unless-stopped
     ports:
       - "80:80"
       - "443:443"
+    environment:
+      # .env 에서 주입 (.env 는 gitignore 대상). .env.example 참조.
+      BASIC_AUTH_USER: "${BASIC_AUTH_USER:?BASIC_AUTH_USER 가 .env 에 설정되어야 합니다}"
+      BASIC_AUTH_HASH: "${BASIC_AUTH_HASH:?BASIC_AUTH_HASH 가 .env 에 설정되어야 합니다}"
     volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
     depends_on:
-      - project-management-app
-      - project-helper-api
+      project-management-app:
+        condition: service_started
+      project-helper-api:
+        condition: service_healthy
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
 
 volumes:
   caddy_data:

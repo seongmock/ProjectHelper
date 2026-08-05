@@ -48,4 +48,65 @@ const validate = (body, spec, { allowUnknown = false } = {}) => {
     return null;
 };
 
-module.exports = { validate, validators };
+// ── 작업 트리 전체 검증 ──────────────────────────────
+// POST /api/data 는 트리 전체를 한 번에 덮어쓰므로 파괴력이 가장 크다.
+// 2026-08-05 실사에서 이 경로에 검증이 없어 운영 데이터가 소실됐다.
+// 목적은 완전한 스키마 강제가 아니라 '트리로 볼 수 없는 것'과 '자원 고갈'의 차단이다.
+const MAX_TASKS = 5000;
+const MAX_DEPTH = 20;
+
+const validateTaskTree = (tasks) => {
+    if (!Array.isArray(tasks)) return 'data must be an array of tasks';
+
+    let count = 0;
+    const seenIds = new Set();
+
+    const walk = (nodes, depth, at) => {
+        if (!Array.isArray(nodes)) return `${at} must be an array`;
+        if (depth > MAX_DEPTH) return `task tree exceeds max depth of ${MAX_DEPTH}`;
+
+        for (let i = 0; i < nodes.length; i++) {
+            const task = nodes[i];
+            const p = `${at}[${i}]`;
+
+            if (!validators.object(task)) return `${p} must be an object`;
+            if (typeof task.id !== 'string' || task.id === '') return `${p}.id must be a non-empty string`;
+            if (typeof task.name !== 'string') return `${p}.name must be a string`;
+
+            // 중복 id는 updateTaskInTree/deleteFromTree가 잘못된 노드를 건드리게 만든다
+            if (seenIds.has(task.id)) return `duplicate task id: ${task.id}`;
+            seenIds.add(task.id);
+
+            if (++count > MAX_TASKS) return `task count exceeds limit of ${MAX_TASKS}`;
+
+            if (task.timeRanges !== undefined) {
+                if (!Array.isArray(task.timeRanges)) return `${p}.timeRanges must be an array`;
+                for (let j = 0; j < task.timeRanges.length; j++) {
+                    const r = task.timeRanges[j];
+                    const rp = `${p}.timeRanges[${j}]`;
+                    if (!validators.object(r)) return `${rp} must be an object`;
+                    if (r.startDate !== undefined && r.startDate !== null && !validators.date(r.startDate)) {
+                        return `${rp}.startDate must be YYYY-MM-DD`;
+                    }
+                    if (r.endDate !== undefined && r.endDate !== null && !validators.date(r.endDate)) {
+                        return `${rp}.endDate must be YYYY-MM-DD`;
+                    }
+                }
+            }
+
+            if (task.milestones !== undefined && !Array.isArray(task.milestones)) {
+                return `${p}.milestones must be an array`;
+            }
+
+            if (task.children !== undefined && task.children !== null) {
+                const err = walk(task.children, depth + 1, `${p}.children`);
+                if (err) return err;
+            }
+        }
+        return null;
+    };
+
+    return walk(tasks, 0, 'data');
+};
+
+module.exports = { validate, validators, validateTaskTree, MAX_TASKS, MAX_DEPTH };
