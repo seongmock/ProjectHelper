@@ -650,11 +650,14 @@ function App() {
                 throw new Error('Invalid data format');
             }
 
+            // 반드시 정규화한다. 가져온 JSON(사람이 손으로 쓰거나 AI가 만든 것)에는
+            // children/timeRanges 가 없을 수 있고, 그러면 트리 조작 헬퍼가 깨진다.
+            const normalized = migrateTaskData(newTasks);
+
             if (isMerge) {
-                const processedTasks = regenerateIds(newTasks);
-                setTasks(prev => [...prev, ...processedTasks]);
+                setTasks(prev => [...prev, ...regenerateIds(normalized)]);
             } else {
-                setTasks(newTasks);
+                setTasks(normalized);
             }
         } catch (error) {
             console.error('Failed to process data:', error);

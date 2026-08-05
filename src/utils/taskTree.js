@@ -18,19 +18,21 @@ export const updateTaskInTree = (items, taskId, updates) => {
 };
 
 // 작업 삭제 (자식 포함, 불변 재귀)
+// children 이 없는 노드를 허용한다 — 가져오기(import) 경로 중 migrateTaskData 를
+// 거치지 않는 분기가 있어 정규화되지 않은 노드가 트리에 들어올 수 있다.
 export const deleteFromTree = (items, taskId) =>
     items
         .filter(item => item.id !== taskId)
         .map(item => ({
             ...item,
-            children: deleteFromTree(item.children, taskId),
+            children: deleteFromTree(item.children || [], taskId),
         }));
 
 // 특정 부모의 children 끝에 새 작업 추가 (부모는 자동 확장)
 export const addToParent = (items, parentId, newTask) =>
     items.map(item => {
         if (item.id === parentId) {
-            return { ...item, children: [...item.children, newTask], expanded: true };
+            return { ...item, children: [...(item.children || []), newTask], expanded: true };
         }
         if (item.children && item.children.length > 0) {
             return { ...item, children: addToParent(item.children, parentId, newTask) };
@@ -77,7 +79,7 @@ export const indentTask = (items, taskId) => {
             // 이전 형제의 자식으로 추가
             newItems[i - 1] = {
                 ...prevSibling,
-                children: [...prevSibling.children, taskToMove],
+                children: [...(prevSibling.children || []), taskToMove],
                 expanded: true, // 부모가 되면 자동 확장
             };
             return newItems;
