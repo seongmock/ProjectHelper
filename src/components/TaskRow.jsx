@@ -219,9 +219,16 @@ function TaskRow({
                         <span
                             className="task-name"
                             onDoubleClick={handleNameDoubleClick}
-                            title="더블클릭하여 편집"
+                            // 컬럼 폭이 고정이라 긴 작업명은 잘린다. 전체 이름을 툴팁으로 노출한다.
+                            title={`${task.name}\n(더블클릭하여 편집)`}
                         >
                             {task.name}
+                        </span>
+                    )}
+                    {overdue && (
+                        // 지연을 색으로만 표시하면 색약 사용자가 판별할 수 없다 — 아이콘을 함께 쓴다
+                        <span className="overdue-flag" title="지연: 종료일이 지났으나 완료되지 않았습니다" aria-label="지연">
+                            ⚠
                         </span>
                     )}
                     {(task.progress ?? 0) > 0 && (

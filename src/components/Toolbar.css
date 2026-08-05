@@ -35,6 +35,8 @@
     background-color: transparent;
     transition: all var(--transition-fast);
     font-size: var(--font-size-sm);
+    /* 라벨이 단어 중간에서 줄바꿈되던 문제 수정 ("분 할", "작업명"이 2줄로 깨짐) */
+    white-space: nowrap;
 }
 
 .view-toggle button:not(:last-child),
@@ -75,7 +77,9 @@
 }
 
 /* 타임라인 컨트롤 버튼 */
+/* 아이콘 버튼 라벨도 줄바꿈 금지 — 툴바는 가로 스크롤로 처리한다 */
 .icon-btn {
+    white-space: nowrap;
     display: flex;
     align-items: center;
     justify-content: center;
