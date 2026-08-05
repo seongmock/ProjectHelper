@@ -45,3 +45,7 @@ playwright-report/
 .tokensave/
 .claude/.headroom_wrap_marker.json
 
+.serena/
+backups/
+.env
+.tmp-e2e-data/

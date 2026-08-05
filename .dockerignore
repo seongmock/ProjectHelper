@@ -9,7 +9,16 @@ server/data
 .git
 .tokensave
 .claude
+.serena
 tmp
 certs
 *.log
 restored-data.json
+
+# 시크릿 — dev 스테이지가 `COPY . .` 를 하므로 반드시 제외해야 한다.
+# 없으면 basicauth 해시가 이미지 레이어에 구워진다.
+.env
+
+# 백업 아카이브 (빌드 컨텍스트를 불필요하게 키운다)
+backups
+.tmp-e2e-data
