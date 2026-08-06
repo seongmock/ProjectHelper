@@ -37,7 +37,9 @@ app.get('/api', (req, res) => {
         endpoints: [
             '/api/guide', '/api/openapi.yaml', '/api/projects',
             '/api/projects/{pid}/tasks', '/api/projects/{pid}/data', '/api/projects/{pid}/revision', '/api/projects/{pid}/snapshots',
-            '/api/tasks (→ default 프로젝트 별칭)', '/api/revision', '/api/data', '/api/snapshots', '/api/health',
+            '/api/projects/{pid}/events',
+            '/api/tasks (→ default 프로젝트 별칭)', '/api/revision', '/api/data', '/api/snapshots',
+            '/api/events', '/api/health',
         ],
     });
 });
@@ -73,13 +75,19 @@ app.get('/api/health', (req, res) => {
 app.use('/api', projectsRouter);
 
 // ── 프로젝트 스코프 라우트: /api/projects/:pid/* ─────
+// 스토어에 감사 컨텍스트를 함께 넘긴다 — 쓰기마다 events.jsonl 에 행위자·경로가 남는다.
+const auditCtx = (req) => ({
+    actor: req.user || 'local',
+    op: `${req.method} ${req.originalUrl.split('?')[0]}`,
+});
+
 const projectScope = (req, res, next) => {
     const pid = req.params.pid;
     if (!store.isValidPid(pid) || !registry.getProject(pid)) {
         return res.status(404).json({ ok: false, error: 'project not found' });
     }
     req.projectId = pid;
-    req.projectStore = store.getProjectStore(pid);
+    req.projectStore = store.getProjectStore(pid, auditCtx(req));
     next();
 };
 app.use('/api/projects/:pid', projectScope, dataRouter, tasksRouter);
@@ -87,7 +95,7 @@ app.use('/api/projects/:pid', projectScope, dataRouter, tasksRouter);
 // ── legacy 별칭: /api/* → default 프로젝트 (하위호환) ─
 const defaultScope = (req, res, next) => {
     req.projectId = 'default';
-    req.projectStore = store.getProjectStore('default');
+    req.projectStore = store.getProjectStore('default', auditCtx(req));
     next();
 };
 app.use('/api', defaultScope, dataRouter, tasksRouter);

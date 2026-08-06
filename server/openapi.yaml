@@ -430,6 +430,20 @@ paths:
       responses:
         '200': { description: '{ ok, snapshot }' }
 
+  /events:
+    get:
+      summary: 감사 로그 — 이 프로젝트의 쓰기 이력(최신순, append-only)
+      description: >
+        모든 트리/스냅샷 쓰기가 한 줄씩 남는다. 되돌리기 용도가 아니라 추적용이다
+        ("누가 언제 몇 개를 지웠는가"). 복구는 스냅샷과 세대 백업이 담당한다.
+      parameters:
+        - name: limit
+          in: query
+          schema: { type: integer, default: 50, maximum: 500 }
+      responses:
+        '200':
+          description: '{ ok, data: [{ts, actor, op, revision, nodes, prevNodes}] }'
+
   /health:
     get:
       summary: 헬스체크

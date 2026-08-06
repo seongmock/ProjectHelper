@@ -26,6 +26,10 @@ const writeData = (store, body, ifMatch) => {
     return { revision: store.writeTasks(body).revision };
 };
 
+// ── 감사 로그 ────────────────────────────────────────
+// 읽기 전용. 쓰기는 store.writeTasks/writeSnapshots 가 알아서 남긴다.
+const listEvents = (store, limit) => ({ data: store.readEvents({ limit }) });
+
 // ── 스냅샷 ───────────────────────────────────────────
 const listSnapshots = (store) => ({ data: store.readSnapshots() });
 
@@ -75,6 +79,7 @@ const deleteSnapshot = (store, id) => {
 module.exports = {
     readData,
     writeData,
+    listEvents,
     listSnapshots,
     createSnapshot,
     updateSnapshot,

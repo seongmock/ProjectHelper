@@ -80,7 +80,13 @@ POST   /api/tasks/:id/milestones                    # {date*, label?, shape?, co
 DELETE /api/tasks/:id/milestones/:milestoneId
 GET    /api/data          # 통짜 트리 (읽기는 자유롭게)
 POST   /api/data          # 통짜 교체 — AI는 가급적 금지 (작업 단위 사용)
+GET    /api/events?limit=50   # 감사 로그 — 쓰기 이력 최신순 (읽기 전용)
 ```
+
+`/api/events` 는 프로젝트별 append-only 로그(`data/projects/<pid>/events.jsonl`)를 읽는다.
+쓰기 1건당 `{ts, actor, op, revision, nodes, prevNodes}` 한 줄 — "누가 언제 트리를 몇 개에서
+몇 개로 바꿨는가"를 사후에 답하기 위한 것이다. **되돌리기 수단이 아니다**(복구는 스냅샷과
+`data.json.bak.N` 세대 백업). `actor` 는 Caddy basicauth 가 넘긴 `X-Auth-User` 다.
 
 ## 동시성 규약
 

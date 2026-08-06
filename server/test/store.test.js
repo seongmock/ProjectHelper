@@ -15,7 +15,10 @@ before(() => {
     tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ph-store-test-'));
     const libDir = path.join(tmpRoot, 'lib');
     fs.mkdirSync(libDir, { recursive: true });
-    fs.copyFileSync(path.join(__dirname, '..', 'lib', 'store.js'), path.join(libDir, 'store.js'));
+    // store.js 가 require 하는 형제 모듈까지 함께 복사해야 로드된다
+    for (const name of ['store.js', 'eventLog.js', 'logger.js']) {
+        fs.copyFileSync(path.join(__dirname, '..', 'lib', name), path.join(libDir, name));
+    }
     store = require(path.join(libDir, 'store.js'));
 });
 

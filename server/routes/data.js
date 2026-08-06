@@ -14,6 +14,9 @@ router.get('/data', route((req) => svc.readData(req.projectStore)));
 router.post('/data', route((req) =>
     svc.writeData(req.projectStore, req.body, req.get('If-Match'))));
 
+// ── 감사 로그 (읽기 전용) ────────────────────────────
+router.get('/events', route((req) => svc.listEvents(req.projectStore, req.query.limit)));
+
 // ── 스냅샷 (프로젝트별) ──────────────────────────────
 router.get('/snapshots', route((req) => svc.listSnapshots(req.projectStore)));
 

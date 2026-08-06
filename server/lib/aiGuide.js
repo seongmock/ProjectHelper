@@ -14,6 +14,7 @@ module.exports = {
         projects: 'GET /api/projects (프로젝트 목록 — 각각 독립된 작업 트리/리비전)',
         revision: 'GET /api/projects/{pid}/revision (경량 변경 감지)',
         health: 'GET /api/health',
+        events: 'GET /api/projects/{pid}/events?limit=50 (감사 로그 — 누가 언제 무엇을 얼마나 바꿨는지)',
         mcp: '프로젝트 루트 .mcp.json 등록 시 15개 MCP 도구 사용 가능 (get-guide, list-projects, create-project, add-task, reschedule 등)',
     },
 
@@ -27,7 +28,7 @@ module.exports = {
             create: 'POST /api/projects {name} → 201 {project:{id,...}} — 이후 모든 경로에 이 id 사용',
             rename: 'PATCH /api/projects/{pid} {name}',
             delete: 'DELETE /api/projects/{pid} (마지막 프로젝트는 400)',
-            scoped: '/api/projects/{pid}/tasks | /data | /revision | /snapshots — 프로젝트 없는 경로와 동일한 형태',
+            scoped: '/api/projects/{pid}/tasks | /data | /revision | /snapshots | /events — 프로젝트 없는 경로와 동일한 형태',
         },
         multiUser: '멀티유저 배포 시 Caddy basicauth 사용자가 X-Auth-User로 전달되어 owner/createdBy에 기록된다.',
     },

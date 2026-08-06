@@ -3,6 +3,7 @@
 // 모든 쓰기는 원자적(tmp + rename)이며 해당 프로젝트의 리비전을 증가시킨다.
 const fs = require('fs');
 const path = require('path');
+const eventLog = require('./eventLog');
 
 // 데이터 위치를 주입 가능하게 둔다 — E2E/통합 테스트가 실제 데이터를 건드리지 않고
 // 격리된 디렉토리에서 돌 수 있어야 한다 (playwright.config.js 의 webServer 참조).
@@ -78,7 +79,15 @@ const readJsonSafe = (filepath) => {
 // ── 프로젝트 스코프 스토어 ───────────────────────────
 const projectDir = (pid) => path.join(PROJECTS_DIR, pid);
 
-const getProjectStore = (pid) => {
+// 트리 전체 노드 수 — 감사 로그에 변경의 '크기'를 남기기 위한 것.
+// 최상위 배열 길이만으로는 하위 트리가 통째로 날아간 쓰기를 구분할 수 없다.
+const countNodes = (tasks) =>
+    (Array.isArray(tasks) ? tasks : []).reduce(
+        (sum, task) => sum + 1 + countNodes(task && task.children), 0);
+
+// ctx 는 감사 로그에 남길 호출자 정보다 — { actor, op }.
+// HTTP 경로에서는 index.js 미들웨어가 주입하고, 스크립트/내부 호출은 기본값을 쓴다.
+const getProjectStore = (pid, ctx = {}) => {
     if (!isValidPid(pid)) throw new Error(`invalid project id: ${pid}`);
     const dir = projectDir(pid);
     const dataFile = path.join(dir, 'data.json');
@@ -117,11 +126,22 @@ const getProjectStore = (pid) => {
             throw new TypeError('writeTasks: 작업 트리는 배열이어야 한다');
         }
         ensureDir();
-        if (shouldBackup(dataFile, readTasks().length, tasks.length)) {
+        const before = readTasks();
+        if (shouldBackup(dataFile, before.length, tasks.length)) {
             rotateBackups(dataFile);
         }
         writeJsonAtomic(dataFile, tasks);
-        return bumpRevision();
+        const meta = bumpRevision();
+
+        // 모든 트리 쓰기는 withTasks 를 거쳐서도 결국 여기로 온다 — 감사 로그의 단일 지점.
+        eventLog.append(dir, {
+            actor: ctx.actor || 'system',
+            op: ctx.op || 'writeTasks',
+            revision: meta.revision,
+            nodes: countNodes(tasks),
+            prevNodes: countNodes(before),
+        });
+        return meta;
     };
 
     // 읽기 → 변경 → 쓰기. mutator가 배열을 반환하면 저장, 아니면 null
@@ -136,10 +156,22 @@ const getProjectStore = (pid) => {
     const readSnapshots = () => readJsonSafe(snapshotsFile) || [];
     const writeSnapshots = (snapshots) => {
         ensureDir();
+        const before = readSnapshots().length;
         writeJsonAtomic(snapshotsFile, snapshots);
+        eventLog.append(dir, {
+            actor: ctx.actor || 'system',
+            op: ctx.op || 'writeSnapshots',
+            snapshots: snapshots.length,
+            prevSnapshots: before,
+        });
     };
 
-    return { pid, readTasks, writeTasks, withTasks, readMeta, bumpRevision, readSnapshots, writeSnapshots };
+    const readEvents = (options) => eventLog.read(dir, options);
+
+    return {
+        pid, readTasks, writeTasks, withTasks, readMeta, bumpRevision,
+        readSnapshots, writeSnapshots, readEvents,
+    };
 };
 
 module.exports = {

@@ -95,7 +95,7 @@ VITE_API_TARGET=http://localhost:3100 npm run dev  # 프론트엔드
 npm run lint         # ESLint
 npm run test:unit    # 단위 테스트 (도메인 순수함수 + XSS 회귀)
 npm run test:server  # 서버 테스트 (검증 로직 + 저장소 내구성)
-npm run test:e2e     # Playwright E2E 28건 (API·dev 서버 자동 기동)
+npm run test:e2e     # Playwright E2E 31건 (API·dev 서버 자동 기동)
 npm run verify       # 위 전부 + 빌드
 ```
 
@@ -112,7 +112,7 @@ npm run build
 - **Express** (`server/`) - JSON 파일 영속화 + REST API
 - **localStorage** - 오프라인 캐시 (서버 장애 시 폴백)
 - **Caddy** - HTTPS 리버스 프록시 + Basic 인증
-- **Playwright / Vitest / node:test** - E2E 28건 + 단위 테스트
+- **Playwright / Vitest / node:test** - E2E 31건 + 단위 209건(unit 112 + server 97)
 
 ## 📖 사용법
 

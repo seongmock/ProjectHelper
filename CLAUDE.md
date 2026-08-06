@@ -24,9 +24,9 @@ npm run dev          # Vite dev server, http://localhost:5173, hot-reload
 npm run dev:api      # Express API server (PORT env, default 3000)
 npm run build        # Production build → dist/
 npm run lint         # ESLint 9 (flat config)
-npm run test:unit    # Vitest — 도메인 순수함수 + XSS 회귀 (46건)
-npm run test:server  # node:test — 검증 로직 + 저장소 내구성 (31건)
-npm run test:e2e     # Playwright E2E 28건 (API·dev 서버 자동 기동)
+npm run test:unit    # Vitest — 도메인 순수함수 + XSS 회귀 (112건)
+npm run test:server  # node:test — 검증·서비스·저장소 내구성·감사 로그 (97건)
+npm run test:e2e     # Playwright E2E 31건 (API·dev 서버 자동 기동)
 npm run verify       # 위 전부 + 빌드 — 변경 후 이것을 돌려라
 ```
 
@@ -44,8 +44,8 @@ npx playwright test -g "프로젝트"                   # by test-title substrin
 npx playwright test --headed --debug                # watch it / step through
 ```
 
-**변경 후에는 `npm run verify`** — 합격 기준은 lint 0 error · unit 46/46 · server 31/31 ·
-빌드 성공 · **E2E 28/28 (skip 0)**.
+**변경 후에는 `npm run verify`** — 합격 기준은 lint 0 error · unit 112/112 · server 97/97 ·
+빌드 성공 · **E2E 31/31 (skip 0)**.
 
 `playwright.config.js` 는 **API 서버와 dev 서버를 모두 자동 기동**하며, API는
 `PH_DATA_DIR=.tmp-e2e-data` 로 격리된다. 예전에는 API 서버를 수동으로 띄우지 않으면 8건이
@@ -56,8 +56,8 @@ Env overrides that matter on this host: **포트 3000은 무관한 uvicorn 서�
 `PORT=3100 npm run dev:api` 로 띄우고 프론트는 `VITE_API_TARGET=http://localhost:3100 npm run dev`
 로 맞춘다. `PH_DATA_DIR` 로 데이터 위치를 격리할 수 있다.
 
-There is no linter configured. Test selector conventions are documented in
-`.claude/skills/verify-app/SKILL.md`.
+ESLint 9(flat config, `eslint.config.js`)가 붙어 있고 CI 게이트다 — 경고는 허용, **에러는 0**.
+Test selector conventions are documented in `.claude/skills/verify-app/SKILL.md`.
 
 `node scripts/seed-roadmap.mjs` (API server must be up) injects `ROADMAP.md` into the app as a
 task tree — the self-demo used for the README screenshots. It snapshots current data first.
@@ -96,6 +96,13 @@ this project need `sudo`.
 줄어드는 파괴적 쓰기는 간격 무시하고 보존) ③ `validateTaskTree()` 로 라우트 검증 +
 `writeTasks()` 의 배열 타입 가드(라우트를 우회한 경로도 막는다).
 
+여기에 **추적** 장치가 하나 더 있다(복구 수단은 아니다): `lib/eventLog.js` 가 프로젝트별
+append-only 로그 `data/projects/<pid>/events.jsonl` 에 모든 쓰기를 한 줄씩 남긴다 —
+`{ts, actor, op, revision, nodes, prevNodes}`. `store.writeTasks`/`writeSnapshots` 가 유일한
+기록 지점이고, 컨텍스트(`actor`/`op`)는 `index.js` 미들웨어가 `getProjectStore(pid, ctx)` 로
+주입한다. 읽기는 `GET /api/projects/:pid/events?limit=50`. 로그 실패가 쓰기를 실패시키지
+않는다(warn 만 남기고 삼킨다).
+
 ## Architecture
 
 Client-heavy React 18 + Vite SPA with a thin Express persistence backend.
@@ -125,7 +132,7 @@ localStorage-only:
   migration of the old suffix-less keys to `:default` at module load.
 
 The server (`server/`) is a small CommonJS Express app. **Data is multi-project** (v1.5):
-`server/data/projects/<pid>/{data,meta,snapshots}.json` + `projects.json` registry, with
+`server/data/projects/<pid>/{data,meta,snapshots}.json` + `events.jsonl` + `projects.json` registry, with
 per-project revision counters. Routers get `req.projectStore` injected by middleware and are
 mounted twice: `/api/projects/:pid/*` (scoped) and `/api/*` (alias → 'default' project,
 backward compat). Key modules: `routes/tasks.js` (per-task CRUD, validated, 409 on If-Match
@@ -134,7 +141,8 @@ mismatch), `routes/data.js` (blob+snapshots), `routes/projects.js`, `lib/store.j
 legacy migration on boot), `lib/taskTree.js` (**partial CJS port of the client tree helpers —
 overlapping functions must stay behavior-compatible**; note it also owns `createNewTask`, which
 on the client lives in `dataModel.js` and takes different args, plus server-only `flattenAll`/
-`findTask`), `lib/validate.js`, `lib/aiGuide.js` (machine-readable guide at `GET /api/guide`).
+`findTask`), `lib/validate.js`, `lib/eventLog.js` (append-only 감사 로그), `lib/aiGuide.js`
+(machine-readable guide at `GET /api/guide`).
 No database. Auth is Caddy basicauth; the authenticated user is forwarded as `X-Auth-User` and
 recorded (owner/createdBy) but not yet enforced.
 
