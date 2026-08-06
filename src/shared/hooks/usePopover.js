@@ -6,7 +6,8 @@ const MARGIN = 20;
 /**
  * 앵커 좌표에 띄우는 팝오버의 공통 동작 — 뷰포트 클램핑 · 바깥 클릭 · Escape.
  *
- * TimelineBarPopover 와 MilestoneEditPopover 가 같은 코드를 각자 갖고 있었다.
+ * 폐기된 TimelineBarPopover 와 MilestoneEditPopover 가 같은 코드를 각자 갖고 있었다.
+ * 지금 남은 사용자는 MilestoneEditPopover 하나다.
  * `onDismiss` 는 매 렌더 새 함수여도 되도록 ref 로 최신값을 잡아둔다 — 리스너를
  * 다시 붙이지 않으므로 마우스다운 도중 핸들러가 교체되는 일이 없다.
  *

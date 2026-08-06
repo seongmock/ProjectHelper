@@ -18,7 +18,7 @@ npm run build        # 프로덕션 빌드 → dist/
 npm run lint         # ESLint
 npm run test:unit    # Vitest — 도메인 순수함수 + XSS 회귀
 npm run test:server  # node:test — 검증 로직 + 저장소 내구성
-npm run test:e2e     # Playwright 34건 (API·dev 서버 자동 기동)
+npm run test:e2e     # Playwright 36건 (API·dev 서버 자동 기동)
 npm run verify       # 위 전부
 ```
 

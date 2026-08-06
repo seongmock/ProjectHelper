@@ -373,9 +373,21 @@ export const summarizeTask = (tasks, taskId, todayStr) => {
         ...milestones.flatMap(m => m.dependencies || []),
     ]);
     const entities = collectEntities(flat);
-    const predecessors = entities.filter(e => ownDeps.has(e.id) && !ownIds.has(e.id));
-    const successors = entities.filter(e =>
-        !ownIds.has(e.id) && (e.dependencies || []).some(d => ownIds.has(d)));
+    // 앞뒤 목록에는 **제거에 필요한 상대 정보**를 함께 싣는다. 의존성은 늘 한쪽이 보유하고
+    // 있어서(holder.dependencies 에 상대 id 가 들어간다), 지우려면 "누가 들고 있는지"를
+    // 알아야 한다: 선행은 내 쪽 어느 엔티티가(holderId), 후행은 내 쪽 어느 id 를(depId).
+    const holderOf = (depId) => {
+        if ((task.dependencies || []).includes(depId)) return task.id;
+        return ranges.find(r => (r.dependencies || []).includes(depId))?.id
+            ?? milestones.find(m => (m.dependencies || []).includes(depId))?.id
+            ?? task.id;
+    };
+    const predecessors = entities
+        .filter(e => ownDeps.has(e.id) && !ownIds.has(e.id))
+        .map(e => ({ ...e, holderId: holderOf(e.id) }));
+    const successors = entities
+        .filter(e => !ownIds.has(e.id) && (e.dependencies || []).some(d => ownIds.has(d)))
+        .map(e => ({ ...e, depId: (e.dependencies || []).find(d => ownIds.has(d)) }));
 
     const parent = findTaskAndParent(tasks, taskId)?.parent || null;
 
@@ -412,4 +424,70 @@ export const findOwnerOfEntity = (flatList, entityId) => {
     if (task) return { task, kind: 'milestone' };
 
     return null;
+};
+
+// ── 기간(timeRange) 편집 ────────────────────────────────────────────────────
+// 기간을 고치는 경로는 이 세 함수만이다. 반환값은 updateTask 에 그대로 넘길 patch 이고
+// **항상 작업 전체의 bounds 를 함께 재계산한다** — 기간만 고치고 startDate/endDate 갱신을
+// 빠뜨리면 표(레거시 필드를 읽는다)와 타임라인의 날짜가 갈라진다. 폐기한 팝오버는
+// 라벨·색 변경 경로에서 실제로 재계산을 건너뛰고 있었다.
+// 대상이 없어 바뀔 것이 없으면 **null** 이다(호출부가 빈 undo 항목을 만들지 않게).
+
+export const patchRange = (task, rangeId, patch) => {
+    const ranges = task.timeRanges || [];
+    if (!ranges.some(r => r.id === rangeId)) return null;
+    const timeRanges = ranges.map(r => (r.id === rangeId ? { ...r, ...patch } : r));
+    return { timeRanges, ...recalcTaskBoundsSafe(timeRanges) };
+};
+
+// dateStr('YYYY-MM-DD') 에 하루짜리 기간을 붙인다. timeRanges 가 비어 있는데 레거시
+// startDate/endDate 가 남아 있으면 그것을 먼저 기간으로 승격한다 — 승격하지 않으면
+// bounds 재계산이 새 기간만 보게 되어 레거시 날짜가 조용히 사라진다.
+export const appendRange = (task, dateStr) => {
+    const timeRanges = [...(task.timeRanges || [])];
+    if (timeRanges.length === 0 && (task.startDate || task.endDate)) {
+        timeRanges.push({ id: generateId(), startDate: task.startDate, endDate: task.endDate });
+    }
+    timeRanges.push({ id: generateId(), startDate: dateStr, endDate: dateStr });
+    return { timeRanges, ...recalcTaskBoundsSafe(timeRanges) };
+};
+
+// 마지막 기간을 지우면 bounds 는 빈 문자열이 된다(recalcTaskBoundsSafe) — 남겨 두면
+// 기간이 없는 작업에 바가 계속 그려진다.
+export const removeRange = (task, rangeId) => {
+    const ranges = task.timeRanges || [];
+    if (!ranges.some(r => r.id === rangeId)) return null;
+    const timeRanges = ranges.filter(r => r.id !== rangeId);
+    return { timeRanges, ...recalcTaskBoundsSafe(timeRanges) };
+};
+
+// 의존성 한 건 제거 계획. holderId 는 의존성을 **보유한** 엔티티(작업/기간/마일스톤),
+// dependencyId 는 그 목록에서 뺄 id 다. 보유자 종류마다 갱신할 필드가 달라서
+// (dependencies / timeRanges[].dependencies / milestones[].dependencies) 그 분기를
+// 여기 한 곳에 모은다. 반환: { taskId, updates } 또는 null(보유자를 못 찾음).
+export const planDependencyRemoval = (flatList, holderId, dependencyId) => {
+    const owner = findOwnerOfEntity(flatList, holderId);
+    if (!owner) return null;
+
+    const strip = (deps) => (deps || []).filter(id => id !== dependencyId);
+
+    if (owner.kind === 'task') {
+        return { taskId: holderId, updates: { dependencies: strip(owner.task.dependencies) } };
+    }
+    if (owner.kind === 'range') {
+        return {
+            taskId: owner.task.id,
+            updates: {
+                timeRanges: owner.task.timeRanges.map(r =>
+                    r.id === holderId ? { ...r, dependencies: strip(r.dependencies) } : r),
+            },
+        };
+    }
+    return {
+        taskId: owner.task.id,
+        updates: {
+            milestones: owner.task.milestones.map(m =>
+                m.id === holderId ? { ...m, dependencies: strip(m.dependencies) } : m),
+        },
+    };
 };

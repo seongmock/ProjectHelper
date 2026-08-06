@@ -34,20 +34,21 @@ export const useUiStore = create((set) => ({
     openExport: (customExportData = null) => set({ ieModalMode: 'EXPORT', customExportData }),
     closeIeModal: () => set({ ieModalMode: null, customExportData: null }),
 
-    // ── 팝오버 / 인라인 편집 ─────────────────────────
-    popoverInfo: null,        // { x, y, taskId, date, rangeId }
-    openPopover: (info) => set({ popoverInfo: info }),
-    closePopover: () => set({ popoverInfo: null }),
+    // 우클릭으로 특정 기간을 지목했을 때 그 기간 id. 인스펙터가 해당 기간을 강조하고
+    // "연결 추가"의 주체로 쓴다. 다른 작업을 선택해도 남을 수 있어서 **인스펙터가
+    // 소유 여부를 확인하고 무시한다** — 여기서 지우려면 선택 변경 경로를 전부 알아야 한다.
+    selectedRangeId: null,
+    setSelectedRangeId: (selectedRangeId) => set({ selectedRangeId }),
 
     milestoneModalInfo: null, // { task, date }
     openMilestoneAdd: (info) => set({ milestoneModalInfo: info }),
     closeMilestoneAdd: () => set({ milestoneModalInfo: null }),
 
-    // 프로젝트를 전환하면 이전 프로젝트의 선택/검색/팝오버가 남아 있으면 안 된다
+    // 프로젝트를 전환하면 이전 프로젝트의 선택/검색/모달이 남아 있으면 안 된다
     resetViewState: () => set({
         selectedTaskId: null,
+        selectedRangeId: null,
         searchQuery: '',
-        popoverInfo: null,
         milestoneModalInfo: null,
     }),
 }));

@@ -9,10 +9,11 @@ test.beforeEach(async ({ page, request }) => {
 });
 
 test.describe('진행률 (Progress)', () => {
-    test('팝오버 슬라이더로 설정 → 바 오버레이 표시 → undo로 복원', async ({ page }) => {
-        // 타임라인 바 우클릭 → 작업 설정 팝오버
+    // v2 부터 우클릭은 팝오버를 띄우지 않고 인스펙터를 연다(P3-5).
+    // showInspector 는 **전역 설정**이라 각 테스트가 끝에서 반드시 되돌린다.
+    test('인스펙터 슬라이더로 설정 → 바 오버레이 표시 → undo로 복원', async ({ page }) => {
         await page.locator('.timeline-bar').first().click({ button: 'right' });
-        const slider = page.getByTestId('progress-slider');
+        const slider = page.getByTestId('inspector-progress');
         await expect(slider).toBeVisible();
 
         await slider.fill('50');
@@ -20,19 +21,22 @@ test.describe('진행률 (Progress)', () => {
         const width = await page.locator('.bar-progress-fill').first().evaluate(el => el.style.width);
         expect(width).toBe('50%');
 
-        // 팝오버 닫고 undo → 오버레이 사라짐
-        await page.keyboard.press('Escape');
         await page.keyboard.press('Control+z');
         await expect(page.locator('.bar-progress-fill')).toHaveCount(0);
+
+        await page.getByTitle('인스펙터 패널').click();
+        await expect(page.locator('.inspector-panel')).toHaveCount(0);
     });
 
     test('표 뷰에 진행률 배지 표시', async ({ page }) => {
         await page.locator('.timeline-bar').first().click({ button: 'right' });
-        await page.getByTestId('progress-slider').fill('75');
-        await page.keyboard.press('Escape');
+        await page.getByTestId('inspector-progress').fill('75');
 
         await page.getByTitle('표 뷰').click();
         await expect(page.locator('.progress-badge').first()).toHaveText('75%');
+
+        await page.getByTitle('인스펙터 패널').click();
+        await expect(page.locator('.inspector-panel')).toHaveCount(0);
     });
 });
 
@@ -257,6 +261,31 @@ test.describe('인스펙터 패널', () => {
         await expect(page.locator('.task-row', { hasText: '요구사항 분석' })).toHaveCount(1);
 
         // 설정은 전역(프로젝트 스코프 밖)이라 되돌리지 않으면 다른 테스트로 샌다
+        await page.getByTitle('인스펙터 패널').click();
+        await expect(panel).toHaveCount(0);
+    });
+
+    // v2: TimelineBarPopover 를 이 패널이 흡수하고 폐기했다. 우클릭은 팝오버가 아니라
+    // "선택 + 인스펙터 열기 + 지목한 기간 강조"가 된다.
+    test('우클릭이 인스펙터를 열고 그 기간을 강조하며, 기간 편집을 여기서 한다', async ({ page }) => {
+        const panel = page.locator('.inspector-panel');
+        await expect(panel).toHaveCount(0);
+
+        await page.locator('.timeline-bar').first().click({ button: 'right' });
+        await expect(panel).toBeVisible();
+        await expect(page.locator('.timeline-popover')).toHaveCount(0); // 팝오버는 더 이상 없다
+        await expect(panel.locator('.inspector-range.is-focused')).toHaveCount(1);
+
+        // 기간의 종료일을 늘리면 작업 전체 bounds 가 함께 재계산된다
+        await panel.getByTestId('inspector-range-end').first().fill('2026-03-15');
+        await expect(page.getByTestId('inspector-dates')).toContainText('~ 2026-03-15');
+
+        // 기간 추가 → 2개, undo 로 원복
+        await panel.getByTestId('inspector-add-range').click();
+        await expect(panel.getByTestId('inspector-range')).toHaveCount(2);
+        await page.keyboard.press('Control+z');
+        await expect(panel.getByTestId('inspector-range')).toHaveCount(1);
+
         await page.getByTitle('인스펙터 패널').click();
         await expect(panel).toHaveCount(0);
     });

@@ -24,6 +24,10 @@ import {
     flattenAll,
     collectEntities,
     summarizeTask,
+    patchRange,
+    appendRange,
+    removeRange,
+    planDependencyRemoval,
 } from '../../src/utils/taskTree.js';
 
 // 테스트용 트리 빌더 — children 은 항상 배열로 채운다 (정규화된 데이터 형태)
@@ -702,5 +706,152 @@ describe('summarizeTask', () => {
         const s = summarizeTask(tree(), 'child', TODAY);
         expect(s.status).toBe(getTaskStatus(s.task, TODAY));
         expect(s.status).toBe('active');
+    });
+});
+
+// 인스펙터가 기간을 고치는 유일한 경로 (v2 에서 TimelineBarPopover 를 흡수하며 추출).
+// 팝오버 시절에는 호출부마다 map + bounds 재계산을 손으로 썼고, 라벨·색 변경 경로는
+// 재계산을 아예 빠뜨리고 있었다.
+describe('patchRange / appendRange / removeRange', () => {
+    const task = () => node('t', {
+        color: '#111111',
+        timeRanges: [
+            { id: 'r1', startDate: '2026-06-01', endDate: '2026-06-05' },
+            { id: 'r2', startDate: '2026-06-10', endDate: '2026-06-20' },
+        ],
+    });
+
+    it('patchRange 는 지정 기간만 고치고 전체 bounds 를 재계산한다', () => {
+        const patch = patchRange(task(), 'r2', { endDate: '2026-06-30' });
+        expect(patch.timeRanges.map(r => r.endDate)).toEqual(['2026-06-05', '2026-06-30']);
+        expect(patch).toMatchObject({ startDate: '2026-06-01', endDate: '2026-06-30' });
+    });
+
+    it('patchRange 는 날짜가 아닌 속성을 바꿀 때도 bounds 를 함께 돌려준다', () => {
+        const patch = patchRange(task(), 'r1', { label: '설계', barHeight: 24 });
+        expect(patch.timeRanges[0]).toMatchObject({ label: '설계', barHeight: 24 });
+        expect(patch).toMatchObject({ startDate: '2026-06-01', endDate: '2026-06-20' });
+    });
+
+    it('patchRange 대상 기간이 없으면 null (빈 undo 항목을 만들지 않는다)', () => {
+        expect(patchRange(task(), 'nope', { label: 'x' })).toBeNull();
+        expect(patchRange(node('empty'), 'r1', { label: 'x' })).toBeNull();
+    });
+
+    it('patchRange 는 원본을 제자리에서 바꾸지 않는다', () => {
+        const t = task();
+        const before = structuredClone(t);
+        patchRange(t, 'r1', { label: '설계' });
+        expect(t).toEqual(before);
+    });
+
+    it('appendRange 는 하루짜리 기간을 붙이고 bounds 를 넓힌다', () => {
+        const patch = appendRange(task(), '2026-07-01');
+        expect(patch.timeRanges).toHaveLength(3);
+        expect(patch.timeRanges[2]).toMatchObject({ startDate: '2026-07-01', endDate: '2026-07-01' });
+        expect(patch.endDate).toBe('2026-07-01');
+    });
+
+    it('appendRange 는 기간이 없고 레거시 날짜가 남아 있으면 그것을 먼저 기간으로 승격한다', () => {
+        const legacy = node('l', { startDate: '2026-05-01', endDate: '2026-05-10' });
+        const patch = appendRange(legacy, '2026-06-01');
+        expect(patch.timeRanges).toHaveLength(2);
+        expect(patch.timeRanges[0]).toMatchObject({ startDate: '2026-05-01', endDate: '2026-05-10' });
+        // 승격하지 않으면 여기서 레거시 날짜가 조용히 사라진다
+        expect(patch).toMatchObject({ startDate: '2026-05-01', endDate: '2026-06-01' });
+    });
+
+    it('appendRange 는 날짜가 아예 없는 작업에는 기간 하나만 만든다', () => {
+        const patch = appendRange(node('n'), '2026-06-01');
+        expect(patch.timeRanges).toHaveLength(1);
+        expect(patch).toMatchObject({ startDate: '2026-06-01', endDate: '2026-06-01' });
+    });
+
+    it('removeRange 는 남은 기간으로 bounds 를 다시 계산한다', () => {
+        const patch = removeRange(task(), 'r2');
+        expect(patch.timeRanges.map(r => r.id)).toEqual(['r1']);
+        expect(patch).toMatchObject({ startDate: '2026-06-01', endDate: '2026-06-05' });
+    });
+
+    it('removeRange 로 마지막 기간이 사라지면 bounds 는 빈 문자열이다 (바가 남지 않게)', () => {
+        const one = node('o', { timeRanges: [{ id: 'r1', startDate: '2026-06-01', endDate: '2026-06-05' }] });
+        expect(removeRange(one, 'r1')).toEqual({ timeRanges: [], startDate: '', endDate: '' });
+    });
+
+    it('removeRange 대상이 없으면 null', () => {
+        expect(removeRange(task(), 'nope')).toBeNull();
+    });
+});
+
+describe('planDependencyRemoval', () => {
+    const tree = () => [
+        node('holder', {
+            dependencies: ['dep', 'keep'],
+            timeRanges: [
+                { id: 'hr1', startDate: '2026-06-01', endDate: '2026-06-02', dependencies: ['dep'] },
+                { id: 'hr2', startDate: '2026-06-03', endDate: '2026-06-04', dependencies: ['dep'] },
+            ],
+            milestones: [{ id: 'hm1', date: '2026-06-05', dependencies: ['dep', 'keep'] }],
+        }),
+        node('dep'),
+    ];
+    const flat = () => flattenAll(tree());
+
+    it('작업이 보유한 의존성은 dependencies 를 갱신한다', () => {
+        expect(planDependencyRemoval(flat(), 'holder', 'dep'))
+            .toEqual({ taskId: 'holder', updates: { dependencies: ['keep'] } });
+    });
+
+    it('기간이 보유한 의존성은 그 기간만 갱신한다', () => {
+        const plan = planDependencyRemoval(flat(), 'hr1', 'dep');
+        expect(plan.taskId).toBe('holder');
+        expect(plan.updates.timeRanges.map(r => r.dependencies)).toEqual([[], ['dep']]);
+    });
+
+    it('마일스톤이 보유한 의존성은 milestones 를 갱신한다', () => {
+        const plan = planDependencyRemoval(flat(), 'hm1', 'dep');
+        expect(plan.taskId).toBe('holder');
+        expect(plan.updates.milestones[0].dependencies).toEqual(['keep']);
+    });
+
+    it('보유자를 못 찾으면 null', () => {
+        expect(planDependencyRemoval(flat(), 'ghost', 'dep')).toBeNull();
+    });
+});
+
+// 앞뒤 목록에서 연결을 제거하려면 "누가 의존성을 들고 있는지"를 알아야 한다.
+describe('summarizeTask — 의존성 제거용 상대 정보', () => {
+    const TODAY = '2026-06-15';
+
+    it('선행에는 내 쪽 보유자(holderId)가 붙는다 — 기간이 들고 있으면 기간 id', () => {
+        const tree = [
+            node('me', {
+                dependencies: ['viaTask'],
+                timeRanges: [{ id: 'r1', startDate: '2026-06-01', endDate: '2026-06-02', dependencies: ['viaRange'] }],
+                milestones: [{ id: 'm1', date: '2026-06-03', dependencies: ['viaMs'] }],
+            }),
+            node('viaTask'), node('viaRange'), node('viaMs'),
+        ];
+        const holders = Object.fromEntries(
+            summarizeTask(tree, 'me', TODAY).predecessors.map(p => [p.id, p.holderId]));
+        expect(holders).toEqual({ viaTask: 'me', viaRange: 'r1', viaMs: 'm1' });
+    });
+
+    it('후행에는 상대가 참조하는 내 쪽 id(depId)가 붙는다', () => {
+        const tree = [
+            node('me', { timeRanges: [{ id: 'r1', startDate: '2026-06-01', endDate: '2026-06-02' }] }),
+            node('afterTask', { dependencies: ['me'] }),
+            node('afterRange', { dependencies: ['r1'] }),
+        ];
+        const deps = Object.fromEntries(
+            summarizeTask(tree, 'me', TODAY).successors.map(s => [s.id, s.depId]));
+        expect(deps).toEqual({ afterTask: 'me', afterRange: 'r1' });
+    });
+
+    it('상대 정보를 얹어도 원본 엔티티를 오염시키지 않는다', () => {
+        const tree = [node('me', { dependencies: ['p'] }), node('p')];
+        const before = structuredClone(tree);
+        summarizeTask(tree, 'me', TODAY);
+        expect(tree).toEqual(before);
     });
 });

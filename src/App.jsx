@@ -6,8 +6,8 @@
 //   - 트리 조작       → hooks/useTaskActions (로직은 utils/taskTree.js)
 //   - 파일 입출력     → hooks/useImportExport
 import { useEffect, useCallback, useRef, useMemo } from 'react';
-import { getSampleData, generateId, flattenTasks } from './utils/dataModel';
-import { recalcTaskBounds, findOwnerOfEntity, collectEntities } from './utils/taskTree';
+import { getSampleData } from './utils/dataModel';
+import { flattenAll, planDependencyRemoval } from './utils/taskTree';
 import { useUndoRedo } from './shared/hooks/useUndoRedo';
 import { useToast } from './shared/hooks/useToast';
 import { useProjectSync } from './features/projects/useProjectSync';
@@ -20,7 +20,6 @@ import Header from './features/shell/Header';
 import Toolbar from './features/shell/Toolbar';
 import TableView from './features/table/TableView';
 import TimelineView from './features/timeline/TimelineView';
-import TimelineBarPopover from './features/timeline/TimelineBarPopover';
 import PromptGuideModal from './features/io/PromptGuideModal';
 import ImportExportModal from './features/io/ImportExportModal';
 import SaveLoadModal from './features/io/SaveLoadModal';
@@ -60,9 +59,8 @@ function App() {
     const setSearchQuery = useUiStore(s => s.setSearchQuery);
     const selectedTaskId = useUiStore(s => s.selectedTaskId);
     const setSelectedTaskId = useUiStore(s => s.setSelectedTaskId);
-    const popoverInfo = useUiStore(s => s.popoverInfo);
-    const openPopover = useUiStore(s => s.openPopover);
-    const closePopover = useUiStore(s => s.closePopover);
+    const selectedRangeId = useUiStore(s => s.selectedRangeId);
+    const setSelectedRangeId = useUiStore(s => s.setSelectedRangeId);
     const milestoneModalInfo = useUiStore(s => s.milestoneModalInfo);
     const openMilestoneAdd = useUiStore(s => s.openMilestoneAdd);
     const closeMilestoneAdd = useUiStore(s => s.closeMilestoneAdd);
@@ -135,34 +133,33 @@ function App() {
         return () => mediaQuery.removeEventListener('change', handleChange);
     }, [followSystemDarkMode]);
 
-    // ── 팝오버 ───────────────────────────────────────
-    const handleContextMenu = useCallback((e, taskId, date = null, rangeId = null) => {
+    // ── 우클릭 → 인스펙터 ────────────────────────────
+    // v2 부터 우클릭은 팝오버를 띄우지 않는다. 선택을 그 작업(과 지목한 기간)으로 옮기고
+    // 인스펙터를 연다 — 편집 표면이 하나여야 "지금 무엇을 고치고 있는지"가 흔들리지 않는다.
+    const handleContextMenu = useCallback((e, taskId, _date = null, rangeId = null) => {
         e.preventDefault();
-        openPopover({
-            x: e.clientX,
-            y: e.clientY,
-            taskId,
-            date: date || new Date(), // 날짜 없으면 오늘
-            rangeId,
-        });
-    }, [openPopover]);
+        setSelectedTaskId(taskId);
+        setSelectedRangeId(rangeId || null);
+        if (!showInspector) setSetting({ showInspector: true });
+    }, [setSelectedTaskId, setSelectedRangeId, showInspector, setSetting]);
 
-    const handlePopoverDelete = useCallback((id) => {
-        actions.deleteTask(id);
-        closePopover();
-    }, [actions, closePopover]);
-
-    const handlePopoverAddMilestone = useCallback(() => {
-        if (!popoverInfo) return;
-        const target = flattenTasks(tasks).find(t => t.id === popoverInfo.taskId);
-        if (target) openMilestoneAdd({ task: target, date: popoverInfo.date });
-        closePopover();
-    }, [popoverInfo, tasks, openMilestoneAdd, closePopover]);
+    // 인스펙터의 "마일스톤 추가" → 기존 MilestoneQuickAdd 모달 재사용.
+    // 로컬 자정으로 파싱한다 — new Date('2026-06-20') 는 UTC 자정이라 음수 오프셋 지역에서
+    // 모달이 하루 이른 날짜를 보여 준다.
+    const handleOpenMilestoneAdd = useCallback((task, dateStr) => {
+        openMilestoneAdd({ task, date: dateStr ? new Date(`${dateStr}T00:00:00`) : new Date() });
+    }, [openMilestoneAdd]);
 
     const handleAddMilestone = useCallback((taskId, milestoneData) => {
         actions.addMilestone(taskId, milestoneData);
         closeMilestoneAdd();
     }, [actions, closeMilestoneAdd]);
+
+    // 의존성 제거: 어느 종류가 보유하고 있는지에 따라 갱신 필드가 다르다 → 순수함수가 판단
+    const handleRemoveDependency = useCallback((holderId, dependencyId) => {
+        const plan = planDependencyRemoval(flattenAll(tasks), holderId, dependencyId);
+        if (plan) actions.updateTask(plan.taskId, plan.updates);
+    }, [tasks, actions]);
 
     // ── 키보드 단축키 ────────────────────────────────
     useEffect(() => {
@@ -336,103 +333,21 @@ function App() {
                             <InspectorPanel
                                 tasks={tasks}
                                 selectedTaskId={selectedTaskId}
+                                selectedRangeId={selectedRangeId}
                                 onUpdateTask={actions.updateTask}
                                 onSelectTask={setSelectedTaskId}
+                                onDeleteTask={actions.deleteTask}
+                                onAddMilestone={handleOpenMilestoneAdd}
+                                onRemoveDependency={handleRemoveDependency}
+                                // 연결은 타임라인의 명령형 핸들이 필요하다 — 표 뷰에서는 버튼을 잠근다
+                                canLink={viewMode !== 'table'}
+                                onStartLinking={(entityId) => timelineRef.current?.startLinking(entityId)}
                                 onClose={() => toggleSetting('showInspector')}
                             />
                         )}
                     </>
                 )}
             </div>
-
-            {/* 작업 설정 팝오버 (전역) */}
-            {popoverInfo && (() => {
-                const flatList = flattenTasks(tasks);
-                const targetTask = flatList.find(t => t.id === popoverInfo.taskId);
-                if (!targetTask) return null;
-
-                // 의존성 선택지가 될 모든 엔티티 (작업 + 마일스톤 + 타임레인지)
-                const allEntities = collectEntities(flatList);
-
-                let targetDependencies = targetTask.dependencies || [];
-                let targetId = targetTask.id;
-
-                if (popoverInfo.rangeId) {
-                    const range = (targetTask.timeRanges || []).find(r => r.id === popoverInfo.rangeId);
-                    if (range) {
-                        targetDependencies = range.dependencies || [];
-                        targetId = range.id;
-                    }
-                }
-
-                const preds = allEntities.filter(e => targetDependencies.includes(e.id));
-                // 후행: 자신의 dependencies 에 targetId 를 가진 엔티티
-                const succs = allEntities.filter(e => (e.dependencies || []).includes(targetId));
-
-                return (
-                    <TimelineBarPopover
-                        position={{ x: popoverInfo.x, y: popoverInfo.y }}
-                        task={targetTask}
-                        clickedDate={popoverInfo.date}
-                        clickedRangeId={popoverInfo.rangeId}
-                        predecessors={preds}
-                        successors={succs}
-                        onClose={closePopover}
-                        onUpdate={actions.updateTask}
-                        onDelete={handlePopoverDelete}
-                        onAddMilestone={handlePopoverAddMilestone}
-                        onStartLinking={() => {
-                            // 특정 기간이 선택돼 있으면 그 기간에서, 아니면 작업에서 연결 시작
-                            timelineRef.current?.startLinking(popoverInfo.rangeId || targetTask.id);
-                            closePopover();
-                        }}
-                        onAddTimeRange={(taskId, date) => {
-                            const newRanges = [...(targetTask.timeRanges || [])];
-                            if (newRanges.length === 0 && (targetTask.startDate || targetTask.endDate)) {
-                                // 마이그레이션이 안 된 레거시 작업 보정
-                                newRanges.push({
-                                    id: generateId(),
-                                    startDate: targetTask.startDate,
-                                    endDate: targetTask.endDate
-                                });
-                            }
-
-                            // 1일 길이의 새 기간 추가
-                            const day = new Date(date).toISOString().split('T')[0];
-                            newRanges.push({ id: generateId(), startDate: day, endDate: day });
-
-                            actions.updateTask(taskId, {
-                                timeRanges: newRanges,
-                                ...recalcTaskBounds(newRanges),
-                            });
-                        }}
-                        onRemoveDependency={(holderId, dependencyId) => {
-                            // holderId: 의존성을 보유한 엔티티 (Task/Range/Milestone ID)
-                            // dependencyId: holder 의 dependencies 에서 제거할 ID
-                            const owner = findOwnerOfEntity(flattenTasks(tasks), holderId);
-                            if (!owner) return;
-
-                            const stripDep = (deps) => (deps || []).filter(id => id !== dependencyId);
-
-                            if (owner.kind === 'task') {
-                                actions.updateTask(holderId, { dependencies: stripDep(owner.task.dependencies) });
-                            } else if (owner.kind === 'range') {
-                                actions.updateTask(owner.task.id, {
-                                    timeRanges: owner.task.timeRanges.map(r =>
-                                        r.id === holderId ? { ...r, dependencies: stripDep(r.dependencies) } : r
-                                    ),
-                                });
-                            } else if (owner.kind === 'milestone') {
-                                actions.updateTask(owner.task.id, {
-                                    milestones: owner.task.milestones.map(m =>
-                                        m.id === holderId ? { ...m, dependencies: stripDep(m.dependencies) } : m
-                                    ),
-                                });
-                            }
-                        }}
-                    />
-                );
-            })()}
 
             {milestoneModalInfo && (
                 <MilestoneQuickAdd

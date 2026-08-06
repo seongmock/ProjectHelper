@@ -18,7 +18,9 @@ const isTyping = (el) =>
 
 // 모달·팝오버가 열려 있으면 그쪽이 화면의 주인이다. 뒤에 가려진 선택 작업을
 // 조용히 움직이면 안 된다 (Escape 처리는 각 컴포넌트가 이미 한다).
-const hasOverlay = () => !!document.querySelector('.modal-overlay, .timeline-popover');
+// `.timeline-popover`(작업 설정 팝오버)는 인스펙터가 흡수하며 사라졌다. 남은 오버레이는
+// 모달과 마일스톤 편집 팝오버뿐 — 후자는 원래 이 목록에 없어서 뒤에서 작업이 움직였다.
+const hasOverlay = () => !!document.querySelector('.modal-overlay, .milestone-popover');
 
 // 이동/기간 조정 단축키 → [일수, 모드]. Shift 는 별도 플래그가 아니라 다른 문자로 온다.
 const SHIFT_KEYS = {
