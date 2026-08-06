@@ -358,17 +358,11 @@ const TimelineView = forwardRef(({
                     </div>
                     {/* 폭 조절 핸들 */}
                     <div
-                        className="sidebar-resize-handle"
+                        className={`sidebar-resize-handle ${isResizing ? 'resizing' : ''}`}
                         onMouseDown={startResize}
-                        style={{
-                            width: '4px',
-                            cursor: 'col-resize',
-                            backgroundColor: isResizing ? 'var(--color-primary)' : 'transparent',
-                            zIndex: 10,
-                            position: 'relative',
-                            marginLeft: '-2px',
-                            flex: '0 0 4px',
-                        }}
+                        role="separator"
+                        aria-orientation="vertical"
+                        aria-label="작업명 컬럼 폭 조절"
                     />
                 </>)}
 

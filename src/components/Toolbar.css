@@ -13,6 +13,23 @@
     align-items: center;
     justify-content: space-between;
     padding: 0 var(--spacing-lg);
+    gap: var(--spacing-md);
+    /* 좁은 화면에서 오른쪽 그룹(검색 · 작업 추가)이 잘려 나가던 문제.
+       아래 .icon-btn 주석은 "툴바는 가로 스크롤로 처리한다"고 적혀 있었지만
+       실제로 가로 스크롤이 걸려 있지 않아 그냥 잘리고 있었다. */
+    overflow-x: auto;
+    overflow-y: hidden;
+}
+
+/* 툴바 높이(56px) 안에 들어가야 하므로 기본 12px 스크롤바는 너무 두껍다 */
+.toolbar-content::-webkit-scrollbar {
+    height: 4px;
+}
+
+/* 줄어들어 뭉개지는 대신 스크롤되게 한다 */
+.toolbar-left,
+.toolbar-right {
+    flex-shrink: 0;
 }
 
 .view-toggle,

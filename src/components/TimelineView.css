@@ -116,6 +116,39 @@
     flex: 1;
 }
 
+/* 작업명 컬럼 폭 조절 핸들.
+   기능은 있었지만 완전히 투명해서 존재를 알 수 없었다 — hover 시 드러나게 한다.
+   4px 은 집기 어려우므로 ::before 로 히트 영역만 좌우 3px 씩 넓힌다. */
+.sidebar-resize-handle {
+    position: relative;
+    flex: 0 0 4px;
+    width: 4px;
+    margin-left: -2px;
+    z-index: 10;
+    cursor: col-resize;
+    background-color: transparent;
+    transition: background-color var(--transition-fast);
+}
+
+.sidebar-resize-handle::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: -3px;
+    right: -3px;
+}
+
+.sidebar-resize-handle:hover,
+.sidebar-resize-handle.resizing {
+    background-color: var(--color-primary);
+}
+
+/* 캡처 이미지에 핸들이 찍히면 안 된다 */
+.timeline-view.capturing .sidebar-resize-handle {
+    background-color: transparent;
+}
+
 .timeline-scroll-container {
     flex: 1;
     overflow: auto;

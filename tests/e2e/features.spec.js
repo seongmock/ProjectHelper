@@ -115,3 +115,26 @@ test.describe('드래그 undo 정합성', () => {
         await expect(page.locator('.task-row', { hasText: '요구사항 분석' })).toBeVisible();
     });
 });
+
+test.describe('툴바 레이아웃', () => {
+    // P1-7 "우상단 클리핑". 툴바가 flex 한 줄인데 가로 스크롤이 없어서, 좁은 화면에서
+    // 오른쪽 그룹(검색 · 작업 추가)이 잘려 나가고 접근 자체가 불가능했다.
+    test('좁은 화면에서도 오른쪽 그룹이 잘리지 않는다', async ({ page }) => {
+        await page.setViewportSize({ width: 900, height: 800 });
+
+        const addButton = page.getByRole('button', { name: '➕ 새 작업' });
+        const content = page.locator('.toolbar-content');
+
+        // 스크롤이 필요하면 스크롤해서라도 닿을 수 있어야 한다
+        await addButton.scrollIntoViewIfNeeded();
+
+        const btnBox = await addButton.boundingBox();
+        const barBox = await content.boundingBox();
+        expect(btnBox).not.toBeNull();
+        expect(btnBox.x).toBeGreaterThanOrEqual(barBox.x - 1);
+        expect(btnBox.x + btnBox.width).toBeLessThanOrEqual(barBox.x + barBox.width + 1);
+
+        await addButton.click();
+        await expect(page.locator('.task-name-item', { hasText: '새 작업' })).toBeVisible();
+    });
+});
