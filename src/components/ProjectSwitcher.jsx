@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { Folder, ChevronDown, Check, Pencil, Trash2, Plus } from 'lucide-react';
 import './ProjectSwitcher.css';
 
 // 프로젝트 전환 드롭다운 — Header 좌측에 배치
@@ -80,7 +81,9 @@ function ProjectSwitcher({
                 onClick={toggleOpen}
                 title="프로젝트 전환"
             >
-                📁 <span className="project-switcher-name">{activeProject?.name ?? '...'}</span> ▾
+                <Folder size={15} aria-hidden="true" />
+                <span className="project-switcher-name">{activeProject?.name ?? '...'}</span>
+                <ChevronDown size={14} aria-hidden="true" />
             </button>
 
             {isOpen && (
@@ -108,7 +111,9 @@ function ProjectSwitcher({
                                             onSwitch(project.id);
                                         }}
                                     >
-                                        {project.id === activeProjectId ? '✓ ' : ''}
+                                        <span className="project-switcher-check">
+                                            {project.id === activeProjectId && <Check size={14} aria-hidden="true" />}
+                                        </span>
                                         {project.name}
                                     </span>
                                     <span className="project-switcher-actions">
@@ -118,12 +123,12 @@ function ProjectSwitcher({
                                                 setEditingId(project.id);
                                                 setEditName(project.name);
                                             }}
-                                        >✏️</button>
+                                        ><Pencil size={14} aria-hidden="true" /></button>
                                         <button
                                             title={projects.length === 1 ? '마지막 프로젝트는 삭제 불가' : '삭제'}
                                             disabled={projects.length === 1}
                                             onClick={() => confirmDelete(project)}
-                                        >🗑</button>
+                                        ><Trash2 size={14} aria-hidden="true" /></button>
                                     </span>
                                 </>
                             )}
@@ -142,7 +147,8 @@ function ProjectSwitcher({
                             />
                         ) : (
                             <button className="project-switcher-add" onClick={() => setCreating(true)}>
-                                ➕ 새 프로젝트
+                                <Plus size={14} aria-hidden="true" />
+                                <span>새 프로젝트</span>
                             </button>
                         )}
                     </div>

@@ -38,6 +38,9 @@
 }
 
 .modal-header h3 {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
     margin: 0;
     font-size: var(--font-size-lg);
     font-weight: 600;
@@ -56,6 +59,13 @@
 .modal-body {
     padding: var(--spacing-lg);
     overflow-y: auto;
+}
+
+/* 아이콘 + 라벨 버튼 (내보내기 · 덮어쓰기 등) */
+.modal-body .secondary-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
 }
 
 .modal-footer {

@@ -31,7 +31,7 @@ test.describe('진행률 (Progress)', () => {
         await page.getByTestId('progress-slider').fill('75');
         await page.keyboard.press('Escape');
 
-        await page.getByRole('button', { name: '📋 표' }).click();
+        await page.getByTitle('표 뷰').click();
         await expect(page.locator('.progress-badge').first()).toHaveText('75%');
     });
 });
@@ -62,23 +62,23 @@ test.describe('지연 (Overdue) 하이라이트', () => {
 
 test.describe('표 날짜 편집 ↔ 타임라인 동기화', () => {
     test('표에서 시작일 변경 → 타임라인 바 날짜 반영', async ({ page }) => {
-        await page.getByRole('button', { name: '📋 표' }).click();
+        await page.getByTitle('표 뷰').click();
 
         const row = page.locator('.task-row', { hasText: '요구사항 분석' }).first();
         const startInput = row.locator('input[type="date"]').first();
         await startInput.fill('2026-01-02');
 
         // 타임라인으로 전환 → 바 title에 새 날짜 반영 확인
-        await page.getByRole('button', { name: '📈 타임라인' }).click();
+        await page.getByTitle('타임라인 뷰').click();
         const bar = page.locator('.timeline-bar[title*="요구사항 분석"]');
         await expect(bar).toHaveAttribute('title', /2026-01-02|2026\.01\.02/);
     });
 
     test('표에서 마일스톤 추가 시 유효한 날짜 부여', async ({ page }) => {
-        await page.getByRole('button', { name: '📋 표' }).click();
+        await page.getByTitle('표 뷰').click();
         const row = page.locator('.task-row', { hasText: '요구사항 분석' }).first();
         await row.getByTitle('마일스톤 관리').click();
-        await page.getByRole('button', { name: '➕ 마일스톤 추가' }).click();
+        await page.getByRole('button', { name: '마일스톤 추가' }).click();
         // 새 마일스톤의 date input이 비어있지 않아야 함 (기존 버그: undefined)
         const dateInput = page.locator('.milestone-date-input').last();
         const value = await dateInput.inputValue();
@@ -88,7 +88,7 @@ test.describe('표 날짜 편집 ↔ 타임라인 동기화', () => {
 
 test.describe('드래그 undo 정합성', () => {
     test('행 드래그 순서 변경 → Ctrl+Z 1회로 완전 복원 (접힘 상태 오염 없음)', async ({ page }) => {
-        await page.getByRole('button', { name: '📋 표' }).click();
+        await page.getByTitle('표 뷰').click();
 
         // 기준: 첫 최상위 작업명과 자식 노출 상태
         const firstRowName = await page.locator('.task-row.level-0 .task-name').first().textContent();
@@ -122,7 +122,7 @@ test.describe('툴바 레이아웃', () => {
     test('좁은 화면에서도 오른쪽 그룹이 잘리지 않는다', async ({ page }) => {
         await page.setViewportSize({ width: 900, height: 800 });
 
-        const addButton = page.getByRole('button', { name: '➕ 새 작업' });
+        const addButton = page.getByTitle('새 작업 추가 (Ctrl+N)');
         const content = page.locator('.toolbar-content');
 
         // 스크롤이 필요하면 스크롤해서라도 닿을 수 있어야 한다

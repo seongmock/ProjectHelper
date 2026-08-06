@@ -25,7 +25,7 @@ const openSwitcher = async (page) => {
 
 const createProjectViaUI = async (page, name) => {
     await openSwitcher(page);
-    await page.getByRole('button', { name: '➕ 새 프로젝트' }).click();
+    await page.getByRole('button', { name: '새 프로젝트' }).click();
     await page.locator('.project-switcher-input').fill(name);
     await page.locator('.project-switcher-input').press('Enter');
     await expect(page.getByTestId('project-switcher')).toContainText(name);
@@ -40,8 +40,8 @@ test('UI로 프로젝트 생성 → 자동 전환', async ({ page }) => {
 
 test('프로젝트 간 데이터 격리 + 전환 왕복', async ({ page }) => {
     // default에 작업 추가 (표 뷰에서 이름 확인 가능하게)
-    await page.getByRole('button', { name: '📋 표' }).click();
-    await page.getByRole('button', { name: '➕ 새 작업' }).click();
+    await page.getByTitle('표 뷰').click();
+    await page.getByTitle('새 작업 추가 (Ctrl+N)').click();
     const row = page.locator('.task-row', { hasText: '새 작업' }).first();
     await row.locator('.task-name').dblclick();
     await page.locator('input.name-input').fill('A전용 작업');
@@ -61,8 +61,8 @@ test('프로젝트 간 데이터 격리 + 전환 왕복', async ({ page }) => {
 
 test('전환 후 Ctrl+Z가 이전 프로젝트 상태를 복원하지 않음 (히스토리 리셋)', async ({ page }) => {
     // default에서 편집 발생 (undo 히스토리 생성)
-    await page.getByRole('button', { name: '📋 표' }).click();
-    await page.getByRole('button', { name: '➕ 새 작업' }).click();
+    await page.getByTitle('표 뷰').click();
+    await page.getByTitle('새 작업 추가 (Ctrl+N)').click();
     await expect(page.locator('.task-row', { hasText: '새 작업' })).toBeVisible();
 
     // B로 전환 후 Ctrl+Z → 아무 일도 없어야 함 (B는 빈 프로젝트 유지)

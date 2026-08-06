@@ -18,10 +18,14 @@
 }
 
 .header-title {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
     font-size: var(--font-size-xl);
     font-weight: 700;
     color: var(--color-text-primary);
     margin: 0;
+    white-space: nowrap;
 }
 
 .header-left,
@@ -30,12 +34,12 @@
     align-items: center;
 }
 
-.undo-redo-buttons button {
-    font-size: 20px;
-}
-
 .import-export-buttons button {
+    display: flex;
+    align-items: center;
+    gap: 6px;
     font-size: var(--font-size-sm);
+    white-space: nowrap;
 }
 
 @media (max-width: 768px) {

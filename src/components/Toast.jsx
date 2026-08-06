@@ -1,18 +1,22 @@
+import { CircleCheck, CircleX, TriangleAlert, Info, X } from 'lucide-react';
 import './Toast.css';
 
 const ICONS = {
-    success: '✓',
-    error: '✕',
-    warn: '⚠',
-    info: 'ℹ',
+    success: CircleCheck,
+    error: CircleX,
+    warn: TriangleAlert,
+    info: Info,
 };
 
 function ToastItem({ toast, onRemove }) {
+    const Icon = ICONS[toast.type] ?? Info;
     return (
         <div className={`toast toast--${toast.type}`} role="alert">
-            <span className="toast__icon">{ICONS[toast.type]}</span>
+            <span className="toast__icon"><Icon size={16} aria-hidden="true" /></span>
             <span className="toast__message">{toast.message}</span>
-            <button className="toast__close" onClick={() => onRemove(toast.id)} aria-label="닫기">✕</button>
+            <button className="toast__close" onClick={() => onRemove(toast.id)} aria-label="닫기">
+                <X size={14} aria-hidden="true" />
+            </button>
         </div>
     );
 }

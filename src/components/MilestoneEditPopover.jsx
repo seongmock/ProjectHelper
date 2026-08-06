@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react';
+import { Wand2, ArrowUp, ArrowDown, ArrowRight } from 'lucide-react';
 import { usePopover } from '../hooks/usePopover';
 import './MilestoneEditPopover.css';
 import ColorPicker from './ColorPicker';
@@ -119,10 +120,10 @@ function MilestoneEditPopover({ position, milestone, predecessors = [], successo
                 <div className="form-group">
                     <div className="position-buttons" style={{ display: 'flex', gap: '4px' }}>
                         {[
-                            { id: 'auto', label: '자동 ✨' },
-                            { id: 'top', label: '상 ⬆️' },
-                            { id: 'bottom', label: '하 ⬇️' },
-                            { id: 'right', label: '우 ➡️' }
+                            { id: 'auto', label: '자동', Icon: Wand2 },
+                            { id: 'top', label: '상', Icon: ArrowUp },
+                            { id: 'bottom', label: '하', Icon: ArrowDown },
+                            { id: 'right', label: '우', Icon: ArrowRight }
                         ].map(pos => (
                             <button
                                 key={pos.id}
@@ -130,6 +131,10 @@ function MilestoneEditPopover({ position, milestone, predecessors = [], successo
                                 onClick={() => onUpdate(milestone.id, { labelPosition: pos.id })}
                                 style={{
                                     flex: 1,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: '3px',
                                     padding: '6px 4px',
                                     fontSize: '11px',
                                     border: '1px solid #ddd',
@@ -138,6 +143,7 @@ function MilestoneEditPopover({ position, milestone, predecessors = [], successo
                                     transition: 'all 0.2s'
                                 }}
                             >
+                                <pos.Icon size={12} aria-hidden="true" />
                                 {pos.label}
                             </button>
                         ))}

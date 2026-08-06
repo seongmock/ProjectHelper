@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { IndentDecrease, IndentIncrease, Plus, Trash2, Flag, TriangleAlert } from 'lucide-react';
 import { generateId, formatDate } from '../utils/dataModel';
 import { recalcTaskBoundsSafe, isTaskOverdue } from '../utils/taskTree';
 import ColorPicker from './ColorPicker';
@@ -228,7 +229,7 @@ function TaskRow({
                     {overdue && (
                         // 지연을 색으로만 표시하면 색약 사용자가 판별할 수 없다 — 아이콘을 함께 쓴다
                         <span className="overdue-flag" title="지연: 종료일이 지났으나 완료되지 않았습니다" aria-label="지연">
-                            ⚠
+                            <TriangleAlert size={13} aria-hidden="true" />
                         </span>
                     )}
                     {(task.progress ?? 0) > 0 && (
@@ -284,7 +285,7 @@ function TaskRow({
                                 {task.milestones.length > 3 && <span className="milestone-more">+{task.milestones.length - 3}</span>}
                             </div>
                         ) : (
-                            <>🏁 0</>
+                            <><Flag size={13} aria-hidden="true" /> 0</>
                         )}
                     </button>
                 </div>
@@ -320,7 +321,7 @@ function TaskRow({
                         }}
                         title="내어쓰기 (Shift+Tab)"
                     >
-                        ⬅️
+                        <IndentDecrease size={15} aria-hidden="true" />
                     </button>
                     <button
                         className="icon"
@@ -330,7 +331,7 @@ function TaskRow({
                         }}
                         title="들여쓰기 (Tab)"
                     >
-                        ➡️
+                        <IndentIncrease size={15} aria-hidden="true" />
                     </button>
                     <button
                         className="icon"
@@ -340,7 +341,7 @@ function TaskRow({
                         }}
                         title="하위 작업 추가"
                     >
-                        ➕
+                        <Plus size={15} aria-hidden="true" />
                     </button>
                     <button
                         className="icon danger"
@@ -350,7 +351,7 @@ function TaskRow({
                         }}
                         title="삭제 (Delete)"
                     >
-                        🗑️
+                        <Trash2 size={15} aria-hidden="true" />
                     </button>
                 </div>
             </div>
@@ -422,7 +423,7 @@ function TaskRow({
                                         onClick={() => handleDeleteMilestone(milestone.id)}
                                         title="삭제"
                                     >
-                                        🗑️
+                                        <Trash2 size={15} aria-hidden="true" />
                                     </button>
                                 </div>
                             ))}
@@ -430,8 +431,9 @@ function TaskRow({
                     ) : (
                         <p className="no-milestones">마일스톤이 없습니다.</p>
                     )}
-                    <button className="primary" onClick={handleAddMilestone} style={{ marginTop: '12px' }}>
-                        ➕ 마일스톤 추가
+                    <button className="primary add-milestone-button" onClick={handleAddMilestone}>
+                        <Plus size={15} aria-hidden="true" />
+                        <span>마일스톤 추가</span>
                     </button>
                 </div>
             </Modal>

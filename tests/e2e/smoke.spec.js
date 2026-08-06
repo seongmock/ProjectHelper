@@ -16,7 +16,7 @@ test.beforeEach(async ({ page, request }) => {
 });
 
 const openTableView = async (page) => {
-    await page.getByRole('button', { name: '📋 표' }).click();
+    await page.getByTitle('표 뷰').click();
     await expect(page.locator('.table-view')).toBeVisible();
 };
 
@@ -24,14 +24,14 @@ test.describe('앱 로드', () => {
     test('타임라인 뷰가 기본으로 표시되고 샘플 데이터가 보인다', async ({ page }) => {
         await expect(page.getByText('프로젝트 기획').first()).toBeVisible();
         // 타임라인 뷰 버튼이 활성 상태
-        await expect(page.getByRole('button', { name: '📈 타임라인' })).toHaveClass(/active/);
+        await expect(page.getByTitle('타임라인 뷰')).toHaveClass(/active/);
     });
 });
 
 test.describe('작업 CRUD (표 뷰)', () => {
     test('새 작업 추가 → 목록에 표시', async ({ page }) => {
         await openTableView(page);
-        await page.getByRole('button', { name: '➕ 새 작업' }).click();
+        await page.getByTitle('새 작업 추가 (Ctrl+N)').click();
         await expect(page.locator('.task-row', { hasText: '새 작업' })).toBeVisible();
     });
 
@@ -68,7 +68,7 @@ test.describe('작업 CRUD (표 뷰)', () => {
 test.describe('실행 취소 / 다시 실행', () => {
     test('Ctrl+Z로 작업 추가 취소, Ctrl+Y로 재실행', async ({ page }) => {
         await openTableView(page);
-        await page.getByRole('button', { name: '➕ 새 작업' }).click();
+        await page.getByTitle('새 작업 추가 (Ctrl+N)').click();
         await expect(page.locator('.task-row', { hasText: '새 작업' })).toBeVisible();
 
         await page.keyboard.press('Control+z');
@@ -84,11 +84,11 @@ test.describe('뷰 전환', () => {
         await openTableView(page);
         await expect(page.locator('.timeline-view')).toHaveCount(0);
 
-        await page.getByRole('button', { name: '📊 분할' }).click();
+        await page.getByTitle('분할 뷰').click();
         await expect(page.locator('.table-view')).toBeVisible();
         await expect(page.locator('.timeline-view').first()).toBeVisible();
 
-        await page.getByRole('button', { name: '📈 타임라인' }).click();
+        await page.getByTitle('타임라인 뷰').click();
         await expect(page.locator('.table-view')).toHaveCount(0);
         await expect(page.locator('.timeline-view').first()).toBeVisible();
     });
@@ -97,7 +97,7 @@ test.describe('뷰 전환', () => {
 test.describe('검색', () => {
     test('작업명 검색 → 매칭 항목만 표시', async ({ page }) => {
         await openTableView(page);
-        await page.getByPlaceholder('🔍 작업 검색...').fill('요구사항');
+        await page.getByPlaceholder('작업 검색...').fill('요구사항');
         await expect(page.locator('.task-row', { hasText: '요구사항 분석' })).toBeVisible();
         await expect(page.locator('.task-row', { hasText: '설계 문서 작성' })).toHaveCount(0);
     });
@@ -123,8 +123,8 @@ test.describe('가져오기 / 내보내기', () => {
     });
 
     test('잘못된 JSON 붙여넣기 → 에러 토스트', async ({ page }) => {
-        await page.getByRole('button', { name: '📥 가져오기' }).click();
-        await page.getByRole('button', { name: '📋 JSON 붙여넣기' }).click();
+        await page.getByTitle('가져오기').click();
+        await page.getByRole('button', { name: 'JSON 붙여넣기' }).click();
         await page.locator('textarea').fill('{ not valid json');
         await page.getByRole('button', { name: '데이터 적용' }).click();
         await expect(page.locator('.toast--error')).toBeVisible();
@@ -133,8 +133,8 @@ test.describe('가져오기 / 내보내기', () => {
     // 버그 3a 수정 검증: 내보내기({meta, data}) → 가져오기 왕복이 성공해야 한다
     test('내보내기 → 붙여넣기 가져오기 왕복', async ({ page }) => {
         // 내보내기: JSON 복사 탭에서 텍스트 획득
-        await page.getByRole('button', { name: '📤 내보내기' }).click();
-        await page.getByRole('button', { name: '📋 JSON 복사' }).click();
+        await page.getByTitle('내보내기').click();
+        await page.getByRole('button', { name: 'JSON 복사' }).click();
         // textarea는 비동기로 채워짐 — 값이 채워질 때까지 대기 (전체 실행 시 레이스 방지)
         const exportArea = page.locator('textarea');
         await expect(exportArea).toHaveValue(/"data"/, { timeout: 5000 });
@@ -149,8 +149,8 @@ test.describe('가져오기 / 내보내기', () => {
             if (await row.count()) await row.getByTitle('삭제 (Delete)').click();
         }
 
-        await page.getByRole('button', { name: '📥 가져오기' }).click();
-        await page.getByRole('button', { name: '📋 JSON 붙여넣기' }).click();
+        await page.getByTitle('가져오기').click();
+        await page.getByRole('button', { name: 'JSON 붙여넣기' }).click();
         await page.locator('textarea').fill(jsonText);
         await page.getByRole('button', { name: '데이터 적용' }).click();
         await expect(page.locator('.toast--success')).toBeVisible();

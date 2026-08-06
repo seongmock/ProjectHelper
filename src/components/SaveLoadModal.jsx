@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Save, Download } from 'lucide-react';
 import { storage } from '../utils/storage';
 import Modal from './Modal';
 
@@ -78,7 +79,7 @@ function SaveLoadModal({ isOpen, onClose, onLoad, currentData, onExportSnapshot,
         <Modal
             isOpen={isOpen}
             onClose={onClose}
-            title="💾 프로젝트 저장/불러오기"
+            title={<><Save size={17} aria-hidden="true" /> 프로젝트 저장/불러오기</>}
             width="600px"
             footer={<button className="secondary-button" onClick={onClose}>닫기</button>}
         >
@@ -138,7 +139,7 @@ function SaveLoadModal({ isOpen, onClose, onLoad, currentData, onExportSnapshot,
                                     title="내보내기"
                                     style={{ padding: '4px 8px', fontSize: '12px' }}
                                 >
-                                    📤 내보내기
+                                    <Download size={13} aria-hidden="true" /> 내보내기
                                 </button>
                                 <button
                                     className="danger-button"
@@ -153,7 +154,7 @@ function SaveLoadModal({ isOpen, onClose, onLoad, currentData, onExportSnapshot,
                                     title="현재 상태로 덮어쓰기"
                                     style={{ padding: '4px 8px', fontSize: '12px' }}
                                 >
-                                    💾 덮어쓰기
+                                    <Save size={13} aria-hidden="true" /> 덮어쓰기
                                 </button>
                             </div>
                         </div>

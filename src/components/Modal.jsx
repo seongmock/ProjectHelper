@@ -4,6 +4,7 @@
 // 모달과 안 닫히는 모달이 섞여 있었다. 내용만 children 으로 넘긴다.
 import { useEffect, useId } from 'react';
 import { createPortal } from 'react-dom';
+import { X } from 'lucide-react';
 import './Modal.css';
 
 function Modal({ isOpen, onClose, title, children, footer, className = '', width }) {
@@ -33,7 +34,9 @@ function Modal({ isOpen, onClose, title, children, footer, className = '', width
             >
                 <div className="modal-header">
                     <h3 id={titleId}>{title}</h3>
-                    <button className="modal-close" onClick={onClose} aria-label="닫기">✕</button>
+                    <button className="modal-close" onClick={onClose} aria-label="닫기">
+                        <X size={18} aria-hidden="true" />
+                    </button>
                 </div>
                 <div className="modal-body">{children}</div>
                 {footer && <div className="modal-footer">{footer}</div>}

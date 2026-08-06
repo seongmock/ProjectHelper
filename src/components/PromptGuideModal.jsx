@@ -1,4 +1,5 @@
 import React from 'react';
+import { Bot } from 'lucide-react';
 import Modal from './Modal';
 import './PromptGuideModal.css';
 
@@ -126,7 +127,7 @@ function PromptGuideModal({ isOpen, onClose, toast }) {
         <Modal
             isOpen={isOpen}
             onClose={onClose}
-            title="🤖 AI 프롬프트 가이드"
+            title={<><Bot size={17} aria-hidden="true" /> AI 프롬프트 가이드</>}
             className="prompt-guide-modal"
         >
             <p className="guide-description">

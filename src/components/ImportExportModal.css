@@ -17,6 +17,10 @@
 
 .tab-btn {
     flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
     padding: 12px;
     background: transparent;
     border: none;

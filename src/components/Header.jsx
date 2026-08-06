@@ -1,3 +1,4 @@
+import { Bot, Save, Undo2, Redo2, Upload, Download, Sun, Moon, ChartNoAxesGantt } from 'lucide-react';
 import ProjectSwitcher from './ProjectSwitcher';
 import './Header.css';
 
@@ -10,7 +11,10 @@ function Header({
         <header className="header">
             <div className="header-content">
                 <div className="header-left">
-                    <h1 className="header-title">📊 프로젝트 타임라인 관리</h1>
+                    <h1 className="header-title">
+                        <ChartNoAxesGantt size={20} aria-hidden="true" />
+                        프로젝트 타임라인 관리
+                    </h1>
                     <ProjectSwitcher
                         projects={projects || []}
                         activeProjectId={activeProjectId}
@@ -31,7 +35,7 @@ function Header({
                             data-tooltip="AI 프롬프트 가이드"
                             title="프롬프트 도우미"
                         >
-                            🤖
+                            <Bot size={18} aria-hidden="true" />
                         </button>
                         <button
                             className="icon tooltip"
@@ -39,7 +43,7 @@ function Header({
                             data-tooltip="프로젝트 저장/불러오기 목록"
                             title="스냅샷 관리"
                         >
-                            💾
+                            <Save size={18} aria-hidden="true" />
                         </button>
 
                         <div className="divider-vertical" style={{ width: '1px', height: '16px', background: 'var(--color-border)', margin: 'auto 4px' }}></div>
@@ -50,7 +54,7 @@ function Header({
                             data-tooltip="실행 취소 (Ctrl+Z)"
                             title="실행 취소"
                         >
-                            ↶
+                            <Undo2 size={18} aria-hidden="true" />
                         </button>
                         <button
                             className="icon tooltip"
@@ -59,7 +63,7 @@ function Header({
                             data-tooltip="다시 실행 (Ctrl+Y)"
                             title="다시 실행"
                         >
-                            ↷
+                            <Redo2 size={18} aria-hidden="true" />
                         </button>
                     </div>
 
@@ -71,7 +75,8 @@ function Header({
                             data-tooltip="데이터 가져오기 (파일/JSON)"
                             title="가져오기"
                         >
-                            📥 가져오기
+                            <Upload size={15} aria-hidden="true" />
+                            <span>가져오기</span>
                         </button>
                         <button
                             className="tooltip"
@@ -79,7 +84,8 @@ function Header({
                             data-tooltip="데이터 내보내기 (파일/JSON)"
                             title="내보내기"
                         >
-                            📤 내보내기
+                            <Download size={15} aria-hidden="true" />
+                            <span>내보내기</span>
                         </button>
                     </div>
 
@@ -92,7 +98,9 @@ function Header({
                         data-tooltip={darkMode ? '라이트 모드' : '다크 모드'}
                         title="테마 변경"
                     >
-                        {darkMode ? '☀️' : '🌙'}
+                        {darkMode
+                            ? <Sun size={18} aria-hidden="true" />
+                            : <Moon size={18} aria-hidden="true" />}
                     </button>
                 </div>
             </div>

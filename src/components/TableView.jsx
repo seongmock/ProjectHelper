@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import { Plus } from 'lucide-react';
 import {
     DndContext,
     closestCenter,
@@ -155,7 +156,7 @@ function TableView({
                         <div className="empty-state">
                             <p>작업이 없습니다.</p>
                             <button className="primary" onClick={() => onAddTask()}>
-                                ➕ 첫 작업 추가하기
+                                <Plus size={15} aria-hidden="true" /> 첫 작업 추가하기
                             </button>
                         </div>
                     ) : (

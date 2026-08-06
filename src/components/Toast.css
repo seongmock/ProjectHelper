@@ -38,7 +38,8 @@
 [data-theme="dark"] .toast--info    { background: #1976d2; }
 
 .toast__icon {
-    font-size: 16px;
+    display: inline-flex;
+    align-items: center;
     flex-shrink: 0;
 }
 
@@ -48,6 +49,8 @@
 }
 
 .toast__close {
+    display: inline-flex;
+    align-items: center;
     background: none;
     border: none;
     color: rgba(255, 255, 255, 0.8);

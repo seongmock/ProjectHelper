@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { Upload, Download, FolderOpen, ClipboardList } from 'lucide-react';
 import Modal from './Modal';
 import './ImportExportModal.css';
 
@@ -59,7 +60,9 @@ function ImportExportModal({ isOpen, onClose, mode, onImport, onExport, currentD
         <Modal
             isOpen={isOpen}
             onClose={onClose}
-            title={mode === 'IMPORT' ? '📥 데이터 가져오기' : '📤 데이터 내보내기'}
+            title={mode === 'IMPORT'
+                ? <><Upload size={17} aria-hidden="true" /> 데이터 가져오기</>
+                : <><Download size={17} aria-hidden="true" /> 데이터 내보내기</>}
             className="ie-modal"
         >
             <div className="tabs">
@@ -67,13 +70,15 @@ function ImportExportModal({ isOpen, onClose, mode, onImport, onExport, currentD
                     className={`tab-btn ${activeTab === 'file' ? 'active' : ''}`}
                     onClick={() => setActiveTab('file')}
                 >
-                    {mode === 'IMPORT' ? '📁 파일 업로드' : '⬇️ 파일 다운로드'}
+                    <FolderOpen size={15} aria-hidden="true" />
+                    {mode === 'IMPORT' ? '파일 업로드' : '파일 다운로드'}
                 </button>
                 <button
                     className={`tab-btn ${activeTab === 'text' ? 'active' : ''}`}
                     onClick={() => setActiveTab('text')}
                 >
-                    {mode === 'IMPORT' ? '📋 JSON 붙여넣기' : '📋 JSON 복사'}
+                    <ClipboardList size={15} aria-hidden="true" />
+                    {mode === 'IMPORT' ? 'JSON 붙여넣기' : 'JSON 복사'}
                 </button>
             </div>
 

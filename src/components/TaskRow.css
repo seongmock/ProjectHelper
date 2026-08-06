@@ -288,8 +288,9 @@
 /* 지연(overdue) 플래그 — 색상 단독 인코딩을 보완하는 아이콘 */
 .overdue-flag {
     flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
     margin-left: 4px;
-    font-size: 12px;
     line-height: 1;
     color: var(--color-overdue, #d9534f);
     cursor: help;
@@ -299,4 +300,18 @@
 .col-dates.overdue input[type="date"] {
     color: var(--color-overdue, #d9534f);
     font-weight: 600;
+}
+
+/* 마일스톤 모달 하단 추가 버튼 — 인라인 style 대신 */
+.add-milestone-button {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 12px;
+}
+
+.milestone-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
 }

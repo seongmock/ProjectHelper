@@ -29,7 +29,7 @@ test('편집 충돌(409) → 서버 우선으로 자동 재로드', async ({ pag
     await page.waitForTimeout(2500); // 초기 저장 안정화
 
     // 1. 브라우저에서 로컬 편집 (디바운스 시작)
-    await page.getByRole('button', { name: '➕ 새 작업' }).click();
+    await page.getByTitle('새 작업 추가 (Ctrl+N)').click();
 
     // 2. 디바운스가 flush되기 전에 외부(AI)가 서버 리비전을 올림
     const res = await request.post('/api/tasks', { data: { name: '외부 우선 작업' } });
