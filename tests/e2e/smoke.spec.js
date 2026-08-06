@@ -139,7 +139,7 @@ test.describe('가져오기 / 내보내기', () => {
         const exportArea = page.locator('textarea');
         await expect(exportArea).toHaveValue(/"data"/, { timeout: 5000 });
         const jsonText = await exportArea.inputValue();
-        await page.locator('.close-button').click();
+        await page.locator('.modal-close').click();
 
         // 데이터 전부 삭제 후 가져오기로 복원
         await openTableView(page);
@@ -164,7 +164,7 @@ test.describe('저장 / 불러오기 모달', () => {
         await page.getByTitle('스냅샷 관리').click();
         await expect(page.getByText('프로젝트 저장/불러오기')).toBeVisible();
         await expect(page.getByText('저장된 목록')).toBeVisible();
-        await page.getByRole('button', { name: '닫기' }).click();
+        await page.locator('.modal-footer').getByRole('button', { name: '닫기' }).click();
         await expect(page.getByText('프로젝트 저장/불러오기')).toHaveCount(0);
     });
 });
@@ -173,7 +173,28 @@ test.describe('AI 프롬프트 가이드', () => {
     test('가이드 모달 열림/닫힘', async ({ page }) => {
         await page.getByTitle('프롬프트 도우미').click();
         await expect(page.locator('.modal-overlay')).toBeVisible();
-        await page.locator('.close-button').first().click();
+        await page.locator('.modal-close').first().click();
+        await expect(page.locator('.modal-overlay')).toHaveCount(0);
+    });
+});
+
+// P2-5: 모달마다 껍데기를 복사해 갖고 있어서 Escape 로 닫히는 모달과 안 닫히는 모달이
+// 섞여 있었다. 공용 Modal 로 통일한 뒤로는 전부 동일하게 동작해야 한다.
+test.describe('모달 공통 동작', () => {
+    test('Escape 로 닫히고 dialog 역할을 갖는다', async ({ page }) => {
+        await page.getByTitle('프롬프트 도우미').click();
+        const dialog = page.getByRole('dialog');
+        await expect(dialog).toBeVisible();
+        await expect(dialog).toHaveAttribute('aria-modal', 'true');
+
+        await page.keyboard.press('Escape');
+        await expect(page.locator('.modal-overlay')).toHaveCount(0);
+    });
+
+    test('스냅샷 모달도 Escape 로 닫힌다', async ({ page }) => {
+        await page.getByTitle('스냅샷 관리').click();
+        await expect(page.getByRole('dialog')).toBeVisible();
+        await page.keyboard.press('Escape');
         await expect(page.locator('.modal-overlay')).toHaveCount(0);
     });
 });

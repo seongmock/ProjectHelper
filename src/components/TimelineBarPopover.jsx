@@ -1,55 +1,10 @@
-import { useEffect, useRef, useState, useLayoutEffect } from 'react';
 import { recalcTaskBoundsSafe } from '../utils/taskTree';
+import { usePopover } from '../hooks/usePopover';
 import './TimelineBarPopover.css';
 import ColorPicker from './ColorPicker';
 
 function TimelineBarPopover({ position, task, clickedDate, clickedRangeId, successors = [], predecessors = [], onClose, onUpdate, onDelete, onAddMilestone, onStartLinking, onAddTimeRange, onRemoveDependency }) {
-    const popoverRef = useRef(null);
-    const [adjustedPos, setAdjustedPos] = useState(position);
-
-    useLayoutEffect(() => {
-        if (popoverRef.current) {
-            const rect = popoverRef.current.getBoundingClientRect();
-            let { x, y } = position;
-
-            // 화면 오른쪽을 벗어나는 경우
-            if (x + rect.width > window.innerWidth) {
-                x = window.innerWidth - rect.width - 20; // 20px 여유
-            }
-
-            // 화면 아래쪽을 벗어나는 경우
-            if (y + rect.height > window.innerHeight) {
-                y = window.innerHeight - rect.height - 20; // 20px 여유
-            }
-
-            // 화면 왼쪽을 벗어나는 경우
-            if (x < 20) {
-                x = 20;
-            }
-
-            // 화면 위쪽을 벗어나는 경우
-            if (y < 20) {
-                y = 20;
-            }
-
-            setAdjustedPos({ x, y });
-        }
-    }, [position]);
-
-    useEffect(() => {
-        const handleClickOutside = (event) => {
-            if (popoverRef.current && !popoverRef.current.contains(event.target)) {
-                onClose();
-            }
-        };
-
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => {
-            document.removeEventListener('mousedown', handleClickOutside);
-        };
-    }, [onClose]);
-
-
+    const { popoverRef, adjustedPos } = usePopover(position, onClose);
 
     return (
         <div

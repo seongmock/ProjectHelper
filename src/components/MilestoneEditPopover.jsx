@@ -1,64 +1,20 @@
-import { useEffect, useRef, useState, useLayoutEffect } from 'react';
+import { useCallback, useState } from 'react';
+import { usePopover } from '../hooks/usePopover';
 import './MilestoneEditPopover.css';
 import ColorPicker from './ColorPicker';
 
 function MilestoneEditPopover({ position, milestone, predecessors = [], successors = [], onClose, onUpdate, onDelete, onStartLinking, onRemoveDependency }) {
-    const popoverRef = useRef(null);
     const [labelText, setLabelText] = useState(milestone.label || '');
-    const [adjustedPos, setAdjustedPos] = useState(position);
 
-    useLayoutEffect(() => {
-        if (popoverRef.current) {
-            const rect = popoverRef.current.getBoundingClientRect();
-            let { x, y } = position;
-
-            // 화면 오른쪽을 벗어나는 경우
-            if (x + rect.width > window.innerWidth) {
-                x = window.innerWidth - rect.width - 20; // 20px 여유
-            }
-
-            // 화면 아래쪽을 벗어나는 경우
-            if (y + rect.height > window.innerHeight) {
-                y = window.innerHeight - rect.height - 20; // 20px 여유
-            }
-
-            // 화면 왼쪽을 벗어나는 경우
-            if (x < 20) {
-                x = 20;
-            }
-
-            // 화면 위쪽을 벗어나는 경우
-            if (y < 20) {
-                y = 20;
-            }
-
-            setAdjustedPos({ x, y });
+    // 팝오버가 닫힐 때(바깥 클릭·Escape) 편집 중이던 레이블을 흘리지 않고 저장한다
+    const handleDismiss = useCallback(() => {
+        if (labelText !== milestone.label) {
+            onUpdate(milestone.id, { label: labelText });
         }
-    }, [position]);
+        onClose();
+    }, [labelText, milestone.id, milestone.label, onUpdate, onClose]);
 
-    const labelRef = useRef(labelText);
-
-    // labelText 변경 시 ref 업데이트
-    useEffect(() => {
-        labelRef.current = labelText;
-    }, [labelText]);
-
-    useEffect(() => {
-        const handleClickOutside = (event) => {
-            if (popoverRef.current && !popoverRef.current.contains(event.target)) {
-                // 닫기 전 변경사항 저장
-                if (labelRef.current !== milestone.label) {
-                    onUpdate(milestone.id, { label: labelRef.current });
-                }
-                onClose();
-            }
-        };
-
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => {
-            document.removeEventListener('mousedown', handleClickOutside);
-        };
-    }, [onClose, milestone.id, milestone.label, onUpdate]);
+    const { popoverRef, adjustedPos } = usePopover(position, handleDismiss);
 
     const handleLabelChange = (e) => {
         setLabelText(e.target.value);

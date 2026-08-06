@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React from 'react';
+import Modal from './Modal';
 import './PromptGuideModal.css';
 
 const SYSTEM_PROMPT = `**역할 (Role)**:
@@ -115,8 +116,6 @@ const PROMPTS = [
 ];
 
 function PromptGuideModal({ isOpen, onClose, toast }) {
-    if (!isOpen) return null;
-
     const handleCopy = (text) => {
         navigator.clipboard.writeText(text)
             .then(() => toast.success('프롬프트가 복사되었습니다! 📋'))
@@ -124,45 +123,42 @@ function PromptGuideModal({ isOpen, onClose, toast }) {
     };
 
     return (
-        <div className="modal-overlay" onClick={onClose}>
-            <div className="modal-content prompt-guide-modal" onClick={e => e.stopPropagation()}>
-                <div className="modal-header">
-                    <h2>🤖 AI 프롬프트 가이드</h2>
-                    <button className="close-button" onClick={onClose}>×</button>
-                </div>
-                <div className="modal-body">
-                    <p className="guide-description">
-                        상황에 맞는 프롬프트를 복사하여 AI 어시스턴트에게 붙여넣기 하세요.
-                    </p>
+        <Modal
+            isOpen={isOpen}
+            onClose={onClose}
+            title="🤖 AI 프롬프트 가이드"
+            className="prompt-guide-modal"
+        >
+            <p className="guide-description">
+                상황에 맞는 프롬프트를 복사하여 AI 어시스턴트에게 붙여넣기 하세요.
+            </p>
 
-                    <div className="prompt-categories">
-                        {PROMPTS.map((category, idx) => (
-                            <div key={idx} className="prompt-category">
-                                <h3>{category.category}</h3>
-                                <div className="prompt-list">
-                                    {category.items.map((item, itemIdx) => (
-                                        <div key={itemIdx} className="prompt-item">
-                                            <div className="prompt-header">
-                                                <span className="prompt-title">{item.title}</span>
-                                                <button
-                                                    className="copy-button"
-                                                    onClick={() => handleCopy(item.content)}
-                                                >
-                                                    복사
-                                                </button>
-                                            </div>
-                                            <div className="prompt-preview">
-                                                {item.content}
-                                            </div>
-                                        </div>
-                                    ))}
+            <div className="prompt-categories">
+                {PROMPTS.map((category, idx) => (
+                    <div key={idx} className="prompt-category">
+                        <h3>{category.category}</h3>
+                        <div className="prompt-list">
+                            {category.items.map((item, itemIdx) => (
+                                <div key={itemIdx} className="prompt-item">
+                                    <div className="prompt-header">
+                                        <span className="prompt-title">{item.title}</span>
+                                        <button
+                                            className="copy-button"
+                                            onClick={() => handleCopy(item.content)}
+                                        >
+                                            복사
+                                        </button>
+                                    </div>
+                                    <div className="prompt-preview">
+                                        {item.content}
+                                    </div>
                                 </div>
-                            </div>
-                        ))}
+                            ))}
+                        </div>
                     </div>
-                </div>
+                ))}
             </div>
-        </div>
+        </Modal>
     );
 }
 
