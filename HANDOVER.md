@@ -14,8 +14,13 @@ ProjectHelper는 React 18 + Express(JSON 파일 저장) 기반 간트차트 도�
 `10.178.21.120`에서 상시 가동 중이며 **실제 업무 일정 데이터가 들어 있다**.
 
 2026-08-05 기술 실사 결과, 개인 도구로는 잘 만들어졌으나 **서비스로서는 배포 부적격**
-판정을 받았다(데이터 안전성 F, 운영 F, 보안 D). 현재 그 실사 보고서의
-**Phase 0(긴급) → Phase 1(안정화)** 개선을 순차 적용하는 중이다.
+판정을 받았다(데이터 안전성 F, 운영 F, 보안 D). 그 보고서의 로드맵을 순차 적용해
+**Phase 0·1·2 는 전건 완료**했고(2026-08-06), Phase 3 은 항목별로 재평가해 부채성 1건
+(감사 로그)만 실행하고 나머지는 판단 근거와 함께 §4에 남겼다. Phase 4 는 착수하지 않는다.
+
+지금 이 저장소는 "실사 지적사항을 갚는" 단계에서 **"제품 방향을 정해야 하는"** 단계로
+넘어와 있다. 남은 큰 항목들(인증/RBAC, 공유링크, 인스펙터 패널)은 기술 부채가 아니라
+사용자가 용도를 정해야 하는 제품 결정이다.
 
 전체 진단·근거·점수는 `docs/TECHNICAL_DUE_DILIGENCE.md`를 읽어라. 요약본에 의존하지 마라.
 
@@ -60,18 +65,18 @@ npm run test:server
 # 3) 빌드
 npm run build
 
-# 4) E2E 28건 — API 서버가 반드시 떠 있어야 한다
-PORT=3100 npm run dev:api &            # 별도 터미널
-VITE_API_TARGET=http://localhost:3100 npx playwright test
+# 4) E2E 31건 — playwright.config.js 가 API·dev 서버를 자동 기동한다
+npx playwright test
 
 # 5) 린트
 npm run lint
 ```
 
-**합격 기준**: 단위/서버 테스트 전건 통과 · 빌드 성공 · **E2E 28/28 통과(skip 0)** · 린트 0 error.
+**합격 기준**: lint 0 error · unit 112/112 · server 97/97 · 빌드 성공 · **E2E 31/31(skip 0)**.
 
-> ⚠️ E2E를 API 서버 없이 돌리면 `19 passed / 1 failed / 8 skipped`가 나온다. 이건 **불합격**이다.
-> skip이 1건이라도 있으면 그 테스트는 아무것도 검증하지 않은 것이다.
+> ⚠️ 예전에는 API 서버를 수동으로 띄우지 않으면 `19 passed / 1 failed / 8 skipped`가 났다.
+> 지금은 config 가 자동 기동하지만 원칙은 그대로다 — skip이 1건이라도 있으면 그 테스트는
+> 아무것도 검증하지 않은 것이고, **불합격**이다.
 
 배포 검증(운영 반영 후):
 
@@ -106,7 +111,7 @@ npm run lint
 | P1-4 | 단위테스트 도입(Vitest + node:test) | ✅ | `npm run test:unit`, `npm run test:server` |
 | P1-5 | ESLint + CI 게이트(lint·audit·unit) | ✅ | `npm run lint`, CI 워크플로 |
 | P1-6 | E2E 가드 정리 → 28/28 green | ✅ | skip 0으로 전건 통과 |
-| P1-7 | UI Quick Win | 🔶 3/6 | 스모크 테스트 + 육안 |
+| P1-7 | UI Quick Win | ✅ 6/6 | 스모크 테스트 + 육안 |
 
 P1-7 세부 (실사 §5.4 Quick Win 기준):
 
@@ -116,38 +121,47 @@ P1-7 세부 (실사 §5.4 Quick Win 기준):
 | 태스크명 절단 → 전체 이름 툴팁 | ✅ `title={name}` |
 | 지연(overdue) 색상+아이콘 이중 인코딩 | ✅ `⚠` + `aria-label` |
 | 진행률 노출 | ✅ **이미 구현돼 있었음** (실사 오판 — 정정 완료) |
-| 태스크명 컬럼 드래그 리사이저 | ⬜ P2-6 이관 (신규 상태·이벤트 필요) |
-| 마일스톤 라벨 겹침 회피 | ⬜ P2-6 이관 (충돌 계산 로직 필요) |
-| 우상단 클리핑 | ⬜ 재현 필요 — 스크린샷에서만 확인, 원인 미특정 |
+| 태스크명 컬럼 드래그 리사이저 | ✅ 기능은 있었으나 4px·투명이라 보이지 않았다 — hover 노출 + 히트영역 확대 |
+| 마일스톤 라벨 겹침 회피 | ✅ **이미 구현돼 있었음** (`TimelineBar.jsx` top→bottom→right 충돌 회피) |
+| 우상단 클리핑 | ✅ 원인 규명 — 툴바가 한 줄 flex 인데 스크롤이 없었다. `.toolbar-content { overflow-x: auto }` + E2E 회귀 |
 
-### Phase 2 — 구조 (1개월, 공수 15~20일) — ⬜ 미착수
+### Phase 2 — 구조 — ✅ 완료 (2026-08-06)
 
-| ID | 작업 | 선행 | 비고 |
+| ID | 작업 | 상태 | 결과 |
 |---|---|---|---|
-| P2-1 | 상태관리 도입(Zustand=UI / TanStack Query=서버) | P1-4 | `App.jsx` 1,002→400줄 목표 |
-| P2-2 | `TimelineView.jsx`(1,512줄) 훅 분해 | P1-4 | `useTimelineScale`/`useBarDrag`/`useDependencyLink` |
-| P2-3 | 디렉토리 재편 `features/*` + `shared/ui` | P2-1 | |
-| P2-4 | 서버 Service 계층 분리 | P1-4 | Route는 HTTP만 |
-| P2-5 | 공용 `Modal` 적용, 팝오버 3종 통합 | | 현재 Modal.jsx는 1곳만 사용 |
-| P2-6 | UI Medium: 아이콘 Lucide 교체·툴바 3그룹 재편 | P1-7 | 시각 완성도 최대 효과 |
+| P2-1 | 상태관리 도입 | ✅ | Zustand `settingsStore`/`uiStore` + `useTaskActions`/`useProjectSync`/`useImportExport` 추출 |
+| P2-2 | `TimelineView.jsx`(1,512줄) 훅 분해 | ✅ | `useTimelineScale`/`useBarDrag`/`useDependencyLink`/`useTimelineCapture`/`useSidebarResize` |
+| P2-3 | 디렉토리 재편 | ✅ | `features/{shell,table,timeline,tasks,projects,io}` + `shared/{ui,hooks}`. `components/`·`hooks/` 소멸 |
+| P2-4 | 서버 Service 계층 분리 | ✅ | `services/{task,data,project}Service` + `lib/httpAdapter` — 라우트는 HTTP만 |
+| P2-5 | 공용 `Modal` 적용, 팝오버 통합 | ✅ | 모달 껍데기 4벌 → 1벌, `usePopover` 추출. Escape 동작 불일치·미정의 `.close-button` 도 함께 해소 |
+| P2-6 | UI Medium: Lucide 아이콘·툴바 3그룹 | ✅ | `DisplayOptionsMenu` 로 토글 6종+테마 흡수. 마일스톤 도형 글리프와 가이드 본문 이모지는 데이터/콘텐츠이므로 유지 |
 
-> **P2 착수 전 필수**: P1-4 단위테스트가 안전망이다. 테스트 없이 1,512줄을 분해하지 마라.
+> TanStack Query 는 도입하지 않았다. 서버 상태 접근이 `storage.js` 한 곳으로 이미 모여 있고
+> 리비전 기반 동기화가 그 역할을 하고 있어, 라이브러리를 얹으면 계층만 하나 늘어난다.
 
-### Phase 3 — 제품화 (3개월) — ⬜ 미착수
+### Phase 3 — 제품화 — 🔶 1/6 실행, 5건은 의사결정 대기
 
-| ID | 작업 | 비고 |
-|---|---|---|
-| P3-1 | 저장소 JSON→SQLite(better-sqlite3, WAL) | Repository 패턴 선행 필요. API 계약 무변경 |
-| P3-2 | append-only 이벤트 로그(감사·undo·AI 추적 통일) | |
-| P3-3 | 실제 인증/인가 + 프로젝트 RBAC + 사용자별 설정 | 현재 인가 전무 |
-| P3-4 | `htmlExporter.js` 폐기 → 읽기전용 공유링크 `/share/:id` | **최대 부채 상환**: 중복 2,533줄 소멸 |
-| P3-5 | 인스펙터 패널 + 정보구조 재설계 | |
-| P3-6 | 관측성(메트릭·알림·업타임 감시) | |
+2026-08-06 에 항목별로 재평가했다. **부채 상환**인 것만 실행하고, **제품 방향 결정**이
+필요한 것은 근거와 함께 여기 남긴다. 실사 보고서가 "부채"로 분류한 것 중 일부는 실제로는
+새 제품 기능이었고, 하나(P3-1의 선행 조건)는 이미 충족돼 있었다.
 
-### Phase 4 — 확장 (6개월+) — ⬜ 미착수
+| ID | 작업 | 상태 | 판단 |
+|---|---|---|---|
+| P3-1 | 저장소 JSON→SQLite | ⏸️ | **선행 조건은 이미 충족됐다.** `getProjectStore(pid)` 가 반환하는 `{readTasks, writeTasks, withTasks, readMeta, readSnapshots, writeSnapshots, readEvents}` 가 곧 Repository 인터페이스고, 서비스 계층은 fs 를 모른다(P2-4). SQLite 전환은 같은 인터페이스를 구현한 모듈 교체 + 마이그레이션 스크립트로 끝난다. 다만 **지금 할 이유가 없다**: 데이터 규모가 수십 노드×소수 프로젝트고, 원자적 쓰기·세대 백업·리비전이 이미 있다. 반면 `better-sqlite3` 는 네이티브 빌드라 Docker 이미지와 재현가능 빌드에 부담이 생기고, 운영 데이터 마이그레이션 리스크가 있다. **트리거**: 동시 편집자가 여럿이 되거나 프로젝트가 수백 개가 될 때 |
+| P3-2 | append-only 이벤트 로그 | ✅ | `lib/eventLog.js` + `GET /api/projects/:pid/events`. 단, **감사·추적까지만** 구현했다. "undo 통일"(이벤트 소싱으로 상태 복원)은 하지 않았다 — 클라이언트 undo 는 이미 `useUndoRedo` 가, 서버 복구는 세대 백업·스냅샷이 담당하고 있어 세 번째 메커니즘을 얹으면 복구 경로만 늘어난다 |
+| P3-3 | 실제 인증/인가 + RBAC | ⏸️ | **제품 결정 필요.** 사용자 저장소·로그인 UI·세션이 새로 필요하고, 현재는 Caddy basicauth 단일 계정 뒤의 사내 단일 사용자 도구다. 누구와 공유할지가 정해지기 전에는 만들 대상(역할·권한 경계)이 정의되지 않는다. 지금 있는 것: `X-Auth-User` 를 owner/createdBy 와 감사 로그에 기록(강제는 없음) |
+| P3-4 | `htmlExporter.js` 폐기 → `/share/:id` | ⏸️ | **반대 근거가 있다.** 실사는 "중복 2,533줄 소멸"만 봤지만, 내보낸 HTML 은 **사내 위키에 임베드**된다(`.github/copilot-instructions.md`). 공유링크로 바꾸면 서버 가동·basicauth 통과가 전제가 되어 위키 임베드가 깨지고, 자기완결 산출물이라는 성질(오프라인·첨부 전달)을 잃는다. 중복 자체는 실재하므로 **대안**: 폐기가 아니라 렌더 로직을 공용 모듈로 뽑아 양쪽이 공유. 사용자 결정 필요 |
+| P3-5 | 인스펙터 패널 + 정보구조 재설계 | ⬜ | 부채가 아니라 신규 UX 기능. 자동 스케줄의 "UX 고도화" 사이클에서 기획→구현으로 다룬다 |
+| P3-6 | 관측성(메트릭·알림·업타임) | ⏸️ | 이미 있는 것: 구조화 요청 로그(감사 필드 포함), `/api/health`, 배포 헬스게이트, `verify-deploy.sh`. 단일 컨테이너 사내 도구에 Prometheus/알림 스택을 얹는 것은 과설계다. **트리거**: 사용자가 늘어 다운타임을 사람이 먼저 알아채는 상황이 반복될 때 |
+
+### Phase 4 — 확장 (6개월+) — ⬜ 착수하지 않음(의도적)
 
 Postgres+pgvector · 멀티테넌시 · RAG/Copilot · Workflow 엔진 · 실시간 협업(CRDT) ·
 오케스트레이션 + 무중단 배포 + IaC
+
+이 목록은 기술 부채 상환이 아니라 **신규 제품 기능**이다. 특히 단일 사용자 사내 간트
+도구에 CRDT 실시간 협업을 넣는 것은 규모에 맞지 않는다(P3-3 인증조차 아직 필요가 정의되지
+않았다). 사용자가 방향을 정하기 전까지 착수하지 않는다.
 
 ### ⏸️ 사용자 의사결정 대기
 
@@ -158,6 +172,10 @@ Postgres+pgvector · 멀티테넌시 · RAG/Copilot · Workflow 엔진 · 실시
 | 운영 재배포 시점 | Phase 0/1 반영에는 재배포 필요. 다운타임 수용 시점 협의 |
 | `restored-data.json` | 저장소 루트의 실데이터 백업 — 저장소 밖으로 이동할지 |
 | 복원된 운영 데이터 | 2026-08-05 복원본이 최신인지 사용자 확인 필요 |
+| 푸시 전략 | main 직푸시 vs 브랜치+PR. 저장소 이력은 main 직푸시였고 `npm run verify` 가 게이트다 |
+| 무인 실행 권한 레일 | `.claude/settings.local.json` 을 **사용자가 직접** 편집해야 한다 — 자동 스케줄이 `git push` 에서 권한 분류기에 막힌다 |
+| P3-4 `htmlExporter` | 폐기(공유링크 전환) vs 유지+렌더 로직 공유 모듈화. 위키 임베드 용례가 걸려 있다 |
+| P3-3 인증/RBAC | 이 도구를 누구와 공유할 것인지 정해져야 만들 대상이 생긴다 |
 
 ---
 
@@ -210,6 +228,28 @@ Postgres+pgvector · 멀티테넌시 · RAG/Copilot · Workflow 엔진 · 실시
   # 보안 헤더까지 검사하려면 (비밀번호를 알 때)
   PH_VERIFY_USER=<사용자> PH_VERIFY_PASS=<비밀번호> ./scripts/verify-deploy.sh
   ```
+
+### 2026-08-06 — Phase 2 전건 완료 + Phase 3 재평가
+
+**Phase 2 6건 모두 완료.** 커밋 순서: P2-4 → P2-1 → P2-2 → P1-7 잔여 → P2-5 → P2-6 → P2-3.
+
+- 규모: `App.jsx` 1,002 → 약 400줄, `TimelineView.jsx` 1,512 → 훅 5개 + 순수 모듈 2개로 분해,
+  서버 라우트는 HTTP 어댑터만 남고 도메인 로직은 `services/` 로.
+- 테스트가 46/31/28 → **112/97/31** 로 늘었다. 리팩토링 중 안전망 역할을 실제로 했다.
+- 리팩토링 중 드러난 잠재 결함 2건: 미정의 CSS 클래스(`.close-button` — 어디에도 정의가
+  없었다), 모달마다 Escape 동작이 달랐던 것. 둘 다 껍데기를 하나로 합치면서 해소.
+- 툴바 드롭다운은 `overflow-x: auto`(P1-7 클리핑 수정) 에 잘려서 **body 로 포털**한다.
+  같은 툴바 안에 팝업을 새로 넣을 때 반복될 함정이다.
+
+**Phase 3 은 항목별로 재평가했다** (§4 Phase 3 표에 근거 기재). 실행: P3-2 감사 로그 1건.
+나머지 5건은 제품 결정 대기이거나(P3-3/P3-4), 지금 할 이유가 없거나(P3-1/P3-6),
+신규 기능(P3-5)이다. 특히 **P3-4(htmlExporter 폐기)는 반대 근거가 있다** — 내보낸 HTML 이
+사내 위키에 임베드되므로 공유링크로 대체하면 그 용례가 깨진다. Phase 4 는 착수하지 않았다.
+
+**남은 사람 손 필요**:
+1. `.claude/settings.local.json` 권한 레일 — 자동 스케줄이 무인 실행될 때
+   `git push origin main` 에서 권한 분류기에 걸린다. 사용자가 직접 편집해야 한다.
+2. main 직푸시 vs 브랜치+PR 결정 (로컬 커밋이 origin/main 보다 앞서 있다).
 
 ---
 
