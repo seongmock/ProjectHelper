@@ -397,6 +397,17 @@ input[type="color"] {
   overflow: auto;
 }
 
+/* 서버 로드 대기 화면 */
+.app-loading {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: var(--color-text-secondary);
+  font-size: 15px;
+}
+
 @media (max-width: 768px) {
   .main-content {
     flex-direction: column;

@@ -18,6 +18,7 @@ import {
     recalcTaskBoundsSafe,
     isTaskOverdue,
     findOwnerOfEntity,
+    moveTaskInTree,
 } from '../../src/utils/taskTree.js';
 
 // 테스트용 트리 빌더 — children 은 항상 배열로 채운다 (정규화된 데이터 형태)
@@ -280,5 +281,173 @@ describe('findOwnerOfEntity', () => {
 
     it('없으면 null', () => {
         expect(findOwnerOfEntity(flat, 'ghost')).toBeNull();
+    });
+});
+
+// ── moveTaskInTree (드래그 앤 드롭 재배치) ────────────────────────────────
+//
+// App.jsx 안에 인라인 클로저로 있어서 테스트가 0건이던 로직. 앱에서 사용자가 가장
+// 자주 만지고 가장 자주 깨지는 부분이라 불변식(노드 총량 보존, 순환 금지)을 함께 검증한다.
+describe('moveTaskInTree', () => {
+    // 모든 id 를 깊이 우선으로 수집 — 이동이 노드를 잃거나 복제하지 않았는지 확인용
+    const allIds = (items) =>
+        items.flatMap(t => [t.id, ...allIds(t.children || [])]).sort();
+
+    const flatTree = () => [node('a'), node('b'), node('c'), node('d')];
+
+    const ordered = (items) => items.map(t => t.id);
+
+    describe('같은 레벨 순서 변경', () => {
+        it('아래로 이동하면 대상의 뒤에 놓인다', () => {
+            const result = moveTaskInTree(flatTree(), 'a', 'c');
+            expect(ordered(result)).toEqual(['b', 'c', 'a', 'd']);
+        });
+
+        it('위로 이동하면 대상의 앞에 놓인다', () => {
+            const result = moveTaskInTree(flatTree(), 'd', 'b');
+            expect(ordered(result)).toEqual(['a', 'd', 'b', 'c']);
+        });
+
+        it('바로 아래 이웃과 교환된다', () => {
+            expect(ordered(moveTaskInTree(flatTree(), 'a', 'b'))).toEqual(['b', 'a', 'c', 'd']);
+        });
+
+        it('노드를 잃거나 복제하지 않는다', () => {
+            const before = flatTree();
+            const after = moveTaskInTree(before, 'a', 'c');
+            expect(allIds(after)).toEqual(allIds(before));
+        });
+    });
+
+    describe('이동 불가 조건 — 원본 참조를 그대로 반환한다', () => {
+        it('자기 자신 위로', () => {
+            const tree = flatTree();
+            expect(moveTaskInTree(tree, 'a', 'a')).toBe(tree);
+        });
+
+        it('존재하지 않는 active', () => {
+            const tree = flatTree();
+            expect(moveTaskInTree(tree, 'ghost', 'a')).toBe(tree);
+        });
+
+        it('존재하지 않는 over', () => {
+            const tree = flatTree();
+            expect(moveTaskInTree(tree, 'a', 'ghost')).toBe(tree);
+        });
+
+        it('자기 서브트리 안으로 (순환 참조)', () => {
+            const tree = [
+                node('p', { expanded: true, children: [node('c1'), node('c2')] }),
+                node('z'),
+            ];
+            expect(moveTaskInTree(tree, 'p', 'c1')).toBe(tree);
+            expect(moveTaskInTree(tree, 'p', 'c2')).toBe(tree);
+        });
+
+        it('접힌(collapsed) 자손 안으로도 막는다', () => {
+            const tree = [node('p', { children: [node('c1')] }), node('z')];
+            expect(moveTaskInTree(tree, 'p', 'c1')).toBe(tree);
+        });
+    });
+
+    describe('불변성', () => {
+        it('원본 트리를 변경하지 않는다', () => {
+            const tree = flatTree();
+            const snapshot = JSON.stringify(tree);
+            moveTaskInTree(tree, 'a', 'c');
+            expect(JSON.stringify(tree)).toBe(snapshot);
+        });
+
+        it('반환된 트리는 원본과 노드 객체를 공유하지 않는다', () => {
+            const tree = flatTree();
+            const result = moveTaskInTree(tree, 'a', 'c');
+            expect(result.find(t => t.id === 'a')).not.toBe(tree.find(t => t.id === 'a'));
+        });
+    });
+
+    describe('(A) 최상위 → 하위 위로 드래그: 최상위 조상으로 매핑', () => {
+        // 최상위 항목이 우연히 남의 자식이 되어 화면에서 사라지는 것을 막는 규칙
+        const tree = () => [
+            node('g', { expanded: true, children: [node('g1'), node('g2')] }),
+            node('x'),
+        ];
+
+        it('아래 방향: 그룹의 하위 위에 놓으면 그룹 뒤 형제가 된다', () => {
+            const result = moveTaskInTree([node('x'), ...tree().slice(0, 1)], 'x', 'g1');
+            // x(0) → g1 의 최상위 조상 g(1) 로 매핑, 아래 방향이므로 g 뒤
+            expect(ordered(result)).toEqual(['g', 'x']);
+            expect(result[0].children.map(t => t.id)).toEqual(['g1', 'g2']);
+        });
+
+        it('위 방향: 그룹의 하위 위에 놓으면 그룹 앞 형제가 된다', () => {
+            const result = moveTaskInTree(tree(), 'x', 'g2');
+            expect(ordered(result)).toEqual(['x', 'g']);
+            expect(result[1].children.map(t => t.id)).toEqual(['g1', 'g2']);
+        });
+
+        it('하위 항목은 매핑되지 않는다 (하위끼리는 그대로 순서 변경)', () => {
+            const t = [node('g', { expanded: true, children: [node('g1'), node('g2')] })];
+            const result = moveTaskInTree(t, 'g1', 'g2');
+            expect(result[0].children.map(c => c.id)).toEqual(['g2', 'g1']);
+        });
+    });
+
+    describe('(B) 펼쳐진 그룹 위로 아래 방향 드래그 → 첫 자식으로', () => {
+        const tree = () => [
+            node('x'),
+            node('g', { expanded: true, children: [node('g1'), node('g2')] }),
+        ];
+
+        it('자식이 있고 펼쳐져 있으면 첫 자식이 된다', () => {
+            const result = moveTaskInTree(tree(), 'x', 'g');
+            expect(ordered(result)).toEqual(['g']);
+            expect(result[0].children.map(t => t.id)).toEqual(['x', 'g1', 'g2']);
+        });
+
+        it('접혀 있으면 자식으로 넣지 않고 뒤 형제가 된다', () => {
+            const t = [node('x'), node('g', { expanded: false, children: [node('g1')] })];
+            const result = moveTaskInTree(t, 'x', 'g');
+            expect(ordered(result)).toEqual(['g', 'x']);
+        });
+
+        it('빈 작업은 Leaf 로 취급한다 (안에 넣으려면 들여쓰기 제스처를 쓴다)', () => {
+            const t = [node('x'), node('empty', { expanded: true, children: [] })];
+            const result = moveTaskInTree(t, 'x', 'empty');
+            expect(ordered(result)).toEqual(['empty', 'x']);
+        });
+
+        it('위 방향 드래그는 자식으로 넣지 않는다 (앞 형제가 된다)', () => {
+            const t = [
+                node('g', { expanded: true, children: [node('g1')] }),
+                node('x'),
+            ];
+            const result = moveTaskInTree(t, 'x', 'g');
+            expect(ordered(result)).toEqual(['x', 'g']);
+            expect(result[1].children.map(c => c.id)).toEqual(['g1']);
+        });
+    });
+
+    describe('부모 간 이동', () => {
+        const tree = () => [
+            node('p1', { expanded: true, children: [node('a1'), node('a2')] }),
+            node('p2', { expanded: true, children: [node('b1')] }),
+        ];
+
+        it('다른 부모의 자식 위로 이동하면 그 부모로 옮겨간다', () => {
+            const result = moveTaskInTree(tree(), 'a1', 'b1');
+            expect(result[0].children.map(t => t.id)).toEqual(['a2']);
+            expect(result[1].children.map(t => t.id)).toEqual(['b1', 'a1']);
+        });
+
+        it('서브트리를 통째로 데려간다', () => {
+            const t = [
+                node('p1', { expanded: true, children: [node('a1', { children: [node('deep')] })] }),
+                node('p2', { expanded: true, children: [node('b1')] }),
+            ];
+            const result = moveTaskInTree(t, 'a1', 'b1');
+            const moved = result[1].children.find(c => c.id === 'a1');
+            expect(moved.children.map(c => c.id)).toEqual(['deep']);
+            expect(allIds(result)).toEqual(allIds(t));
+        });
     });
 });

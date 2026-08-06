@@ -2,7 +2,7 @@
 // 모든 함수는 불변(immutable) 방식으로 새 트리를 반환한다 (undo/redo 히스토리 보호).
 //
 // ⚠️ server/lib/taskTree.js(CommonJS)는 이 파일의 미러 — 시그니처 변경 시 함께 갱신할 것.
-import { generateId } from './dataModel';
+import { generateId, flattenTasks } from './dataModel';
 
 // 재귀적으로 특정 작업을 업데이트 (깊이 제한 없음)
 export const updateTaskInTree = (items, taskId, updates) => {
@@ -179,6 +179,87 @@ export const isTaskOverdue = (task, todayStr) => {
     if ((task.progress ?? 0) >= 100) return false;
     const { endDate } = recalcTaskBoundsSafe(task.timeRanges);
     return !!endDate && endDate < todayStr;
+};
+
+// 드래그 앤 드롭 재배치 — activeId 를 overId 위치로 옮긴 새 트리를 반환한다.
+// 이동할 수 없는 경우(자기 자신, 존재하지 않음, 자기 서브트리로의 이동)에는
+// **원본 참조를 그대로** 반환한다 (호출부가 `next === prev` 로 무변경을 판별한다).
+//
+// 이 함수는 순수 배치 규칙이지만 눈에 보이는 결과가 직관에 의존해서 규칙이 두 개 붙어 있다:
+//  (A) 최상위 작업을 하위 작업 위로 끌면, 그 하위 작업의 자식이 되는 대신
+//      해당 하위 작업이 속한 최상위 조상 위치로 매핑한다.
+//      (그렇지 않으면 최상위 항목이 우연히 남의 자식이 되어 사라진 것처럼 보인다)
+//  (B) '펼쳐져 있고 자식이 있는' 그룹 제목 위로 아래 방향 드래그하면 그 그룹의
+//      첫 번째 자식으로 넣는다. 빈 작업은 Leaf 로 취급해 순서 변경만 한다 —
+//      빈 작업 안에 넣으려면 들여쓰기 제스처를 쓴다.
+//
+// App.jsx 안에 인라인으로 있던 것을 옮겨 왔다. 앱에서 가장 버그가 잦은 로직인데
+// 컴포넌트 안에 있어 테스트가 불가능했다.
+export const moveTaskInTree = (tasks, activeId, overId) => {
+    if (activeId === overId) return tasks;
+    if (!findTaskAndParent(tasks, activeId) || !findTaskAndParent(tasks, overId)) return tasks;
+
+    // 불변성 유지를 위해 deep clone 후 제자리 조작 (splice 를 쓰기 위함)
+    const clonedTasks = structuredClone(tasks);
+    const activeNode = findTaskAndParent(clonedTasks, activeId);
+    const overNode = findTaskAndParent(clonedTasks, overId);
+    if (!activeNode || !overNode) return tasks;
+
+    // 순환 참조 방지: overNode 가 activeNode 의 자손이면 이동 불가
+    if (isDescendant(activeNode.task, overId)) return tasks;
+
+    // 이동 방향은 평탄화된(= 화면에 보이는) 순서 기준으로 판별한다
+    const flatList = flattenTasks(tasks);
+    const activeFlatItem = flatList.find(t => t.id === activeId);
+    const overFlatItem = flatList.find(t => t.id === overId);
+    if (!activeFlatItem || !overFlatItem) return tasks;
+
+    const activeGlobalIndex = flatList.findIndex(t => t.id === activeId);
+    let overGlobalIndex = flatList.findIndex(t => t.id === overId);
+
+    // (A) 최상위 → 하위 위로 드래그: 대상의 최상위 조상으로 매핑
+    let effectiveOverId = overId;
+    let targetNode = overNode;
+    if (activeFlatItem.level === 0 && overFlatItem.level > 0) {
+        for (let i = overGlobalIndex; i >= 0; i--) {
+            if (flatList[i].level === 0) {
+                effectiveOverId = flatList[i].id;
+                overGlobalIndex = i;
+                break;
+            }
+        }
+    }
+
+    const isMovingDown = activeGlobalIndex < overGlobalIndex;
+
+    // 원위치에서 제거
+    activeNode.list.splice(activeNode.index, 1);
+
+    // 타겟이 바뀌었으면 다시 찾는다 (effectiveOverId 는 최상위라 제거 후에도 유효)
+    if (effectiveOverId !== overId) {
+        const found = findTaskAndParent(clonedTasks, effectiveOverId);
+        if (found) targetNode = found;
+    }
+
+    let targetList = targetNode.list;
+    let targetIndex = targetList.findIndex(t => t.id === effectiveOverId);
+
+    // (B) 펼쳐진 그룹 제목 위로 아래 방향 드래그 → 그 그룹의 첫 자식으로
+    const isDroppingOnExpandedParent =
+        isMovingDown &&
+        overNode.task.expanded &&
+        overNode.task.children && overNode.task.children.length > 0 &&
+        overNode.task.id === effectiveOverId;
+
+    if (isDroppingOnExpandedParent) {
+        targetList = overNode.task.children;
+        targetIndex = 0;
+    } else if (isMovingDown) {
+        targetIndex += 1; // 아래로 이동할 때는 타겟의 뒤에 넣는다
+    }
+
+    targetList.splice(targetIndex, 0, activeNode.task);
+    return clonedTasks;
 };
 
 // 평탄화된 작업 목록에서 특정 ID(작업/기간/마일스톤)의 소유자 탐색
