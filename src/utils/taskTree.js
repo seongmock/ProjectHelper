@@ -181,6 +181,18 @@ export const isTaskOverdue = (task, todayStr) => {
     return !!endDate && endDate < todayStr;
 };
 
+// 일정 상태 판정. 상태 색상 모드(바 색)와 범례가 같은 규칙을 쓰도록 여기 한 곳에 둔다.
+// 반환 순서가 곧 우선순위다: 완료 > 지연 > 예정 > 진행중.
+// 날짜가 없으면 'none' — 칠할 바 자체가 없으므로 색상 모드에서도 작업 색을 그대로 쓴다.
+export const getTaskStatus = (task, todayStr) => {
+    if ((task.progress ?? 0) >= 100) return 'done';
+    const { startDate, endDate } = recalcTaskBoundsSafe(task.timeRanges);
+    if (!startDate || !endDate) return 'none';
+    if (endDate < todayStr) return 'overdue';
+    if (startDate > todayStr) return 'upcoming';
+    return 'active';
+};
+
 // 드래그 앤 드롭 재배치 — activeId 를 overId 위치로 옮긴 새 트리를 반환한다.
 // 이동할 수 없는 경우(자기 자신, 존재하지 않음, 자기 서브트리로의 이동)에는
 // **원본 참조를 그대로** 반환한다 (호출부가 `next === prev` 로 무변경을 판별한다).

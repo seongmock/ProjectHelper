@@ -35,3 +35,21 @@ export const THEMES = [
 ];
 
 export const getTheme = (id) => THEMES.find(t => t.id === id) ?? THEMES[0];
+
+// 상태 색상 모드 팔레트.
+//
+// 기본(작업 색상) 모드에서 색은 사용자가 고른 그룹 구분일 뿐이라 "이 색이 무슨 뜻인가"에
+// 답할 방법이 없다(실사 §5.2 "범례 없음"). 상태 색상 모드는 색을 일정 상태에 고정하고
+// 범례를 함께 띄워 해석 가능하게 만든다.
+//
+// id 는 taskTree.getTaskStatus() 의 반환값과 1:1 이고, 배열 순서가 범례 표시 순서다.
+// 'none'(날짜 없음)은 칠할 대상이 없어 여기 없다 — 색 조회가 undefined 로 떨어지면
+// 호출부가 작업 색으로 폴백한다.
+export const STATUS_STYLES = [
+    { id: 'done', label: '완료', color: '#2e9e6b' },
+    { id: 'active', label: '진행중', color: '#3b82f6' },
+    { id: 'upcoming', label: '예정', color: '#98a2b3' },
+    { id: 'overdue', label: '지연', color: '#d9534f' },
+];
+
+export const getStatusColor = (status) => STATUS_STYLES.find(s => s.id === status)?.color;

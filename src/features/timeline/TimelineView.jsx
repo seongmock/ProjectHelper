@@ -26,6 +26,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { dateUtils } from '../../utils/dateUtils';
 import TimelineHeader from './TimelineHeader';
 import TimelineBar from './TimelineBar';
+import TimelineLegend from './TimelineLegend';
 import MilestoneEditPopover from './MilestoneEditPopover';
 import DependencyLayer from './DependencyLayer';
 import { flattenTasks } from '../../utils/dataModel';
@@ -133,6 +134,7 @@ const TimelineView = forwardRef(({
     darkMode,
     toast,
     chartTheme = 'default',
+    colorMode = 'task',
 }, ref) => {
     const containerRef = useRef(null);
     const captureRef = useRef(null);
@@ -455,12 +457,18 @@ const TimelineView = forwardRef(({
                                     timeScale={timeScale}
                                     snapEnabled={snapEnabled}
                                     chartTheme={chartTheme}
+                                    colorMode={colorMode}
                                 />
                             ))
                         )}
                     </div>
                 </div>
             </div>
+
+            {/* 범례는 캡처 대상(captureRef = .timeline-container) 밖이다 —
+                PNG 캡처는 높이를 행 수로 계산하므로 안에 넣으면 계산이 어긋난다.
+                HTML 내보내기는 자체 범례를 그린다(htmlExporter.js). */}
+            {colorMode === 'status' && <TimelineLegend />}
 
             {milestoneEditInfo && (
                 <MilestoneEditPopover

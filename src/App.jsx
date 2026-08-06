@@ -45,6 +45,7 @@ function App() {
     const showBarLabels = useSettingsStore(s => s.showBarLabels);
     const showBarDates = useSettingsStore(s => s.showBarDates);
     const chartTheme = useSettingsStore(s => s.chartTheme);
+    const colorMode = useSettingsStore(s => s.colorMode);
     const darkMode = useSettingsStore(s => s.darkMode);
     const setSetting = useSettingsStore(s => s.setSetting);
     const toggleSetting = useSettingsStore(s => s.toggleSetting);
@@ -252,6 +253,8 @@ function App() {
                 onToggleBarDates={() => toggleSetting('showBarDates')}
                 chartTheme={chartTheme}
                 onThemeChange={(v) => setSetting({ chartTheme: v })}
+                colorMode={colorMode}
+                onColorModeChange={(v) => setSetting({ colorMode: v })}
             />
 
             <div className="main-content">
@@ -307,6 +310,7 @@ function App() {
                                 onOpenMilestoneAdd={openMilestoneAdd}
                                 toast={toast}
                                 chartTheme={chartTheme}
+                                colorMode={colorMode}
                                 darkMode={darkMode}
                             />
                         )}

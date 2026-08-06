@@ -17,6 +17,7 @@ import {
     recalcTaskBounds,
     recalcTaskBoundsSafe,
     isTaskOverdue,
+    getTaskStatus,
     findOwnerOfEntity,
     moveTaskInTree,
 } from '../../src/utils/taskTree.js';
@@ -254,6 +255,47 @@ describe('isTaskOverdue', () => {
 
     it('기간이 없으면 지연이 아니다', () => {
         expect(isTaskOverdue(node('t'), today)).toBe(false);
+    });
+});
+
+describe('getTaskStatus', () => {
+    const today = '2026-08-05';
+    const ranges = (startDate, endDate) => ({ timeRanges: [{ startDate, endDate }] });
+
+    it('progress 100 이면 날짜와 무관하게 완료', () => {
+        const task = node('t', { progress: 100, ...ranges('2026-01-01', '2026-07-01') });
+        expect(getTaskStatus(task, today)).toBe('done');
+    });
+
+    it('종료일이 과거이고 미완료면 지연', () => {
+        expect(getTaskStatus(node('t', ranges('2026-01-01', '2026-07-01')), today)).toBe('overdue');
+    });
+
+    it('시작일이 미래면 예정', () => {
+        expect(getTaskStatus(node('t', ranges('2026-09-01', '2026-09-30')), today)).toBe('upcoming');
+    });
+
+    it('오늘이 기간 안이면 진행중', () => {
+        expect(getTaskStatus(node('t', ranges('2026-08-01', '2026-08-31')), today)).toBe('active');
+    });
+
+    it('경계값: 오늘이 시작일/종료일이면 진행중', () => {
+        expect(getTaskStatus(node('t', ranges(today, '2026-08-31')), today)).toBe('active');
+        expect(getTaskStatus(node('t', ranges('2026-01-01', today)), today)).toBe('active');
+    });
+
+    it('여러 기간은 전체 범위로 판정한다', () => {
+        const task = node('t', {
+            timeRanges: [
+                { startDate: '2026-01-01', endDate: '2026-02-01' },
+                { startDate: '2026-12-01', endDate: '2026-12-31' },
+            ],
+        });
+        expect(getTaskStatus(task, today)).toBe('active');
+    });
+
+    it('기간이 없으면 none — 칠할 바가 없다', () => {
+        expect(getTaskStatus(node('t'), today)).toBe('none');
     });
 });
 

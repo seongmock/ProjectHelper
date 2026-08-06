@@ -1,0 +1,48 @@
+.timeline-legend {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex: 0 0 auto;
+    padding: 6px 12px;
+    border-top: 1px solid var(--color-border);
+    background-color: var(--color-bg-secondary);
+    font-size: 12px;
+    color: var(--color-text-secondary);
+    overflow-x: auto;
+    white-space: nowrap;
+}
+
+.timeline-legend-title {
+    font-weight: 600;
+    color: var(--color-text-primary);
+}
+
+.timeline-legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.timeline-legend-swatch {
+    width: 14px;
+    height: 10px;
+    border-radius: 2px;
+    background-color: var(--swatch-color);
+}
+
+/* 색 단독 인코딩을 피하기 위한 상태별 패턴 */
+.timeline-legend-swatch.status-active {
+    box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.65);
+}
+
+.timeline-legend-swatch.status-upcoming {
+    opacity: 0.55;
+}
+
+.timeline-legend-swatch.status-overdue {
+    background-image: repeating-linear-gradient(
+        45deg,
+        rgba(255, 255, 255, 0.55) 0 2px,
+        transparent 2px 4px
+    );
+}

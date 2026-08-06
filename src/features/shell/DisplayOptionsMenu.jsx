@@ -2,9 +2,16 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
     SlidersHorizontal, Check, Text, Tag, CalendarDays, CalendarClock, Rows3, Magnet,
+    Palette, Activity,
 } from 'lucide-react';
 import { THEMES } from '../../themes/index.js';
 import './DisplayOptionsMenu.css';
+
+// 바 색을 무엇으로 칠할지. 'status' 를 고르면 타임라인 하단에 범례가 함께 뜬다.
+const COLOR_MODES = [
+    { id: 'task', label: '작업 색상', Icon: Palette },
+    { id: 'status', label: '상태 색상', Icon: Activity },
+];
 
 // CSS 의 min-width 와 맞춘다 — 오른쪽 화면 밖으로 나가지 않게 클램프할 때 쓴다
 const MENU_WIDTH = 200;
@@ -19,6 +26,7 @@ function DisplayOptionsMenu({
     isCompact, onToggleCompact,
     snapEnabled, onToggleSnap,
     chartTheme, onThemeChange,
+    colorMode, onColorModeChange,
 }) {
     const [isOpen, setIsOpen] = useState(false);
     const [anchor, setAnchor] = useState({ top: 0, left: 0 });
@@ -94,6 +102,24 @@ function DisplayOptionsMenu({
                             </span>
                             <Icon size={15} aria-hidden="true" />
                             <span>{label}</span>
+                        </button>
+                    ))}
+
+                    <div className="display-options-separator" role="separator" />
+                    <div className="display-options-label">바 색상</div>
+                    {COLOR_MODES.map(mode => (
+                        <button
+                            key={mode.id}
+                            className="display-options-item"
+                            role="menuitemradio"
+                            aria-checked={colorMode === mode.id}
+                            onClick={() => onColorModeChange(mode.id)}
+                        >
+                            <span className="display-options-check">
+                                {colorMode === mode.id && <Check size={14} aria-hidden="true" />}
+                            </span>
+                            <mode.Icon size={15} aria-hidden="true" />
+                            <span>{mode.label}</span>
                         </button>
                     ))}
 

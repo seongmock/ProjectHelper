@@ -103,3 +103,38 @@ describe('exportToHtml — 기본 동작', () => {
         expect(exportToHtml([task()], { darkMode: true })).toContain('#1e1e1e');
     });
 });
+
+describe('exportToHtml — 상태 색상 모드', () => {
+    // 앱 화면과 내보낸 문서의 색이 갈리면 색상 모드 자체가 의미를 잃는다.
+    const done = task({ id: 'done1', progress: 100 });
+    const overdue = task({
+        id: 'late1',
+        timeRanges: [{ id: 'r1', startDate: '2000-01-01', endDate: '2000-01-31', dependencies: [] }],
+    });
+
+    it('기본(작업 색상) 모드에서는 상태 색 맵이 비어 있고 범례도 없다', () => {
+        const html = exportToHtml([done, overdue]);
+        expect(html).toContain('const STATUS_COLOR = {}');
+        expect(html).not.toContain('ph-legend');
+    });
+
+    it('상태 색상 모드에서 작업별 색이 구워지고 범례가 붙는다', () => {
+        const html = exportToHtml([done, overdue], { colorMode: 'status' });
+        expect(html).toContain('"done1":"#2e9e6b"');
+        expect(html).toContain('"late1":"#d9534f"');
+        expect(html).toContain('class="ph-legend"');
+        expect(html).toContain('지연');
+    });
+
+    it('중첩 자식도 상태 색을 받는다', () => {
+        const parent = task({ id: 'p1', children: [task({ id: 'c1', progress: 100 })] });
+        const html = exportToHtml([parent], { colorMode: 'status' });
+        expect(html).toContain('"c1":"#2e9e6b"');
+    });
+
+    it('날짜 없는 작업은 맵에 없다 — 작업 색으로 폴백한다', () => {
+        const noDates = task({ id: 'nd1', timeRanges: [] });
+        const html = exportToHtml([noDates], { colorMode: 'status' });
+        expect(html).not.toContain('"nd1":');
+    });
+});

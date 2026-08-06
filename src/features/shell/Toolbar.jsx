@@ -37,6 +37,8 @@ function Toolbar({
 
     chartTheme,
     onThemeChange,
+    colorMode,
+    onColorModeChange,
 }) {
     const isTimeline = viewMode === 'timeline' || viewMode === 'split';
 
@@ -124,6 +126,8 @@ function Toolbar({
                                 onToggleSnap={onToggleSnap}
                                 chartTheme={chartTheme}
                                 onThemeChange={onThemeChange}
+                                colorMode={colorMode}
+                                onColorModeChange={onColorModeChange}
                             />
 
                             <button className="icon-btn icon-only" onClick={onCopyImage} title="이미지로 복사">

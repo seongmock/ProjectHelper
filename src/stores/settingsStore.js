@@ -26,6 +26,7 @@ export const SETTING_DEFAULTS = {
     showBarLabels: false,
     showBarDates: false,
     chartTheme: 'default',
+    colorMode: 'task', // 'task' = 작업 색상 | 'status' = 일정 상태 색상 + 범례
     darkMode: null, // null = 미설정 → 시스템 설정을 따른다
 };
 

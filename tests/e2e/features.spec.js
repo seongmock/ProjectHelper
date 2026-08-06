@@ -116,6 +116,42 @@ test.describe('드래그 undo 정합성', () => {
     });
 });
 
+test.describe('상태 색상 모드', () => {
+    // 실사 §5.2 "범례 없음": 기본 모드의 색은 사용자가 고른 그룹 구분일 뿐이라 해석할
+    // 방법이 없었다. 상태 색상 모드는 색을 일정 상태에 고정하고 범례를 함께 띄운다.
+    const STATUS_RGB = [
+        'rgb(46, 158, 107)',  // 완료
+        'rgb(59, 130, 246)',  // 진행중
+        'rgb(152, 162, 179)', // 예정
+        'rgb(217, 83, 79)',   // 지연
+    ];
+
+    test('상태 색상을 고르면 범례가 뜨고 바 색이 상태색으로 바뀐다', async ({ page }) => {
+        const legend = page.locator('.timeline-legend');
+        await expect(legend).toHaveCount(0);
+
+        const bar = page.locator('.timeline-bar').first();
+        const before = await bar.evaluate(el => getComputedStyle(el).backgroundColor);
+
+        await page.getByTitle('표시 옵션').click();
+        await page.getByRole('menuitemradio', { name: '상태 색상' }).click();
+        await page.keyboard.press('Escape');
+
+        await expect(legend).toBeVisible();
+        await expect(legend).toContainText('지연');
+        expect(STATUS_RGB).toContain(
+            await bar.evaluate(el => getComputedStyle(el).backgroundColor));
+
+        // 설정은 전역(프로젝트 스코프 밖)이라 되돌리지 않으면 다른 테스트로 샌다
+        await page.getByTitle('표시 옵션').click();
+        await page.getByRole('menuitemradio', { name: '작업 색상' }).click();
+        await page.keyboard.press('Escape');
+
+        await expect(legend).toHaveCount(0);
+        expect(await bar.evaluate(el => getComputedStyle(el).backgroundColor)).toBe(before);
+    });
+});
+
 test.describe('툴바 레이아웃', () => {
     // P1-7 "우상단 클리핑". 툴바가 flex 한 줄인데 가로 스크롤이 없어서, 좁은 화면에서
     // 오른쪽 그룹(검색 · 작업 추가)이 잘려 나가고 접근 자체가 불가능했다.

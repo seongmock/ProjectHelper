@@ -1,3 +1,6 @@
+import { dateUtils } from '../../utils/dateUtils';
+import { getTaskStatus } from '../../utils/taskTree';
+import { STATUS_STYLES, getStatusColor } from '../../themes/index.js';
 
 /**
  * Export project data to a single self-contained HTML file.
@@ -17,9 +20,78 @@ const toSafeJson = (value) =>
         .replace(/\u2028/g, '\\u2028')
         .replace(/\u2029/g, '\\u2029');
 
+// \uc791\uc5c5 id \u2192 \uc0c1\ud0dc \uc0c9\uc0c1. \uc0c1\ud0dc \uc0c9\uc0c1 \ubaa8\ub4dc\ub85c \ub0b4\ubcf4\ub0bc \ub54c\ub9cc \uc4f4\ub2e4.
+//
+// \ub0b4\ubcf4\ub0b8 HTML \uc740 \uc815\uc801 \uc0b0\ucd9c\ubb3c\uc774\ubbc0\ub85c \uc0c1\ud0dc\ub97c **\ub0b4\ubcf4\ub0b8 \uc2dc\uc810** \uae30\uc900\uc73c\ub85c \uad73\ud78c\ub2e4. \ud310\uc815 \uaddc\uce59
+// (getTaskStatus)\uc744 \ub0b4\ubcf4\ub0b8 \ubb38\uc11c \uc548\uc5d0 \ub2e4\uc2dc \uad6c\ud604\ud558\uc9c0 \uc54a\uc73c\ub824\ub294 \uac83\uc774\uae30\ub3c4 \ud558\ub2e4 \u2014 \ub80c\ub354 \ub85c\uc9c1\uc774
+// \uc774\ubbf8 2\uc911\ud654\ub3fc \uc788\ub294 \ud30c\uc77c\uc5d0 \ud310\uc815 \ub85c\uc9c1\uae4c\uc9c0 2\uc911\ud654\ud558\uba74 \uc5b4\uae0b\ub0a8\uc774 \ud558\ub098 \ub354 \ub298\uc5b4\ub09c\ub2e4.
+const buildStatusColorMap = (tasks) => {
+    const today = dateUtils.formatDate(new Date());
+    const map = {};
+    const walk = (list) => (list || []).forEach(task => {
+        const color = getStatusColor(getTaskStatus(task, today));
+        if (color) map[task.id] = color;
+        walk(task.children);
+    });
+    walk(tasks);
+    return map;
+};
+
+// \ubc94\ub840 \uc2a4\ud0c0\uc77c. \uc0c1\ud0dc \uc0c9\uc0c1 \ubaa8\ub4dc\uac00 \uc544\ub2c8\uba74 \uc544\uc608 \ub123\uc9c0 \uc54a\ub294\ub2e4 \u2014 \uc790\ub9bd\ud615 \uc0b0\ucd9c\ubb3c\uc5d0 \uc4f0\uc774\uc9c0 \uc54a\ub294
+// \uaddc\uce59\uc744 \ub0a8\uae30\uc9c0 \uc54a\uae30 \uc704\ud574\uc11c\ub2e4. \uc140\ub809\ud130\ub294 \ucee8\ud14c\uc774\ub108 id \ub85c \uc2a4\ucf54\ud504\ud55c\ub2e4(\ubb38\uc11c \uc804\uc5ed \uc624\uc5fc \ubc29\uc9c0).
+const legendCss = (listId) => `
+        #ph-gantt-${listId} .ph-legend {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            flex: 0 0 auto;
+            padding: 6px 12px;
+            border-top: 1px solid var(--color-border);
+            background-color: var(--color-bg-secondary);
+            font-size: 12px;
+            color: var(--color-text-secondary);
+            overflow-x: auto;
+            white-space: nowrap;
+        }
+        #ph-gantt-${listId} .ph-legend-title {
+            font-weight: 600;
+            color: var(--color-text-primary);
+        }
+        #ph-gantt-${listId} .ph-legend-item {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+        #ph-gantt-${listId} .ph-legend-swatch {
+            width: 14px;
+            height: 10px;
+            border-radius: 2px;
+        }
+        /* \uc0c9 \ub2e8\ub3c5 \uc778\ucf54\ub529\uc744 \ud53c\ud558\uae30 \uc704\ud55c \uc0c1\ud0dc\ubcc4 \ud328\ud134 \u2014 \uc571 \ubc94\ub840\uc640 \ub3d9\uc77c */
+        #ph-gantt-${listId} .ph-legend-active {
+            box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.65);
+        }
+        #ph-gantt-${listId} .ph-legend-upcoming { opacity: 0.55; }
+        #ph-gantt-${listId} .ph-legend-overdue {
+            background-image: repeating-linear-gradient(45deg,
+                rgba(255,255,255,0.55) 0 2px, transparent 2px 4px);
+        }`;
+
+// \ubc94\ub840 \ub9c8\ud06c\uc5c5 \u2014 \uc571\uc758 TimelineLegend \uc640 \uac19\uc740 \uc21c\uc11c\u00b7\ub77c\ubca8\u00b7\uc0c9\uc744 \uc4f4\ub2e4(STATUS_STYLES \uac00 \ub2e8\uc77c \ucd9c\ucc98).
+const legendHtml = () => `
+    <div class="ph-legend" role="list" aria-label="\uc0c1\ud0dc \uc0c9\uc0c1 \ubc94\ub840">
+        <span class="ph-legend-title">\uc0c1\ud0dc</span>
+        ${STATUS_STYLES.map(s => `<span class="ph-legend-item" role="listitem">`
+        + `<span class="ph-legend-swatch ph-legend-${s.id}" style="background-color:${s.color}"></span>`
+        + `${s.label}</span>`).join('')}
+    </div>`;
+
 export const exportToHtml = (tasks, settings = {}) => {
     const tasksJson = toSafeJson(tasks);
     const darkMode = settings.darkMode ? 'dark' : 'light';
+    // \uc0c1\ud0dc \uc0c9\uc0c1 \ubaa8\ub4dc\uac00 \uc544\ub2c8\uba74 \ube48 \ub9f5 \u2192 \uc544\ub798 \ud3f4\ubc31\uc774 \uae30\uc874 \ub3d9\uc791(\uc791\uc5c5 \uc0c9\uc0c1)\uc744 \uadf8\ub300\ub85c \uc720\uc9c0\ud55c\ub2e4
+    const statusMode = settings.colorMode === 'status';
+    const statusColorJson = toSafeJson(statusMode ? buildStatusColorMap(tasks) : {});
 
     // Generate unique ID for scope isolation
     const listId = 'chk_' + Math.random().toString(36).substr(2, 9);
@@ -433,6 +505,8 @@ export const exportToHtml = (tasks, settings = {}) => {
             stroke-dasharray: 4 2;
             opacity: 1.0 !important; /* Ensure visibility */
         }
+
+${statusMode ? legendCss(listId) : ''}
     </style>
 
     <div class="gantt-body">
@@ -464,7 +538,7 @@ export const exportToHtml = (tasks, settings = {}) => {
             </div>
         </div>
     </div>
-
+${statusMode ? legendHtml() : ''}
     <script>
     (function() {
         // Scoped Execution
@@ -488,6 +562,8 @@ export const exportToHtml = (tasks, settings = {}) => {
         const ZOOM_LEVEL = ${zoomLevel};
         const TIME_SCALE = '${settings.timeScale || 'monthly'}';
         const CHART_THEME = '${settings.chartTheme || 'default'}';
+        // 작업 id → 상태 색상. 작업 색상 모드로 내보내면 빈 객체다.
+        const STATUS_COLOR = ${statusColorJson};
 
         // Flatten Data
         const FLATTENED_TASKS = [];
@@ -730,7 +806,7 @@ export const exportToHtml = (tasks, settings = {}) => {
 
                     if (start > maxDate || end < startDate) return;
 
-                    var color = range.color || task.color || '#4a90e2';
+                    var color = STATUS_COLOR[task.id] || range.color || task.color || '#4a90e2';
                     // title 은 아래에서 속성값으로 삽입된다 (line ~757, ~767)
                     var title = esc(task.name) + ' (' + formatDate(start) + ' ~ ' + formatDate(end) + ')';
                     
@@ -770,8 +846,10 @@ export const exportToHtml = (tasks, settings = {}) => {
                             (barWidthPx - D) + ',' + (H - S2),
                             S2 + ',' + (H - S2)
                         ].join(' ');
+                        // LG 테마는 흰 채움 + 테두리라, 상태 색은 테두리에 실린다 (앱과 동일)
+                        var lgStroke = STATUS_COLOR[task.id] || '#9e9e9e';
                         var svgInner =
-                            '<polygon points="' + pts + '" fill="white" stroke="#9e9e9e" stroke-width="' + LG_STROKE + '" stroke-linejoin="miter"/>';
+                            '<polygon points="' + pts + '" fill="white" stroke="' + lgStroke + '" stroke-width="' + LG_STROKE + '" stroke-linejoin="miter"/>';
 
                         // 바 안 레이블 (showBarLabels) — 앱과 동일하게 왼쪽 정렬
                         // 주의: 여기서 생성되는 코드는 export된 HTML의 JS 문자열 안에 들어가므로

@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { dateUtils } from '../../utils/dateUtils';
-import { isTaskOverdue } from '../../utils/taskTree';
+import { isTaskOverdue, getTaskStatus } from '../../utils/taskTree';
+import { getStatusColor } from '../../themes/index.js';
 import Tooltip from '../../shared/ui/Tooltip';
 import './TimelineBar.css';
 
@@ -27,6 +28,7 @@ function TimelineBar({
     timeScale = 'monthly',
     snapEnabled = true,
     chartTheme = 'default',
+    colorMode = 'task',
 }) {
     const [activeRangeId, setActiveRangeId] = useState(null); // ID of range being dragged
     const [dragType, setDragType] = useState(null); // 'move', 'resize-start', 'resize-end'
@@ -54,8 +56,14 @@ function TimelineBar({
         : [{ id: 'legacy', startDate: task.startDate, endDate: task.endDate }];
 
     // 진행률/지연 상태 (렌더 시 계산 — 저장 상태 없음)
+    const today = dateUtils.formatDate(new Date());
     const progress = task.progress ?? 0;
-    const overdue = isTaskOverdue(task, dateUtils.formatDate(new Date()));
+    const overdue = isTaskOverdue(task, today);
+    // 상태 색상 모드에서만 바 색을 일정 상태로 덮는다. 날짜 없는 작업('none')은
+    // getStatusColor 가 undefined 를 주므로 아래 폴백이 작업 색을 그대로 쓴다.
+    const statusColor = colorMode === 'status'
+        ? getStatusColor(getTaskStatus(task, today))
+        : undefined;
 
     // Handle Drag Start for a specific range
     const handleMouseDown = (e, type, range) => {
@@ -543,7 +551,7 @@ function TimelineBar({
                 // LG 선택/기본 테두리 색상 (지연 시 경고색)
                 const lgBorderColor = isLg && isSelected
                     ? '#a50034'
-                    : (overdue ? 'var(--color-overdue, #d9534f)' : '#9e9e9e');
+                    : (statusColor || (overdue ? 'var(--color-overdue, #d9534f)' : '#9e9e9e'));
 
                 const barStyle = isLg
                     ? {
@@ -563,7 +571,7 @@ function TimelineBar({
                     : {
                         left: `${offset}px`,
                         width: `${width}px`,
-                        backgroundColor: range.color || task.color,
+                        backgroundColor: statusColor || range.color || task.color,
                         transform: isActive ? `translateY(calc(-50% + ${draggedRangeY}px))` : undefined,
                         zIndex: isActive ? 100 : 1,
                         boxShadow: isActive ? '0 4px 8px rgba(0,0,0,0.3)' : 'none',
