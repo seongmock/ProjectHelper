@@ -21,6 +21,9 @@ import {
     shiftTaskDates,
     findOwnerOfEntity,
     moveTaskInTree,
+    flattenAll,
+    collectEntities,
+    summarizeTask,
 } from '../../src/utils/taskTree.js';
 
 // 테스트용 트리 빌더 — children 은 항상 배열로 채운다 (정규화된 데이터 형태)
@@ -546,5 +549,158 @@ describe('moveTaskInTree', () => {
             expect(moved.children.map(c => c.id)).toEqual(['deep']);
             expect(allIds(result)).toEqual(allIds(t));
         });
+    });
+});
+
+// ── 인스펙터 패널이 쓰는 파생 계산 ───────────────────────────────
+// 화면이 아니라 여기서 계산하는 이유가 곧 이 테스트의 존재 이유다.
+
+describe('flattenAll', () => {
+    it('접힌 가지까지 전부 내려간다 (flattenTasks 와 다른 점)', () => {
+        const tree = [node('a', { expanded: false, children: [node('a1', { children: [node('a1x')] })] })];
+        expect(flattenAll(tree).map(t => t.id)).toEqual(['a', 'a1', 'a1x']);
+    });
+
+    it('깊이를 level 로 붙인다', () => {
+        const tree = [node('a', { children: [node('a1', { children: [node('a1x')] })] })];
+        expect(flattenAll(tree).map(t => t.level)).toEqual([0, 1, 2]);
+    });
+
+    it('children 이 없는 노드에서도 죽지 않는다', () => {
+        expect(flattenAll([{ id: 'x' }]).map(t => t.id)).toEqual(['x']);
+        expect(flattenAll(undefined)).toEqual([]);
+    });
+});
+
+describe('collectEntities', () => {
+    const flat = [
+        node('t1', {
+            name: '작업1',
+            timeRanges: [{ id: 'r1', startDate: '2026-01-01', endDate: '2026-01-05' }],
+            milestones: [{ id: 'm1', date: '2026-01-03', label: '킥오프' }],
+        }),
+    ];
+
+    it('작업·마일스톤·기간을 한 배열로 모은다', () => {
+        expect(collectEntities(flat).map(e => e.id)).toEqual(['t1', 'm1', 'r1']);
+    });
+
+    it('라벨이 없으면 표시용 이름을 만들어 준다', () => {
+        const entities = collectEntities(flat);
+        expect(entities.find(e => e.id === 'r1').name).toBe('작업1 (Period 1)');
+        expect(entities.find(e => e.id === 'm1').name).toBe('킥오프');
+    });
+
+    it('마일스톤·기간에 소유 작업 id 를 붙인다', () => {
+        const entities = collectEntities(flat);
+        expect(entities.find(e => e.id === 'r1').parentId).toBe('t1');
+        expect(entities.find(e => e.id === 'm1').type).toBe('milestone');
+    });
+});
+
+describe('summarizeTask', () => {
+    const TODAY = '2026-06-15';
+
+    const tree = () => [
+        node('parent', {
+            name: '상위',
+            expanded: true,
+            children: [
+                node('child', {
+                    name: '자식',
+                    progress: 40,
+                    timeRanges: [
+                        { id: 'r2', startDate: '2026-06-10', endDate: '2026-06-20' },
+                        { id: 'r1', startDate: '2026-06-01', endDate: '2026-06-05', dependencies: ['other'] },
+                    ],
+                    milestones: [
+                        { id: 'm2', date: '2026-06-18', label: '중간' },
+                        { id: 'm1', date: '2026-06-02', label: '시작' },
+                    ],
+                }),
+                node('child2', { progress: 100 }),
+            ],
+        }),
+        node('other', { name: '다른 작업', dependencies: [] }),
+        node('follower', { name: '따라오는 작업', dependencies: ['child'] }),
+    ];
+
+    it('없는 id 나 빈 선택이면 null', () => {
+        expect(summarizeTask(tree(), 'nope', TODAY)).toBeNull();
+        expect(summarizeTask(tree(), null, TODAY)).toBeNull();
+    });
+
+    it('접힌 가지 안의 작업도 찾는다', () => {
+        const collapsed = [node('a', { expanded: false, children: [node('hidden')] })];
+        expect(summarizeTask(collapsed, 'hidden', TODAY).task.id).toBe('hidden');
+    });
+
+    it('전체 기간·소요 일수를 양끝 포함으로 계산한다', () => {
+        const s = summarizeTask(tree(), 'child', TODAY);
+        expect([s.startDate, s.endDate]).toEqual(['2026-06-01', '2026-06-20']);
+        expect(s.durationDays).toBe(20);
+    });
+
+    it('남은 일수는 오늘부터 종료일까지고, 지났으면 음수다', () => {
+        expect(summarizeTask(tree(), 'child', TODAY).daysToEnd).toBe(5);
+        expect(summarizeTask(tree(), 'child', '2026-06-25').daysToEnd).toBe(-5);
+    });
+
+    it('날짜가 없으면 기간 관련 값이 전부 null 이다', () => {
+        const s = summarizeTask(tree(), 'other', TODAY);
+        expect(s.durationDays).toBeNull();
+        expect(s.daysToEnd).toBeNull();
+        expect(s.status).toBe('none');
+    });
+
+    it('기간과 마일스톤을 날짜순으로 정렬해 돌려준다', () => {
+        const s = summarizeTask(tree(), 'child', TODAY);
+        expect(s.ranges.map(r => r.id)).toEqual(['r1', 'r2']);
+        expect(s.milestones.map(m => m.id)).toEqual(['m1', 'm2']);
+    });
+
+    it('원본 작업의 배열을 제자리에서 정렬하지 않는다 (불변성)', () => {
+        const t = tree();
+        const before = structuredClone(t);
+        summarizeTask(t, 'child', TODAY);
+        expect(t).toEqual(before);
+    });
+
+    it('하위 진행률은 자손 평균이고, 자손이 없으면 null 이다', () => {
+        expect(summarizeTask(tree(), 'parent', TODAY).rollupProgress).toBe(70); // (40 + 100) / 2
+        expect(summarizeTask(tree(), 'child', TODAY).rollupProgress).toBeNull();
+        expect(summarizeTask(tree(), 'parent', TODAY).descendantCount).toBe(2);
+        expect(summarizeTask(tree(), 'parent', TODAY).childCount).toBe(2);
+    });
+
+    it('기간에 걸린 의존성도 선행으로 잡는다 (작업 id 만 보면 놓친다)', () => {
+        const s = summarizeTask(tree(), 'child', TODAY);
+        expect(s.predecessors.map(e => e.id)).toEqual(['other']);
+    });
+
+    it('자신을 참조하는 쪽을 후행으로 잡는다', () => {
+        const s = summarizeTask(tree(), 'child', TODAY);
+        expect(s.successors.map(e => e.id)).toEqual(['follower']);
+    });
+
+    it('자기 자신이 앞뒤 목록에 들어가지 않는다', () => {
+        const selfDep = [node('x', {
+            dependencies: ['x-r1'],
+            timeRanges: [{ id: 'x-r1', startDate: '2026-06-01', endDate: '2026-06-02' }],
+        })];
+        const s = summarizeTask(selfDep, 'x', TODAY);
+        expect(s.predecessors).toEqual([]);
+        expect(s.successors).toEqual([]);
+    });
+
+    it('부모 이름을 알려 주고, 최상위면 null 이다', () => {
+        expect(summarizeTask(tree(), 'child', TODAY).parentName).toBe('상위');
+        expect(summarizeTask(tree(), 'other', TODAY).parentName).toBeNull();
+    });
+
+    it('상태 판정은 getTaskStatus 와 같은 값을 쓴다', () => {
+        const s = summarizeTask(tree(), 'child', TODAY);
+        expect(s.status).toBe(getTaskStatus(s.task, TODAY));
+        expect(s.status).toBe('active');
     });
 });

@@ -306,6 +306,99 @@ export const moveTaskInTree = (tasks, activeId, overId) => {
     return clonedTasks;
 };
 
+// dataModel 의 flattenTasks 는 expanded 인 가지만 내려간다(화면에 보이는 것 = 렌더 대상).
+// 접힌 가지까지 전부 필요한 계산(의존성 탐색 등)에는 이쪽을 쓴다.
+// server/lib/taskTree.js 의 flattenAll 과 같은 역할이다.
+export const flattenAll = (items, level = 0) => {
+    const result = [];
+    (items || []).forEach(item => {
+        result.push({ ...item, level });
+        if (item.children && item.children.length > 0) {
+            result.push(...flattenAll(item.children, level + 1));
+        }
+    });
+    return result;
+};
+
+// 의존성이 걸릴 수 있는 모든 엔티티(작업 + 마일스톤 + 기간)를 한 배열로 모은다.
+// 작업은 원본 그대로, 마일스톤·기간은 표시용 name 과 소유 작업 parentId 를 얹는다.
+export const collectEntities = (flatList) => {
+    const milestones = flatList.flatMap(t =>
+        (t.milestones || []).map(m => ({ ...m, type: 'milestone', parentId: t.id, name: m.label || 'Milestone' })));
+    const ranges = flatList.flatMap(t =>
+        (t.timeRanges || []).map((r, i) => ({
+            ...r,
+            type: 'range',
+            parentId: t.id,
+            name: r.label || `${t.name} (Period ${i + 1})`,
+        })));
+    return [...flatList, ...milestones, ...ranges];
+};
+
+// 'YYYY-MM-DD' 두 날짜의 차이(b - a, 일수). UTC 로 파싱한다 — addDaysToDateStr 와 같은 이유.
+const diffDays = (a, b) => {
+    const ta = Date.parse(`${a}T00:00:00Z`);
+    const tb = Date.parse(`${b}T00:00:00Z`);
+    if (isNaN(ta) || isNaN(tb)) return null;
+    return Math.round((tb - ta) / 86_400_000);
+};
+
+// 인스펙터 패널이 보여 줄 파생 정보를 한 번에 계산한다.
+// 화면이 아니라 여기서 계산하는 이유: 상태·일수·롤업·의존성은 전부 순수 계산이고,
+// 컴포넌트에 흩어 놓으면 테스트할 수 없다.
+// 반환 null = 해당 작업이 트리에 없음(선택이 남아 있는데 작업이 지워진 경우).
+export const summarizeTask = (tasks, taskId, todayStr) => {
+    if (!taskId) return null;
+    const flat = flattenAll(tasks);
+    const task = flat.find(t => t.id === taskId);
+    if (!task) return null;
+
+    const { startDate, endDate } = recalcTaskBoundsSafe(task.timeRanges);
+    const ranges = [...(task.timeRanges || [])].sort((a, b) => String(a.startDate).localeCompare(String(b.startDate)));
+    const milestones = [...(task.milestones || [])].sort((a, b) => String(a.date).localeCompare(String(b.date)));
+
+    // 하위 진행률 롤업. 자신은 빼고 자손 전체의 평균이다 — 부모의 progress 는 사용자가
+    // 직접 넣는 값이라, 자손 평균과 어긋나 있다는 사실 자체가 봐야 할 정보다.
+    const descendants = flattenAll(task.children || []);
+    const rollupProgress = descendants.length > 0
+        ? Math.round(descendants.reduce((sum, d) => sum + (d.progress ?? 0), 0) / descendants.length)
+        : null;
+
+    // 이 작업이 소유한 ID 전부(작업 자신 + 기간 + 마일스톤) 기준으로 앞뒤를 찾는다.
+    // 의존성은 기간·마일스톤 단위로도 걸리므로 작업 ID 만 보면 절반을 놓친다.
+    const ownIds = new Set([task.id, ...ranges.map(r => r.id), ...milestones.map(m => m.id)]);
+    const ownDeps = new Set([
+        ...(task.dependencies || []),
+        ...ranges.flatMap(r => r.dependencies || []),
+        ...milestones.flatMap(m => m.dependencies || []),
+    ]);
+    const entities = collectEntities(flat);
+    const predecessors = entities.filter(e => ownDeps.has(e.id) && !ownIds.has(e.id));
+    const successors = entities.filter(e =>
+        !ownIds.has(e.id) && (e.dependencies || []).some(d => ownIds.has(d)));
+
+    const parent = findTaskAndParent(tasks, taskId)?.parent || null;
+
+    return {
+        task,
+        parentName: parent?.name || null,
+        status: getTaskStatus(task, todayStr),
+        startDate,
+        endDate,
+        // 시작·종료 양끝을 포함한 일수 (하루짜리 기간 = 1일)
+        durationDays: startDate && endDate ? diffDays(startDate, endDate) + 1 : null,
+        // 오늘부터 종료일까지 남은 일수. 음수면 그만큼 지났다는 뜻이다.
+        daysToEnd: endDate ? diffDays(todayStr, endDate) : null,
+        ranges,
+        milestones,
+        childCount: (task.children || []).length,
+        descendantCount: descendants.length,
+        rollupProgress,
+        predecessors,
+        successors,
+    };
+};
+
 // 평탄화된 작업 목록에서 특정 ID(작업/기간/마일스톤)의 소유자 탐색
 // 반환: { task, kind: 'task' | 'range' | 'milestone' } 또는 null
 export const findOwnerOfEntity = (flatList, entityId) => {

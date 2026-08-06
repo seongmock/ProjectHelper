@@ -7,7 +7,7 @@
 //   - 파일 입출력     → hooks/useImportExport
 import { useEffect, useCallback, useRef, useMemo } from 'react';
 import { getSampleData, generateId, flattenTasks } from './utils/dataModel';
-import { recalcTaskBounds, findOwnerOfEntity } from './utils/taskTree';
+import { recalcTaskBounds, findOwnerOfEntity, collectEntities } from './utils/taskTree';
 import { useUndoRedo } from './shared/hooks/useUndoRedo';
 import { useToast } from './shared/hooks/useToast';
 import { useProjectSync } from './features/projects/useProjectSync';
@@ -25,6 +25,7 @@ import PromptGuideModal from './features/io/PromptGuideModal';
 import ImportExportModal from './features/io/ImportExportModal';
 import SaveLoadModal from './features/io/SaveLoadModal';
 import MilestoneQuickAdd from './features/timeline/MilestoneQuickAdd';
+import InspectorPanel from './features/tasks/InspectorPanel';
 import ToastContainer from './shared/ui/Toast';
 import './themes/themes.css';
 import './App.css';
@@ -47,6 +48,7 @@ function App() {
     const showBarDates = useSettingsStore(s => s.showBarDates);
     const chartTheme = useSettingsStore(s => s.chartTheme);
     const colorMode = useSettingsStore(s => s.colorMode);
+    const showInspector = useSettingsStore(s => s.showInspector);
     const darkMode = useSettingsStore(s => s.darkMode);
     const setSetting = useSettingsStore(s => s.setSetting);
     const toggleSetting = useSettingsStore(s => s.toggleSetting);
@@ -266,6 +268,8 @@ function App() {
                 onThemeChange={(v) => setSetting({ chartTheme: v })}
                 colorMode={colorMode}
                 onColorModeChange={(v) => setSetting({ colorMode: v })}
+                showInspector={showInspector}
+                onToggleInspector={() => toggleSetting('showInspector')}
             />
 
             <div className="main-content">
@@ -325,6 +329,18 @@ function App() {
                                 darkMode={darkMode}
                             />
                         )}
+
+                        {/* 인스펙터는 검색 필터가 아니라 전체 트리를 본다 —
+                            의존성 상대가 필터에 걸려 없어지면 앞뒤 관계가 잘못 보인다 */}
+                        {showInspector && (
+                            <InspectorPanel
+                                tasks={tasks}
+                                selectedTaskId={selectedTaskId}
+                                onUpdateTask={actions.updateTask}
+                                onSelectTask={setSelectedTaskId}
+                                onClose={() => toggleSetting('showInspector')}
+                            />
+                        )}
                     </>
                 )}
             </div>
@@ -336,14 +352,7 @@ function App() {
                 if (!targetTask) return null;
 
                 // 의존성 선택지가 될 모든 엔티티 (작업 + 마일스톤 + 타임레인지)
-                const allMilestones = flatList.flatMap(t => (t.milestones || []).map(m => ({ ...m, type: 'milestone', parentId: t.id, name: m.label || 'Milestone' })));
-                const allRanges = flatList.flatMap(t => (t.timeRanges || []).map((r, i) => ({
-                    ...r,
-                    type: 'range',
-                    parentId: t.id,
-                    name: r.label || `${t.name} (Period ${i + 1})`
-                })));
-                const allEntities = [...flatList, ...allMilestones, ...allRanges];
+                const allEntities = collectEntities(flatList);
 
                 let targetDependencies = targetTask.dependencies || [];
                 let targetId = targetTask.id;

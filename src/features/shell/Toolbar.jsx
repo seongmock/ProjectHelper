@@ -1,5 +1,5 @@
 import {
-    Table2, Columns2, ChartGantt, ZoomIn, ZoomOut, Camera, Code2, Search, Plus,
+    Table2, Columns2, ChartGantt, ZoomIn, ZoomOut, Camera, Code2, Search, Plus, PanelRight,
 } from 'lucide-react';
 import DisplayOptionsMenu from './DisplayOptionsMenu';
 import './Toolbar.css';
@@ -39,6 +39,9 @@ function Toolbar({
     onThemeChange,
     colorMode,
     onColorModeChange,
+
+    showInspector,
+    onToggleInspector,
 }) {
     const isTimeline = viewMode === 'timeline' || viewMode === 'split';
 
@@ -141,6 +144,17 @@ function Toolbar({
                 </div>
 
                 <div className="toolbar-right flex items-center gap-md">
+                    {/* 표시 옵션 안이 아니라 상시 버튼이다 — 선택한 작업을 어디서 보는지가
+                        메뉴 안에 숨으면 패널의 존재를 알 방법이 없다 */}
+                    <button
+                        className={`icon-btn icon-only ${showInspector ? 'active' : ''}`}
+                        onClick={onToggleInspector}
+                        title="인스펙터 패널"
+                        aria-pressed={showInspector}
+                    >
+                        <PanelRight size={15} aria-hidden="true" />
+                    </button>
+
                     <div className="search-box">
                         <Search className="search-box-icon" size={15} aria-hidden="true" />
                         <input

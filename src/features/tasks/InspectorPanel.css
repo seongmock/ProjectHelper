@@ -1,0 +1,224 @@
+/* 인스펙터 패널 — .main-content 의 flex 자식으로 오른쪽에 고정 폭으로 붙는다.
+   .main-content > * 에 overflow:auto 가 이미 걸려 있어 내용이 길면 이 패널만 스크롤된다. */
+.inspector-panel {
+    flex: 0 0 300px;
+    display: flex;
+    flex-direction: column;
+    border-left: 1px solid var(--color-border);
+    background: var(--color-bg-primary);
+    font-size: 13px;
+}
+
+.inspector-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--color-border);
+    position: sticky;
+    top: 0;
+    background: var(--color-bg-primary);
+    z-index: 1;
+}
+
+.inspector-title {
+    font-weight: 600;
+    color: var(--color-text-primary);
+}
+
+.inspector-close {
+    display: flex;
+    align-items: center;
+    padding: 4px;
+    border: none;
+    background: none;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    border-radius: 4px;
+}
+
+.inspector-close:hover {
+    background: var(--color-bg-secondary);
+    color: var(--color-text-primary);
+}
+
+.inspector-empty {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 24px 16px;
+    color: var(--color-text-muted);
+    text-align: center;
+    line-height: 1.6;
+}
+
+.inspector-hint {
+    font-size: 12px;
+}
+
+.inspector-section {
+    padding: 12px;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.inspector-section:last-child {
+    border-bottom: none;
+}
+
+.inspector-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--color-text-secondary);
+    margin-bottom: 6px;
+}
+
+.inspector-name {
+    width: 100%;
+    padding: 6px 8px;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--color-text-primary);
+    font-size: 15px;
+    font-weight: 600;
+}
+
+.inspector-name:hover {
+    border-color: var(--color-border);
+}
+
+.inspector-name:focus {
+    border-color: var(--color-primary);
+    background: var(--color-bg-primary);
+    outline: none;
+}
+
+.inspector-parent {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin: 4px 0 8px 8px;
+    color: var(--color-text-muted);
+    font-size: 12px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* 색만으로 상태를 말하지 않는다 — 라벨 텍스트가 본체고 색은 보조다 */
+.inspector-status {
+    display: inline-block;
+    margin-left: 8px;
+    padding: 2px 8px;
+    border: 1px solid var(--status-color);
+    border-radius: 10px;
+    color: var(--status-color);
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.inspector-facts {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 6px 10px;
+    margin: 0;
+}
+
+.inspector-facts dt {
+    color: var(--color-text-muted);
+    font-size: 12px;
+}
+
+.inspector-facts dd {
+    margin: 0;
+    color: var(--color-text-primary);
+    word-break: break-word;
+}
+
+.inspector-facts dd.is-late {
+    color: var(--color-danger);
+    font-weight: 600;
+}
+
+.inspector-section input[type="range"] {
+    width: 100%;
+    accent-color: var(--color-primary);
+}
+
+.inspector-rollup {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 4px;
+    color: var(--color-text-muted);
+    font-size: 12px;
+}
+
+.inspector-description {
+    width: 100%;
+    min-height: 64px;
+    padding: 6px 8px;
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    background: var(--color-bg-secondary);
+    color: var(--color-text-primary);
+    font-family: inherit;
+    font-size: 13px;
+    resize: vertical;
+}
+
+.inspector-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.inspector-list li {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    color: var(--color-text-secondary);
+}
+
+.inspector-list-name,
+.inspector-link {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-align: left;
+}
+
+.inspector-link {
+    padding: 0;
+    border: none;
+    background: none;
+    color: var(--color-text-primary);
+    font-size: 13px;
+    cursor: pointer;
+}
+
+.inspector-link:hover {
+    color: var(--color-primary);
+    text-decoration: underline;
+}
+
+.inspector-list-meta {
+    flex-shrink: 0;
+    color: var(--color-text-muted);
+    font-size: 11px;
+}
+
+/* 좁은 화면에서는 .main-content 가 세로로 쌓이므로 폭 고정을 푼다 */
+@media (max-width: 768px) {
+    .inspector-panel {
+        flex: 0 0 auto;
+        border-left: none;
+        border-top: 1px solid var(--color-border);
+    }
+}

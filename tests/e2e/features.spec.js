@@ -219,3 +219,45 @@ test.describe('툴바 레이아웃', () => {
         await expect(page.locator('.task-name-item', { hasText: '새 작업' })).toBeVisible();
     });
 });
+
+test.describe('인스펙터 패널', () => {
+    // 실사 §5.4-12 / P3-5. 그전까지 작업 편집은 전부 우클릭 팝오버여서, 존재를 모르면
+    // 열 수 없고 선택과 연결돼 있지도 않았다.
+    test('선택을 따라가며 요약을 보여 주고 거기서 편집한다', async ({ page }) => {
+        await page.getByTitle('표 뷰').click();
+
+        const panel = page.locator('.inspector-panel');
+        await expect(panel).toHaveCount(0);
+
+        await page.getByTitle('인스펙터 패널').click();
+        await expect(panel).toBeVisible();
+        await expect(panel).toContainText('작업을 선택하면');
+
+        // 키보드 선택을 그대로 따라간다
+        await page.keyboard.press('ArrowDown');
+        await page.keyboard.press('ArrowDown');
+        await expect(page.getByTestId('inspector-name')).toHaveValue('요구사항 분석');
+        await expect(page.getByTestId('inspector-dates')).toHaveText('2026-01-06 ~ 2026-01-20');
+        await expect(page.getByTestId('inspector-status')).toHaveText('지연');
+
+        // 진행률 편집 → 표에 즉시 반영
+        await page.getByTestId('inspector-progress').fill('60');
+        await expect(page.locator('.task-row', { hasText: '요구사항 분석' }).first()
+            .locator('.progress-badge')).toHaveText('60%');
+
+        // 이름은 Enter/blur 에 커밋된다 — 글자마다 커밋하면 undo 히스토리가 타이핑으로 찬다
+        const nameField = page.getByTestId('inspector-name');
+        await nameField.fill('요구사항 재정의');
+        await expect(page.locator('.task-row', { hasText: '요구사항 분석' })).toHaveCount(1);
+        await nameField.press('Enter');
+        await expect(page.locator('.task-row', { hasText: '요구사항 재정의' })).toHaveCount(1);
+
+        // 그래서 되돌리기 한 번이면 이름 편집 전체가 복원된다
+        await page.keyboard.press('Control+z');
+        await expect(page.locator('.task-row', { hasText: '요구사항 분석' })).toHaveCount(1);
+
+        // 설정은 전역(프로젝트 스코프 밖)이라 되돌리지 않으면 다른 테스트로 샌다
+        await page.getByTitle('인스펙터 패널').click();
+        await expect(panel).toHaveCount(0);
+    });
+});
