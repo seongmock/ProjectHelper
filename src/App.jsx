@@ -12,6 +12,7 @@ import { useUndoRedo } from './shared/hooks/useUndoRedo';
 import { useToast } from './shared/hooks/useToast';
 import { useProjectSync } from './features/projects/useProjectSync';
 import { useTaskActions } from './features/tasks/useTaskActions';
+import { useTaskKeyboard } from './features/tasks/useTaskKeyboard';
 import { useImportExport } from './features/io/useImportExport';
 import { useSettingsStore } from './stores/settingsStore';
 import { useUiStore } from './stores/uiStore';
@@ -202,6 +203,16 @@ function App() {
 
         return filterTasks(tasks);
     }, [tasks, searchQuery]);
+
+    // 선택 작업 대상 단축키(↑↓ 선택 이동, [ ] 일정 이동). 검색으로 걸러진 뒤의
+    // 목록을 넘긴다 — 화면에 없는 작업으로 선택이 튀면 안 된다.
+    useTaskKeyboard({
+        tasks: filteredTasks,
+        selectedTaskId,
+        onSelect: setSelectedTaskId,
+        onUpdateTask: actions.updateTask,
+        toast,
+    });
 
     return (
         <div className="app">

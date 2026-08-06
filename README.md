@@ -95,7 +95,7 @@ VITE_API_TARGET=http://localhost:3100 npm run dev  # 프론트엔드
 npm run lint         # ESLint
 npm run test:unit    # 단위 테스트 (도메인 순수함수 + XSS 회귀)
 npm run test:server  # 서버 테스트 (검증 로직 + 저장소 내구성)
-npm run test:e2e     # Playwright E2E 32건 (API·dev 서버 자동 기동)
+npm run test:e2e     # Playwright E2E 34건 (API·dev 서버 자동 기동)
 npm run verify       # 위 전부 + 빌드
 ```
 
@@ -112,7 +112,7 @@ npm run build
 - **Express** (`server/`) - JSON 파일 영속화 + REST API
 - **localStorage** - 오프라인 캐시 (서버 장애 시 폴백)
 - **Caddy** - HTTPS 리버스 프록시 + Basic 인증
-- **Playwright / Vitest / node:test** - E2E 32건 + 단위 220건(unit 123 + server 97)
+- **Playwright / Vitest / node:test** - E2E 34건 + 단위 228건(unit 131 + server 97)
 
 ## 📖 사용법
 
@@ -128,6 +128,10 @@ npm run build
 - `Ctrl+Y` - 다시 실행
 - `Ctrl+S` - JSON 내보내기
 - `Ctrl+N` - 새 작업 추가
+- `↑` / `↓` - 작업 선택 이동 (선택이 없으면 첫/마지막 작업)
+- `[` / `]` - 선택한 작업의 일정을 하루 앞/뒤로
+- `Shift+[` / `Shift+]` - 일주일 단위로 이동
+- `Alt+[` / `Alt+]` - 종료일만 조정 (기간 줄이기/늘리기)
 
 
 ## 📝 라이선스

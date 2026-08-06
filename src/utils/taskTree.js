@@ -193,6 +193,38 @@ export const getTaskStatus = (task, todayStr) => {
     return 'active';
 };
 
+// 'YYYY-MM-DD' 에 일수를 더한다. UTC 로 파싱해 UTC 로 더한다 —
+// setDate(로컬)와 toISOString(UTC)을 섞으면 음수 오프셋 지역에서 하루가 밀린다.
+// 날짜가 아니면 원본을 그대로 돌려준다(호출부가 "변화 없음"으로 판별한다).
+const addDaysToDateStr = (dateStr, days) => {
+    const d = new Date(`${dateStr}T00:00:00Z`);
+    if (isNaN(d.getTime())) return dateStr;
+    d.setUTCDate(d.getUTCDate() + days);
+    return d.toISOString().split('T')[0];
+};
+
+// 키보드 일정 편집. 실사 §5.3 "타임라인 바는 마우스 드래그 전용 → 키보드로 일정 변경 불가".
+//   mode 'move'   — 모든 기간을 통째로 days 만큼 이동
+//   mode 'resize' — 종료일만 days 만큼 (기간 늘이기/줄이기). 하루 미만으로는 줄지 않는다.
+// 반환은 updateTask 에 그대로 넘길 수 있는 patch. **바뀔 것이 없으면 null** 이다 —
+// 날짜 없는 작업에 히스토리 항목만 쌓는 것을 호출부가 막을 수 있어야 한다.
+export const shiftTaskDates = (task, days, mode = 'move') => {
+    const ranges = task?.timeRanges || [];
+    if (ranges.length === 0 || days === 0) return null;
+
+    let changed = false;
+    const timeRanges = ranges.map(r => {
+        const startDate = mode === 'move' ? addDaysToDateStr(r.startDate, days) : r.startDate;
+        let endDate = addDaysToDateStr(r.endDate, days);
+        if (mode === 'resize' && endDate < startDate) endDate = startDate;
+        if (startDate === r.startDate && endDate === r.endDate) return r;
+        changed = true;
+        return { ...r, startDate, endDate };
+    });
+
+    return changed ? { timeRanges, ...recalcTaskBoundsSafe(timeRanges) } : null;
+};
+
 // 드래그 앤 드롭 재배치 — activeId 를 overId 위치로 옮긴 새 트리를 반환한다.
 // 이동할 수 없는 경우(자기 자신, 존재하지 않음, 자기 서브트리로의 이동)에는
 // **원본 참조를 그대로** 반환한다 (호출부가 `next === prev` 로 무변경을 판별한다).

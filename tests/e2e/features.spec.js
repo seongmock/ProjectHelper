@@ -152,6 +152,51 @@ test.describe('상태 색상 모드', () => {
     });
 });
 
+test.describe('키보드 일정 편집', () => {
+    // 실사 §5.3: 바가 마우스 드래그 전용이라 키보드만으로는 일정을 바꿀 수 없었다.
+    test('↑↓ 로 선택하고 [ ] 로 일정을 옮긴다', async ({ page }) => {
+        await page.getByTitle('표 뷰').click();
+
+        // 마우스 없이 진입 — 선택이 없을 때 ↓ 는 첫 작업을 잡는다
+        await page.keyboard.press('ArrowDown');
+        await expect(page.locator('.task-row.selected')).toContainText('프로젝트 기획');
+        await page.keyboard.press('ArrowDown');
+        const selected = page.locator('.task-row.selected');
+        await expect(selected).toContainText('요구사항 분석');
+
+        const startInput = selected.locator('input[type="date"]').first();
+        await expect(startInput).toHaveValue('2026-01-06');
+
+        await page.keyboard.press(']');
+        await expect(startInput).toHaveValue('2026-01-07');
+
+        // Shift 는 일주일 단위 — 연 경계를 넘는 계산까지 확인한다
+        await page.keyboard.press('Shift+BracketLeft');
+        await expect(startInput).toHaveValue('2025-12-31');
+
+        // 되돌릴 수 있어야 한다 (한 번에 한 단계씩 히스토리에 남는다)
+        await page.keyboard.press('Control+z');
+        await expect(startInput).toHaveValue('2026-01-07');
+    });
+
+    test('Alt+[ ] 는 종료일만 조정한다', async ({ page }) => {
+        await page.getByTitle('표 뷰').click();
+        await page.keyboard.press('ArrowDown');
+        await page.keyboard.press('ArrowDown');
+
+        const selected = page.locator('.task-row.selected');
+        const [startInput, endInput] = [
+            selected.locator('input[type="date"]').first(),
+            selected.locator('input[type="date"]').nth(1),
+        ];
+        await expect(endInput).toHaveValue('2026-01-20');
+
+        await page.keyboard.press('Alt+BracketRight');
+        await expect(endInput).toHaveValue('2026-01-21');
+        await expect(startInput).toHaveValue('2026-01-06');
+    });
+});
+
 test.describe('툴바 레이아웃', () => {
     // P1-7 "우상단 클리핑". 툴바가 flex 한 줄인데 가로 스크롤이 없어서, 좁은 화면에서
     // 오른쪽 그룹(검색 · 작업 추가)이 잘려 나가고 접근 자체가 불가능했다.

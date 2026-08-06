@@ -18,6 +18,7 @@ import {
     recalcTaskBoundsSafe,
     isTaskOverdue,
     getTaskStatus,
+    shiftTaskDates,
     findOwnerOfEntity,
     moveTaskInTree,
 } from '../../src/utils/taskTree.js';
@@ -296,6 +297,60 @@ describe('getTaskStatus', () => {
 
     it('기간이 없으면 none — 칠할 바가 없다', () => {
         expect(getTaskStatus(node('t'), today)).toBe('none');
+    });
+});
+
+describe('shiftTaskDates', () => {
+    const withRanges = (...pairs) => node('t', {
+        timeRanges: pairs.map(([startDate, endDate], i) => ({ id: `r${i}`, startDate, endDate })),
+    });
+
+    it('모든 기간을 통째로 옮기고 상위 경계를 다시 계산한다', () => {
+        const patch = shiftTaskDates(withRanges(['2026-03-01', '2026-03-10'], ['2026-04-01', '2026-04-05']), 1);
+        expect(patch.timeRanges.map(r => [r.startDate, r.endDate])).toEqual([
+            ['2026-03-02', '2026-03-11'],
+            ['2026-04-02', '2026-04-06'],
+        ]);
+        expect(patch).toMatchObject({ startDate: '2026-03-02', endDate: '2026-04-06' });
+    });
+
+    it('음수면 앞당긴다 — 월 경계를 넘어도 정확하다', () => {
+        const patch = shiftTaskDates(withRanges(['2026-03-01', '2026-03-10']), -1);
+        expect(patch.timeRanges[0]).toMatchObject({ startDate: '2026-02-28', endDate: '2026-03-09' });
+    });
+
+    it('윤년 2/29 를 건너뛰지 않는다', () => {
+        const patch = shiftTaskDates(withRanges(['2028-02-28', '2028-02-28']), 1);
+        expect(patch.timeRanges[0].startDate).toBe('2028-02-29');
+    });
+
+    it('resize 는 종료일만 움직인다', () => {
+        const patch = shiftTaskDates(withRanges(['2026-03-01', '2026-03-10']), 3, 'resize');
+        expect(patch.timeRanges[0]).toMatchObject({ startDate: '2026-03-01', endDate: '2026-03-13' });
+    });
+
+    it('resize 로 하루 미만이 되지는 않는다', () => {
+        const patch = shiftTaskDates(withRanges(['2026-03-01', '2026-03-01']), -1, 'resize');
+        expect(patch).toBeNull(); // 이미 최소 길이 — 바뀔 것이 없다
+    });
+
+    it('기간이 없거나 0일 이동이면 null (히스토리를 더럽히지 않는다)', () => {
+        expect(shiftTaskDates(node('t'), 1)).toBeNull();
+        expect(shiftTaskDates(withRanges(['2026-03-01', '2026-03-10']), 0)).toBeNull();
+    });
+
+    it('원본 작업을 변경하지 않는다 (불변성)', () => {
+        const task = withRanges(['2026-03-01', '2026-03-10']);
+        const snapshot = structuredClone(task);
+        shiftTaskDates(task, 7);
+        expect(task).toEqual(snapshot);
+    });
+
+    it('기간의 다른 필드(색·의존성)는 보존한다', () => {
+        const task = node('t', {
+            timeRanges: [{ id: 'r1', startDate: '2026-03-01', endDate: '2026-03-10', color: '#abc', dependencies: ['x'] }],
+        });
+        expect(shiftTaskDates(task, 1).timeRanges[0]).toMatchObject({ id: 'r1', color: '#abc', dependencies: ['x'] });
     });
 });
 
