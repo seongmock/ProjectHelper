@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { IndentDecrease, IndentIncrease, Plus, Trash2, Flag, TriangleAlert } from 'lucide-react';
-import { generateId, formatDate } from '../utils/dataModel';
-import { recalcTaskBoundsSafe, isTaskOverdue } from '../utils/taskTree';
-import ColorPicker from './ColorPicker';
-import Modal from './Modal';
+import { generateId, formatDate } from '../../utils/dataModel';
+import { recalcTaskBoundsSafe, isTaskOverdue } from '../../utils/taskTree';
+import ColorPicker from '../../shared/ui/ColorPicker';
+import Modal from '../../shared/ui/Modal';
 import './TaskRow.css';
 
 function TaskRow({

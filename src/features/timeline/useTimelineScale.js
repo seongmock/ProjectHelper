@@ -1,7 +1,7 @@
 // 타임라인의 가로 축 — 컨테이너 실측 폭 → 줌 반영 폭 → 날짜 범위 → 오늘 마커 위치.
 // 계산은 utils/timelineGeometry.js 의 순수 함수가 하고, 여기서는 DOM 측정과 캐싱만 한다.
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { computeDateRange, computeTodayPosition } from '../utils/timelineGeometry';
+import { computeDateRange, computeTodayPosition } from './timelineGeometry';
 
 export function useTimelineScale({ tasks, timeScale, showToday, zoomLevel, showTaskNames }) {
     const timelineScrollRef = useRef(null);

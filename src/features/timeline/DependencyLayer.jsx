@@ -1,7 +1,7 @@
 // 의존성 화살표 SVG 레이어. 좌표 계산은 utils/timelineGeometry.js 가 한다.
 import React from 'react';
-import { dateUtils } from '../utils/dateUtils';
-import { itemAnchor, dependencyPath } from '../utils/timelineGeometry';
+import { dateUtils } from '../../utils/dateUtils';
+import { itemAnchor, dependencyPath } from './timelineGeometry';
 
 // 의존성이 걸린 (선행, 후행) 쌍을 모은다 — 기간 단위와 마일스톤 단위 둘 다.
 // 작업 단위 의존성(task.dependencies)은 레거시라 선행으로만 등장한다.

@@ -1,8 +1,8 @@
 import { useCallback, useState } from 'react';
 import { Wand2, ArrowUp, ArrowDown, ArrowRight } from 'lucide-react';
-import { usePopover } from '../hooks/usePopover';
+import { usePopover } from '../../shared/hooks/usePopover';
 import './MilestoneEditPopover.css';
-import ColorPicker from './ColorPicker';
+import ColorPicker from '../../shared/ui/ColorPicker';
 
 function MilestoneEditPopover({ position, milestone, predecessors = [], successors = [], onClose, onUpdate, onDelete, onStartLinking, onRemoveDependency }) {
     const [labelText, setLabelText] = useState(milestone.label || '');

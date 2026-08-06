@@ -18,7 +18,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import TaskRow from './TaskRow';
-import { flattenTasks } from '../utils/dataModel';
+import { flattenTasks } from '../../utils/dataModel';
 import './TableView.css';
 
 // Sortable Wrapper for TaskRow

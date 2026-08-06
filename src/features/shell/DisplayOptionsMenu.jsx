@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import {
     SlidersHorizontal, Check, Text, Tag, CalendarDays, CalendarClock, Rows3, Magnet,
 } from 'lucide-react';
-import { THEMES } from '../themes/index.js';
+import { THEMES } from '../../themes/index.js';
 import './DisplayOptionsMenu.css';
 
 // CSS 의 min-width 와 맞춘다 — 오른쪽 화면 밖으로 나가지 않게 클램프할 때 쓴다

@@ -4,7 +4,7 @@
 // 이스케이프가 빠지면 self-XSS 가 아니라 문서를 열어보는 모든 사람에게 실행되는
 // 저장형 XSS 가 된다. 실사(2026-08-05) 시점에 6개 지점이 무방비였다.
 import { describe, it, expect } from 'vitest';
-import { exportToHtml } from '../../src/utils/htmlExporter.js';
+import { exportToHtml } from '../../src/features/io/htmlExporter.js';
 
 const XSS = '<img src=x onerror=alert(1)>';
 const BREAKOUT = '</script><script>alert(1)</script>';

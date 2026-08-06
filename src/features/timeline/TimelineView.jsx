@@ -23,18 +23,18 @@ import {
     useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { dateUtils } from '../utils/dateUtils';
+import { dateUtils } from '../../utils/dateUtils';
 import TimelineHeader from './TimelineHeader';
 import TimelineBar from './TimelineBar';
 import MilestoneEditPopover from './MilestoneEditPopover';
 import DependencyLayer from './DependencyLayer';
-import { flattenTasks } from '../utils/dataModel';
-import { buildItemMap } from '../utils/timelineGeometry';
-import { useTimelineScale } from '../hooks/useTimelineScale';
-import { useBarDrag } from '../hooks/useBarDrag';
-import { useDependencyLink } from '../hooks/useDependencyLink';
-import { useSidebarResize } from '../hooks/useSidebarResize';
-import { useTimelineCapture } from '../hooks/useTimelineCapture';
+import { flattenTasks } from '../../utils/dataModel';
+import { buildItemMap } from './timelineGeometry';
+import { useTimelineScale } from './useTimelineScale';
+import { useBarDrag } from './useBarDrag';
+import { useDependencyLink } from './useDependencyLink';
+import { useSidebarResize } from './useSidebarResize';
+import { useTimelineCapture } from './useTimelineCapture';
 import './TimelineView.css';
 
 // 작업명 한 줄 — dnd-kit 정렬 대상

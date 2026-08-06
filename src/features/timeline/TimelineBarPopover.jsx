@@ -1,7 +1,7 @@
-import { recalcTaskBoundsSafe } from '../utils/taskTree';
-import { usePopover } from '../hooks/usePopover';
+import { recalcTaskBoundsSafe } from '../../utils/taskTree';
+import { usePopover } from '../../shared/hooks/usePopover';
 import './TimelineBarPopover.css';
-import ColorPicker from './ColorPicker';
+import ColorPicker from '../../shared/ui/ColorPicker';
 
 function TimelineBarPopover({ position, task, clickedDate, clickedRangeId, successors = [], predecessors = [], onClose, onUpdate, onDelete, onAddMilestone, onStartLinking, onAddTimeRange, onRemoveDependency }) {
     const { popoverRef, adjustedPos } = usePopover(position, onClose);

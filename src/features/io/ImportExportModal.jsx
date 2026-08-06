@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Upload, Download, FolderOpen, ClipboardList } from 'lucide-react';
-import Modal from './Modal';
+import Modal from '../../shared/ui/Modal';
 import './ImportExportModal.css';
 
 function ImportExportModal({ isOpen, onClose, mode, onImport, onExport, currentData, toast }) {

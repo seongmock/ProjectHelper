@@ -13,8 +13,8 @@
 //     재작성해야 한다 — 그 경로에는 테스트가 없어 회귀를 감지할 수단이 없다
 // 얻으려던 것(App.jsx 축소, 동기화 로직 격리)은 이 훅으로 충분히 달성된다.
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { storage } from '../utils/storage';
-import { migrateTaskData } from '../utils/dataModel';
+import { storage } from '../../utils/storage';
+import { migrateTaskData } from '../../utils/dataModel';
 
 const ACTIVE_PROJECT_KEY = 'project-timeline-active-project';
 const AUTOSAVE_DEBOUNCE_MS = 1500; // 키 입력/드래그마다 서버 요청을 보내지 않기 위함

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Bot } from 'lucide-react';
-import Modal from './Modal';
+import Modal from '../../shared/ui/Modal';
 import './PromptGuideModal.css';
 
 const SYSTEM_PROMPT = `**역할 (Role)**:

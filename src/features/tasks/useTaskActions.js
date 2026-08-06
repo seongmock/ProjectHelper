@@ -3,7 +3,7 @@
 // 전부 taskTree.js 의 순수함수를 감싸는 얇은 래퍼다 — 로직은 여기 두지 않는다.
 // undo 히스토리에 남길 것은 setTasks, 남기지 않을 것(드래그 중 임시 상태)은 setTasksSilent.
 import { useCallback, useMemo } from 'react';
-import { createNewTask, generateId } from '../utils/dataModel';
+import { createNewTask, generateId } from '../../utils/dataModel';
 import {
     updateTaskInTree,
     deleteFromTree,
@@ -12,7 +12,7 @@ import {
     outdentTask,
     moveTaskInTree,
     findTaskAndParent,
-} from '../utils/taskTree';
+} from '../../utils/taskTree';
 
 export function useTaskActions({ setTasks, setTasksSilent, onSelect }) {
     const addTask = useCallback((parentId = null) => {

@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
-import { dateUtils } from '../utils/dateUtils';
-import Modal from './Modal';
+import { dateUtils } from '../../utils/dateUtils';
+import Modal from '../../shared/ui/Modal';
 import './MilestoneQuickAdd.css';
-import ColorPicker from './ColorPicker';
+import ColorPicker from '../../shared/ui/ColorPicker';
 
 function MilestoneQuickAdd({ task, date, onClose, onAdd }) {
     const [label, setLabel] = useState('새 마일스톤');

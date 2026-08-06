@@ -10,7 +10,7 @@ import {
     buildItemMap,
     itemAnchor,
     dependencyPath,
-} from '../../src/utils/timelineGeometry';
+} from '../../src/features/timeline/timelineGeometry';
 import { dateUtils } from '../../src/utils/dateUtils';
 
 const task = (over = {}) => ({

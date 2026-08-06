@@ -127,7 +127,7 @@ App.jsx (중앙 상태 관리)
 | `migrateTaskData(tasks)` | 구버전(startDate/endDate) → timeRanges 자동 변환. 로드 시 항상 호출됨 |
 | `formatDate(date)` | Date 객체 또는 문자열을 `YYYY-MM-DD`로 정규화 |
 
-### `src/hooks/useUndoRedo.js`
+### `src/shared/hooks/useUndoRedo.js`
 
 ```js
 const { state, setState, setStateSilent, undo, redo, canUndo, canRedo } = useUndoRedo(initialState);
@@ -137,7 +137,7 @@ const { state, setState, setStateSilent, undo, redo, canUndo, canRedo } = useUnd
 - **`setStateSilent(fn)`** — 히스토리에 기록하지 않는 변경 (드래그 중간 상태)
 - 히스토리 최대 20개 유지
 
-### `src/hooks/useToast.js`
+### `src/shared/hooks/useToast.js`
 
 ```js
 const { toasts, toast, removeToast } = useToast();
@@ -256,27 +256,38 @@ npm run build
 
 ## 파일 구조 요약
 
+기능별로 묶는다(feature-first). 컴포넌트·훅·그 기능에서만 쓰는 유틸을 한 폴더에 둔다.
+여러 기능이 공유하는 것만 `shared/` 로 올린다.
+
 ```
 src/
-├── App.jsx                  # 중앙 상태, 라우팅, 전체 핸들러
-├── hooks/
-│   ├── useUndoRedo.js       # Undo/Redo 상태 관리
-│   └── useToast.js          # 토스트 알림
-├── utils/
-│   ├── dataModel.js         # Task 구조 정의, 마이그레이션, 샘플 데이터
-│   ├── dateUtils.js         # 날짜 계산/스냅/포맷
-│   ├── storage.js           # localStorage CRUD, 스냅샷 관리
-│   └── htmlExporter.js      # 인터랙티브 HTML 내보내기 생성
-└── components/
-    ├── Toast.jsx / .css     # 토스트 알림 UI
-    ├── TableView.jsx / .css # 표 뷰 + @dnd-kit 정렬
-    ├── TimelineView.jsx / .css  # 간트 차트 + 드래그 날짜 조정
-    ├── TimelineBar.jsx / .css   # 개별 간트 바 (드래그 핸들)
-    ├── TimelineBarPopover.jsx   # 우클릭 컨텍스트 메뉴
-    ├── SaveLoadModal.jsx    # 스냅샷 저장/불러오기
-    ├── ImportExportModal.jsx # JSON 가져오기/내보내기
-    └── PromptGuideModal.jsx # AI 프롬프트 가이드
+├── App.jsx                  # 중앙 상태, 전체 핸들러
+├── features/
+│   ├── shell/               # Header, Toolbar, DisplayOptionsMenu (앱 껍데기)
+│   ├── table/               # TableView, TaskRow (표 뷰 + @dnd-kit 정렬)
+│   ├── timeline/            # TimelineView/Bar/Header/BarPopover, DependencyLayer,
+│   │                        #   MilestoneEditPopover/QuickAdd,
+│   │                        #   useBarDrag/useDependencyLink/useTimelineScale/
+│   │                        #   useTimelineCapture/useSidebarResize,
+│   │                        #   timelineGeometry.js, timelineMutations.js
+│   ├── tasks/               # useTaskActions (작업 CRUD 핸들러)
+│   ├── projects/            # ProjectSwitcher, useProjectSync
+│   └── io/                  # ImportExportModal, SaveLoadModal, PromptGuideModal,
+│                            #   useImportExport, htmlExporter.js
+├── shared/
+│   ├── ui/                  # Modal, Toast, Tooltip, ColorPicker, ErrorBoundary
+│   └── hooks/               # useUndoRedo, useToast, usePopover
+├── stores/                  # settingsStore, uiStore (Zustand)
+├── themes/                  # 차트 색상 테마
+└── utils/                   # 도메인 코어 — 특정 기능 소유가 아니다
+    ├── dataModel.js         # Task 구조 정의, 마이그레이션, 샘플 데이터
+    ├── taskTree.js          # 불변 트리 조작 순수함수
+    ├── dateUtils.js         # 날짜 계산/스냅/포맷
+    └── storage.js           # 서버 동기화 + localStorage 캐시, 스냅샷 관리
 ```
+
+**어디에 둘지 판단하는 규칙**: 한 기능만 쓰면 그 `features/<name>/` 안에, 두 기능 이상이
+쓰면 `shared/`, 데이터 모델·트리·날짜·저장처럼 전 계층이 쓰는 코어는 `utils/`.
 
 ---
 

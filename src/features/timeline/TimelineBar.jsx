@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
-import { dateUtils } from '../utils/dateUtils';
-import { isTaskOverdue } from '../utils/taskTree';
-import Tooltip from './Tooltip';
+import { dateUtils } from '../../utils/dateUtils';
+import { isTaskOverdue } from '../../utils/taskTree';
+import Tooltip from '../../shared/ui/Tooltip';
 import './TimelineBar.css';
 
 function TimelineBar({

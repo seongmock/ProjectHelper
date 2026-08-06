@@ -3,7 +3,7 @@
 // 복사/이동 × 같은 작업/다른 작업의 네 경우가 TimelineView.jsx 안에서는 주석으로만
 // 구분돼 있었고 도달 불가능한 분기까지 섞여 있었다. 네 경우를 전부 못 박아 둔다.
 import { describe, it, expect } from 'vitest';
-import { planRangeDrop, planMilestoneDrop } from '../../src/utils/timelineMutations';
+import { planRangeDrop, planMilestoneDrop } from '../../src/features/timeline/timelineMutations';
 
 const source = () => ({
     id: 'src',

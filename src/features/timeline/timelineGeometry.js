@@ -2,7 +2,7 @@
 //
 // TimelineView.jsx 안에 useMemo/인라인 헬퍼로 있던 것을 꺼냈다. 날짜 → 픽셀 변환은
 // 화면으로만 검증할 수 있어서 회귀가 조용히 들어오던 영역이다.
-import { dateUtils } from './dateUtils';
+import { dateUtils } from '../../utils/dateUtils';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const RANGE_PADDING_DAYS = 14;

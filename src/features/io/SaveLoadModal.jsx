@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Save, Download } from 'lucide-react';
-import { storage } from '../utils/storage';
-import Modal from './Modal';
+import { storage } from '../../utils/storage';
+import Modal from '../../shared/ui/Modal';
 
 function SaveLoadModal({ isOpen, onClose, onLoad, currentData, onExportSnapshot, toast }) {
     const [snapshots, setSnapshots] = useState([]);

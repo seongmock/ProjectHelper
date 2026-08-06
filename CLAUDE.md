@@ -155,11 +155,11 @@ See `docs/AI_INTEGRATION.md` and the `timeline-api` skill. Prefer per-task endpo
 
 `App.jsx` owns essentially all state and passes handlers down. Key pieces:
 
-- **`useUndoRedo(tasks)`** (`src/hooks/useUndoRedo.js`) holds the entire task tree with history
+- **`useUndoRedo(tasks)`** (`src/shared/hooks/useUndoRedo.js`) holds the entire task tree with history
   (max 20 entries). Use `setState(fn)` for user actions that should be undoable; use
   **`setStateSilent(fn)`** for transient states like mid-drag updates that must NOT pollute
   history.
-- **`useToast()`** (`src/hooks/useToast.js`) — always use `toast.success/error/warn/info`
+- **`useToast()`** (`src/shared/hooks/useToast.js`) — always use `toast.success/error/warn/info`
   instead of `alert()`.
 - View mode is `'table' | 'timeline' | 'split'`; ~10 UI settings (timeScale, zoomLevel,
   darkMode, etc.) are each their own `useState`, initialized synchronously from the
@@ -185,6 +185,13 @@ Dependencies now live at the range level.
 
 ### Component conventions
 
+- **Source layout is feature-first** (`src/features/<name>/`): `shell` (Header/Toolbar/
+  DisplayOptionsMenu), `table`, `timeline`, `tasks`, `projects`, `io`. A feature folder holds
+  its components, its hooks, and any util used *only* by it (e.g. `timelineGeometry.js`,
+  `htmlExporter.js`). Cross-feature pieces live in `src/shared/ui/` (Modal, Toast, Tooltip,
+  ColorPicker, ErrorBoundary) and `src/shared/hooks/` (useUndoRedo, useToast, usePopover).
+  `src/utils/` keeps only the domain core every layer uses — `dataModel`, `taskTree`,
+  `dateUtils`, `storage`. There is no `src/components/` or top-level `src/hooks/` anymore.
 - Each component is a `Foo.jsx` + `Foo.css` pair. **Vanilla CSS only** — no CSS-in-JS, no
   utility framework.
 - Dark mode is done purely with the `[data-theme="dark"]` CSS selector — no JS theming for it.

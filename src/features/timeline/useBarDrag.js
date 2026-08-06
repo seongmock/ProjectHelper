@@ -1,7 +1,7 @@
 // 타임라인 바 / 마일스톤 드래그의 화면 상태(가이드선·드롭 대상 하이라이트)와
 // 드롭 결과 적용. 무엇을 어떻게 바꿀지는 utils/timelineMutations.js 가 계산한다.
 import { useCallback, useState } from 'react';
-import { planRangeDrop, planMilestoneDrop } from '../utils/timelineMutations';
+import { planRangeDrop, planMilestoneDrop } from './timelineMutations';
 
 export function useBarDrag({ flatTasks, onUpdateTask, onUpdateTasks }) {
     const [guideLineX, setGuideLineX] = useState(null);

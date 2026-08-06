@@ -5,8 +5,8 @@
 //
 // 이 로직이 TimelineView.jsx 안에 있을 때는 "복사인가 이동인가 / 같은 작업인가
 // 다른 작업인가" 네 경우가 주석으로만 구분돼 있었고 도달 불가능한 분기도 섞여 있었다.
-import { dateUtils } from './dateUtils';
-import { generateId } from './dataModel';
+import { dateUtils } from '../../utils/dateUtils';
+import { generateId } from '../../utils/dataModel';
 
 // 기간 목록에서 작업의 전체 시작/종료일을 다시 구한다. 기간이 없으면 null (바 없음).
 const boundsOf = (ranges) => {

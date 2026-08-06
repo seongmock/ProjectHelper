@@ -3,11 +3,11 @@
 // 설정 값은 props 로 받지 않고 스토어 스냅샷을 직접 읽는다 — 내보내기는 "버튼을 누른
 // 시점의 설정"만 필요하고, 설정 하나 늘 때마다 의존성 배열을 고치는 일을 없앤다.
 import { useCallback, useMemo } from 'react';
-import { storage } from '../utils/storage';
-import { migrateTaskData } from '../utils/dataModel';
-import { regenerateIds } from '../utils/taskTree';
-import { getSettingsSnapshot } from '../stores/settingsStore';
-import { useUiStore } from '../stores/uiStore';
+import { storage } from '../../utils/storage';
+import { migrateTaskData } from '../../utils/dataModel';
+import { regenerateIds } from '../../utils/taskTree';
+import { getSettingsSnapshot } from '../../stores/settingsStore';
+import { useUiStore } from '../../stores/uiStore';
 
 const EXPORT_VERSION = '1.0';
 
@@ -32,7 +32,7 @@ export function useImportExport({ tasks, setTasks, applySettings, toast }) {
 
     // exporter 모듈은 사용 시점에 지연 로드 — 초기 번들 축소
     const exportToHtml = useCallback(async () => {
-        const { exportToHtml: render } = await import('../utils/htmlExporter');
+        const { exportToHtml: render } = await import('./htmlExporter');
         const s = getSettingsSnapshot();
         const html = render(tasks, { ...s, dayWidth: s.zoomLevel * 40 });
         try {

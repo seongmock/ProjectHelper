@@ -1,5 +1,5 @@
 import { Bot, Save, Undo2, Redo2, Upload, Download, Sun, Moon, ChartNoAxesGantt } from 'lucide-react';
-import ProjectSwitcher from './ProjectSwitcher';
+import ProjectSwitcher from '../projects/ProjectSwitcher';
 import './Header.css';
 
 function Header({

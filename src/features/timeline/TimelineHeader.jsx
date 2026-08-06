@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { dateUtils } from '../utils/dateUtils';
+import { dateUtils } from '../../utils/dateUtils';
 import './TimelineHeader.css';
 
 function TimelineHeader({ startDate, endDate, timeScale, containerWidth, showToday = true, onClick }) {
