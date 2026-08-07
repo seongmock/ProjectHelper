@@ -320,6 +320,37 @@ export const flattenAll = (items, level = 0) => {
     return result;
 };
 
+// 접힌 부모 아래 숨어 있는 작업으로 이동할 때, 그 조상 사슬을 전부 펼친다.
+// 펼칠 것이 없으면(이미 다 펼쳐졌거나 작업이 없으면) **null** — patchRange 등과 같은 규약이다.
+// 빈 상태 변경을 만들지 않는다.
+export const expandAncestors = (items, taskId) => {
+    let changed = false;
+
+    // [바뀐 목록, 이 가지 안에서 찾았는지]
+    const walk = (list) => {
+        let hit = false;
+        const next = list.map(item => {
+            if (item.id === taskId) {
+                hit = true;
+                return item;
+            }
+            const children = item.children || [];
+            if (children.length === 0) return item;
+
+            const [nextChildren, childHit] = walk(children);
+            if (!childHit) return item;
+            hit = true;
+            if (item.expanded) return { ...item, children: nextChildren };
+            changed = true;
+            return { ...item, expanded: true, children: nextChildren };
+        });
+        return [next, hit];
+    };
+
+    const [next] = walk(items || []);
+    return changed ? next : null;
+};
+
 // 의존성이 걸릴 수 있는 모든 엔티티(작업 + 마일스톤 + 기간)를 한 배열로 모은다.
 // 작업은 원본 그대로, 마일스톤·기간은 표시용 name 과 소유 작업 parentId 를 얹는다.
 export const collectEntities = (flatList) => {

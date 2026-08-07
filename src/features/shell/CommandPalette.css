@@ -1,0 +1,114 @@
+/* 팔레트는 목록이 본문이다 — 공용 모달의 본문 여백을 없애고 줄 단위로 다시 준다 */
+.command-palette .modal-body {
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.command-palette-input {
+    width: 100%;
+    padding: var(--spacing-md) var(--spacing-lg);
+    border: none;
+    border-bottom: 1px solid var(--color-border);
+    border-radius: 0;
+    background-color: transparent;
+    color: var(--color-text-primary);
+    font-size: var(--font-size-md);
+}
+
+.command-palette-input:focus {
+    outline: none;
+    border-bottom-color: var(--color-primary);
+}
+
+.command-list {
+    /* 모달 자체가 max-height 80vh 라 여기서 한 번 더 잘라야 입력줄이 밀려나지 않는다 */
+    max-height: 50vh;
+    overflow-y: auto;
+    padding: var(--spacing-xs) 0;
+}
+
+.command-item {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-sm) var(--spacing-lg);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-primary);
+    cursor: pointer;
+}
+
+/* 마우스 hover 와 키보드 커서는 같은 것이다 — onMouseMove 가 activeIndex 를 옮긴다 */
+.command-item.active {
+    background-color: var(--color-bg-secondary);
+}
+
+.command-group {
+    flex: 0 0 auto;
+    min-width: 52px;
+    font-size: var(--font-size-xs);
+    color: var(--color-text-secondary);
+}
+
+.command-label {
+    flex: 0 1 auto;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.command-label mark {
+    background-color: transparent;
+    color: var(--color-primary);
+    font-weight: 700;
+}
+
+.command-hint {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: var(--font-size-xs);
+    color: var(--color-text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.command-state {
+    margin-left: auto;
+    flex: 0 0 auto;
+    font-size: var(--font-size-xs);
+    color: var(--color-text-secondary);
+}
+
+.command-shortcut {
+    flex: 0 0 auto;
+    padding: 1px 6px;
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    background-color: var(--color-bg-secondary);
+    font-size: var(--font-size-xs);
+    color: var(--color-text-secondary);
+}
+
+/* hint 가 없는 줄에서도 단축키가 오른쪽 끝에 붙게 한다 */
+.command-item > .command-label + .command-shortcut,
+.command-item > .command-label + .command-state {
+    margin-left: auto;
+}
+
+.command-empty {
+    padding: var(--spacing-lg);
+    text-align: center;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+}
+
+.command-footer {
+    display: flex;
+    gap: var(--spacing-md);
+    padding: var(--spacing-xs) var(--spacing-lg);
+    border-top: 1px solid var(--color-border);
+    font-size: var(--font-size-xs);
+    color: var(--color-text-secondary);
+}

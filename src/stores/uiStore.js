@@ -45,6 +45,13 @@ export const useUiStore = create((set) => ({
     selectedMilestoneId: null,
     setSelectedMilestoneId: (selectedMilestoneId) => set({ selectedMilestoneId }),
 
+    // 명령 팔레트(Ctrl+K). 열림 상태만 여기 두고 목록은 App 이 만든다 —
+    // 팔레트가 실행하는 것은 전부 이미 어딘가에 있는 핸들러다.
+    isPaletteOpen: false,
+    openPalette: () => set({ isPaletteOpen: true }),
+    closePalette: () => set({ isPaletteOpen: false }),
+    togglePalette: () => set(state => ({ isPaletteOpen: !state.isPaletteOpen })),
+
     milestoneModalInfo: null, // { task, date }
     openMilestoneAdd: (info) => set({ milestoneModalInfo: info }),
     closeMilestoneAdd: () => set({ milestoneModalInfo: null }),

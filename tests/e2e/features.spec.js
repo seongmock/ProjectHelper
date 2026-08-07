@@ -328,3 +328,69 @@ test.describe('인스펙터 패널', () => {
         await expect(panel).toHaveCount(0);
     });
 });
+
+test.describe('명령 팔레트 (Ctrl+K)', () => {
+    // 실사 §5.4-13. 팔레트가 실행하는 것은 전부 이미 툴바·헤더에 있는 핸들러다 —
+    // 여기서 확인하는 것은 "이름으로 찾아 Enter 로 실행된다"는 경로 자체다.
+    const input = (page) => page.getByTestId('command-palette-input');
+
+    test('툴바 버튼과 Ctrl+K 로 열리고 Esc 로 닫힌다', async ({ page }) => {
+        await page.getByTitle('명령 팔레트 (Ctrl+K)').click();
+        await expect(input(page)).toBeFocused();
+        // 질의가 비어 있으면 명령만 — 작업까지 나열하면 명령이 묻힌다
+        await expect(page.getByTestId('command-item').first()).toContainText('새 작업 추가');
+
+        await page.keyboard.press('Escape');
+        await expect(input(page)).toHaveCount(0);
+
+        await page.keyboard.press('Control+k');
+        await expect(input(page)).toBeFocused();
+        await page.keyboard.press('Escape');
+        await expect(input(page)).toHaveCount(0);
+    });
+
+    test('이름으로 명령을 찾아 Enter 로 실행한다', async ({ page }) => {
+        // 다크 모드는 **전역 설정**이다 — 시작값을 단정하지 말고(다른 스펙이 먼저 건드릴 수
+        // 있다) 뒤집혔다가 되돌아오는 것만 본다.
+        const html = page.locator('html');
+        const before = await html.getAttribute('data-theme');
+        const flipped = before === 'dark' ? 'light' : 'dark';
+
+        await page.keyboard.press('Control+k');
+        await input(page).fill('다크');
+        await expect(page.getByTestId('command-item')).toHaveCount(1);
+        // 토글 명령은 현재 상태를 함께 보여 준다
+        await expect(page.getByTestId('command-item').first())
+            .toContainText(before === 'dark' ? '켜짐' : '꺼짐');
+
+        await page.keyboard.press('Enter');
+        await expect(input(page)).toHaveCount(0); // 실행하면 닫힌다
+        await expect(html).toHaveAttribute('data-theme', flipped);
+
+        await page.keyboard.press('Control+k');
+        await input(page).fill('다크');
+        await expect(page.getByTestId('command-item').first())
+            .toContainText(flipped === 'dark' ? '켜짐' : '꺼짐');
+        await page.keyboard.press('Enter');
+        await expect(html).toHaveAttribute('data-theme', before);
+    });
+
+    test('접힌 부모 아래 작업으로 이동하면 조상을 펼치고 선택한다', async ({ page }) => {
+        await page.getByTitle('표 뷰').click();
+
+        const parent = page.locator('.task-row', { hasText: '프로젝트 기획' }).first();
+        await parent.locator('.expand-toggle').click();
+        await expect(page.locator('.task-row', { hasText: '요구사항 분석' })).toHaveCount(0);
+
+        await page.keyboard.press('Control+k');
+        await input(page).fill('요구사항');
+        const first = page.getByTestId('command-item').first();
+        await expect(first).toContainText('요구사항 분석');
+        await expect(first).toContainText('프로젝트 기획'); // 부모 경로가 hint 로 붙는다
+        await page.keyboard.press('Enter');
+
+        const row = page.locator('.task-row', { hasText: '요구사항 분석' });
+        await expect(row).toBeVisible();
+        await expect(row).toHaveClass(/selected/);
+    });
+});

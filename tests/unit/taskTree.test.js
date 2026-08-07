@@ -30,6 +30,7 @@ import {
     patchMilestone,
     removeMilestone,
     planDependencyRemoval,
+    expandAncestors,
 } from '../../src/utils/taskTree.js';
 
 // 테스트용 트리 빌더 — children 은 항상 배열로 채운다 (정규화된 데이터 형태)
@@ -904,5 +905,45 @@ describe('summarizeTask — 의존성 제거용 상대 정보', () => {
         const before = structuredClone(tree);
         summarizeTask(tree, 'me', TODAY);
         expect(tree).toEqual(before);
+    });
+});
+
+describe('expandAncestors', () => {
+    // 접힌 부모 아래 숨은 작업으로 명령 팔레트가 이동할 때 쓴다.
+    const collapsedTree = () => [
+        node('a', {
+            expanded: false,
+            children: [node('a1', { expanded: false, children: [node('a1x')] })],
+        }),
+        node('b'),
+    ];
+
+    it('조상 사슬을 전부 펼친다', () => {
+        const next = expandAncestors(collapsedTree(), 'a1x');
+        expect(next[0].expanded).toBe(true);
+        expect(next[0].children[0].expanded).toBe(true);
+    });
+
+    it('대상 작업 자신은 펼치지 않는다 — 접어 둔 자식은 접힌 채로 둔다', () => {
+        const next = expandAncestors(collapsedTree(), 'a1');
+        expect(next[0].expanded).toBe(true);
+        expect(next[0].children[0].expanded).toBe(false);
+    });
+
+    it('이미 다 펼쳐져 있으면 null (빈 상태 변경을 만들지 않는다)', () => {
+        expect(expandAncestors(sampleTree(), 'a2x')).toBeNull();
+    });
+
+    it('최상위 작업이거나 없는 작업이면 null', () => {
+        expect(expandAncestors(collapsedTree(), 'b')).toBeNull();
+        expect(expandAncestors(collapsedTree(), '없음')).toBeNull();
+    });
+
+    it('형제 가지는 건드리지 않고 원본도 바꾸지 않는다', () => {
+        const tree = collapsedTree();
+        const before = structuredClone(tree);
+        const next = expandAncestors(tree, 'a1x');
+        expect(tree).toEqual(before);
+        expect(next[1]).toBe(tree[1]);
     });
 });

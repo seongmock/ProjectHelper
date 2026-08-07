@@ -1,5 +1,6 @@
 import {
     Table2, Columns2, ChartGantt, ZoomIn, ZoomOut, Camera, Code2, Search, Plus, PanelRight,
+    Command,
 } from 'lucide-react';
 import DisplayOptionsMenu from './DisplayOptionsMenu';
 import './Toolbar.css';
@@ -42,6 +43,7 @@ function Toolbar({
 
     showInspector,
     onToggleInspector,
+    onOpenPalette,
 }) {
     const isTimeline = viewMode === 'timeline' || viewMode === 'split';
 
@@ -144,6 +146,16 @@ function Toolbar({
                 </div>
 
                 <div className="toolbar-right flex items-center gap-md">
+                    {/* 단축키만 있으면 아무도 모른다 — 팔레트 자체가 "기능을 못 찾는 문제"의
+                        해결책이므로 팔레트를 찾는 방법이 숨어 있으면 안 된다 */}
+                    <button
+                        className="icon-btn icon-only"
+                        onClick={onOpenPalette}
+                        title="명령 팔레트 (Ctrl+K)"
+                    >
+                        <Command size={15} aria-hidden="true" />
+                    </button>
+
                     {/* 표시 옵션 안이 아니라 상시 버튼이다 — 선택한 작업을 어디서 보는지가
                         메뉴 안에 숨으면 패널의 존재를 알 방법이 없다 */}
                     <button

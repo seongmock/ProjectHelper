@@ -7,12 +7,12 @@
 //   - 파일 입출력     → hooks/useImportExport
 import { useEffect, useCallback, useRef, useMemo } from 'react';
 import { getSampleData } from './utils/dataModel';
-import { flattenAll, planDependencyRemoval } from './utils/taskTree';
+import { flattenAll, planDependencyRemoval, expandAncestors } from './utils/taskTree';
 import { useUndoRedo } from './shared/hooks/useUndoRedo';
 import { useToast } from './shared/hooks/useToast';
 import { useProjectSync } from './features/projects/useProjectSync';
 import { useTaskActions } from './features/tasks/useTaskActions';
-import { useTaskKeyboard } from './features/tasks/useTaskKeyboard';
+import { useTaskKeyboard, scrollSelectedTaskIntoView } from './features/tasks/useTaskKeyboard';
 import { useImportExport } from './features/io/useImportExport';
 import { useSettingsStore } from './stores/settingsStore';
 import { useUiStore } from './stores/uiStore';
@@ -25,6 +25,8 @@ import ImportExportModal from './features/io/ImportExportModal';
 import SaveLoadModal from './features/io/SaveLoadModal';
 import MilestoneQuickAdd from './features/timeline/MilestoneQuickAdd';
 import InspectorPanel from './features/tasks/InspectorPanel';
+import CommandPalette from './features/shell/CommandPalette';
+import { buildCommands } from './features/shell/commandPalette';
 import ToastContainer from './shared/ui/Toast';
 import './themes/themes.css';
 import './App.css';
@@ -70,6 +72,7 @@ function App() {
     const isSnapshotsOpen = useUiStore(s => s.isSnapshotsOpen);
     const ieModalMode = useUiStore(s => s.ieModalMode);
     const customExportData = useUiStore(s => s.customExportData);
+    const isPaletteOpen = useUiStore(s => s.isPaletteOpen);
 
     // ── 작업 트리 (undo/redo) ────────────────────────
     const {
@@ -175,9 +178,23 @@ function App() {
         if (plan) actions.updateTask(plan.taskId, plan.updates);
     }, [tasks, actions]);
 
+    // 명령 팔레트의 "작업으로 이동". 접힌 부모 아래 숨어 있으면 조상을 펼쳐야 보인다 —
+    // 펼치기는 접기/펼치기와 마찬가지로 **히스토리에 남기지 않는다**(시각적 상태).
+    const jumpToTask = useCallback((taskId) => {
+        setTasksSilent(prev => expandAncestors(prev, taskId) ?? prev);
+        setSelectedTaskId(taskId);
+        setSelectedRangeId(null);
+        setSelectedMilestoneId(null);
+        scrollSelectedTaskIntoView();
+    }, [setTasksSilent, setSelectedTaskId, setSelectedRangeId, setSelectedMilestoneId]);
+
     // ── 키보드 단축키 ────────────────────────────────
     useEffect(() => {
         const handleKeyDown = (e) => {
+            if (e.ctrlKey && e.key === 'k') {
+                e.preventDefault(); // 브라우저 기본(주소창 검색)을 먹는다
+                ui.togglePalette();
+            }
             if (e.ctrlKey && e.key === 'z' && !e.shiftKey) {
                 e.preventDefault();
                 undo();
@@ -226,6 +243,41 @@ function App() {
         onUpdateTask: actions.updateTask,
         toast,
     });
+
+    // 팔레트 목록. 핸들러는 전부 이미 툴바·헤더가 쓰고 있는 것들이다 — 여기서 새로 만들지 않는다.
+    const commands = useMemo(() => buildCommands({
+        viewMode,
+        settings: {
+            showInspector, darkMode, timeScale, colorMode,
+            showTaskNames, showBarLabels, showBarDates, showToday, isCompact, snapEnabled,
+        },
+        canUndo,
+        canRedo,
+        projects,
+        activeProjectId,
+        handlers: {
+            addTask: () => actions.addTask(),
+            undo,
+            redo,
+            setViewMode,
+            setSetting,
+            toggleSetting,
+            zoomIn: () => setSetting({ zoomLevel: zoomLevel + 0.1 }),
+            zoomOut: () => setSetting({ zoomLevel: Math.max(zoomLevel - 0.1, 0.1) }),
+            copyImage: () => timelineRef.current?.copyToClipboard(),
+            exportFile: io.exportToFile,
+            importFile: ui.openImport,
+            exportHtml: io.exportToHtml,
+            openSnapshots: ui.openSnapshots,
+            openPromptGuide: ui.openPromptGuide,
+            switchProject,
+        },
+    }), [
+        viewMode, showInspector, darkMode, timeScale, colorMode, showTaskNames, showBarLabels,
+        showBarDates, showToday, isCompact, snapEnabled, zoomLevel, canUndo, canRedo,
+        projects, activeProjectId, actions, undo, redo, setViewMode, setSetting, toggleSetting,
+        io, switchProject,
+    ]);
 
     return (
         <div className="app">
@@ -281,6 +333,7 @@ function App() {
                 onColorModeChange={(v) => setSetting({ colorMode: v })}
                 showInspector={showInspector}
                 onToggleInspector={() => toggleSetting('showInspector')}
+                onOpenPalette={ui.openPalette}
             />
 
             <div className="main-content">
@@ -373,6 +426,14 @@ function App() {
                     onAdd={handleAddMilestone}
                 />
             )}
+
+            <CommandPalette
+                isOpen={isPaletteOpen}
+                onClose={ui.closePalette}
+                commands={commands}
+                tasks={tasks}
+                onJumpToTask={jumpToTask}
+            />
 
             <PromptGuideModal
                 isOpen={isPromptGuideOpen}

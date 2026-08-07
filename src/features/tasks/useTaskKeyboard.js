@@ -22,6 +22,15 @@ const isTyping = (el) =>
 // **새 오버레이를 만들면 여기 셀렉터에 추가해야 한다.**
 const hasOverlay = () => !!document.querySelector('.modal-overlay');
 
+// 선택 행을 화면 안으로. 표 뷰와 타임라인 뷰의 선택 행 클래스가 다르다.
+// 명령 팔레트의 "작업으로 이동"도 같은 것을 해야 해서 밖으로 내놓는다.
+export const scrollSelectedTaskIntoView = () => {
+    requestAnimationFrame(() => {
+        document.querySelector('.task-row.selected, .task-name-item.selected')
+            ?.scrollIntoView({ block: 'nearest' });
+    });
+};
+
 // 이동/기간 조정 단축키 → [일수, 모드]. Shift 는 별도 플래그가 아니라 다른 문자로 온다.
 const SHIFT_KEYS = {
     '[': [-1, 'move'],
@@ -48,11 +57,7 @@ export function useTaskKeyboard({ tasks, selectedTaskId, onSelect, onUpdateTask,
                     : Math.min(Math.max(current + step, 0), flat.length - 1);
                 e.preventDefault();
                 onSelect(flat[next].id);
-                // 표 뷰와 타임라인 뷰의 선택 행 클래스가 다르다
-                requestAnimationFrame(() => {
-                    document.querySelector('.task-row.selected, .task-name-item.selected')
-                        ?.scrollIntoView({ block: 'nearest' });
-                });
+                scrollSelectedTaskIntoView();
                 return;
             }
 
