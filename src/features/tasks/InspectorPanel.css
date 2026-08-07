@@ -219,16 +219,19 @@
     font-size: 12px;
 }
 
-/* ── 기간 편집 (v2: TimelineBarPopover 흡수) ─────────────────────────── */
-.inspector-range {
+/* ── 기간·마일스톤 편집 (v2: TimelineBarPopover, v3: MilestoneEditPopover 흡수) ──
+   둘은 같은 카드다 — 한쪽만 다르게 보이면 "작업 안의 항목"이라는 같은 층위가 안 읽힌다 */
+.inspector-range,
+.inspector-milestone {
     margin-bottom: 8px;
     padding: 8px;
     border: 1px solid var(--color-border);
     border-radius: 4px;
 }
 
-/* 우클릭으로 들어온 기간. 어느 기간을 보고 있는지가 팝오버 시절의 유일한 장점이었다 */
-.inspector-range.is-focused {
+/* 우클릭으로 들어온 항목. 어느 것을 보고 있는지가 팝오버 시절의 유일한 장점이었다 */
+.inspector-range.is-focused,
+.inspector-milestone.is-focused {
     border-color: var(--color-primary);
     box-shadow: inset 0 0 0 1px var(--color-primary);
 }
@@ -297,6 +300,8 @@
 .inspector-segmented {
     display: flex;
     align-items: center;
+    /* 마일스톤 도형은 선택지가 6개다 — 300px 패널에서 한 줄을 넘길 수 있다 */
+    flex-wrap: wrap;
     gap: 3px;
     margin: 6px 0;
 }

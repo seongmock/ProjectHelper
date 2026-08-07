@@ -61,6 +61,8 @@ function App() {
     const setSelectedTaskId = useUiStore(s => s.setSelectedTaskId);
     const selectedRangeId = useUiStore(s => s.selectedRangeId);
     const setSelectedRangeId = useUiStore(s => s.setSelectedRangeId);
+    const selectedMilestoneId = useUiStore(s => s.selectedMilestoneId);
+    const setSelectedMilestoneId = useUiStore(s => s.setSelectedMilestoneId);
     const milestoneModalInfo = useUiStore(s => s.milestoneModalInfo);
     const openMilestoneAdd = useUiStore(s => s.openMilestoneAdd);
     const closeMilestoneAdd = useUiStore(s => s.closeMilestoneAdd);
@@ -136,12 +138,24 @@ function App() {
     // ── 우클릭 → 인스펙터 ────────────────────────────
     // v2 부터 우클릭은 팝오버를 띄우지 않는다. 선택을 그 작업(과 지목한 기간)으로 옮기고
     // 인스펙터를 연다 — 편집 표면이 하나여야 "지금 무엇을 고치고 있는지"가 흔들리지 않는다.
+    // v3 에서 마일스톤 우클릭도 같은 경로로 들어온다. 기간 포커스와 마일스톤 포커스는
+    // 배타적이다 — 둘 다 남아 있으면 "연결 추가"의 주체가 무엇인지 화면에서 읽을 수 없다.
+    const focusInInspector = useCallback((taskId, { rangeId = null, milestoneId = null } = {}) => {
+        setSelectedTaskId(taskId);
+        setSelectedRangeId(rangeId);
+        setSelectedMilestoneId(milestoneId);
+        if (!showInspector) setSetting({ showInspector: true });
+    }, [setSelectedTaskId, setSelectedRangeId, setSelectedMilestoneId, showInspector, setSetting]);
+
     const handleContextMenu = useCallback((e, taskId, _date = null, rangeId = null) => {
         e.preventDefault();
-        setSelectedTaskId(taskId);
-        setSelectedRangeId(rangeId || null);
-        if (!showInspector) setSetting({ showInspector: true });
-    }, [setSelectedTaskId, setSelectedRangeId, showInspector, setSetting]);
+        focusInInspector(taskId, { rangeId });
+    }, [focusInInspector]);
+
+    const handleMilestoneContextMenu = useCallback((e, taskId, milestoneId) => {
+        e.preventDefault();
+        focusInInspector(taskId, { milestoneId });
+    }, [focusInInspector]);
 
     // 인스펙터의 "마일스톤 추가" → 기존 MilestoneQuickAdd 모달 재사용.
     // 로컬 자정으로 파싱한다 — new Date('2026-06-20') 는 UTC 자정이라 음수 오프셋 지역에서
@@ -310,6 +324,7 @@ function App() {
                                 onIndentTask={actions.indent}
                                 onOutdentTask={actions.outdent}
                                 onContextMenu={handleContextMenu}
+                                onMilestoneContextMenu={handleMilestoneContextMenu}
                                 timeScale={timeScale}
                                 viewMode={viewMode}
                                 zoomLevel={zoomLevel}
@@ -334,6 +349,7 @@ function App() {
                                 tasks={tasks}
                                 selectedTaskId={selectedTaskId}
                                 selectedRangeId={selectedRangeId}
+                                selectedMilestoneId={selectedMilestoneId}
                                 onUpdateTask={actions.updateTask}
                                 onSelectTask={setSelectedTaskId}
                                 onDeleteTask={actions.deleteTask}

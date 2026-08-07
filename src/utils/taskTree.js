@@ -461,6 +461,24 @@ export const removeRange = (task, rangeId) => {
     return { timeRanges, ...recalcTaskBoundsSafe(timeRanges) };
 };
 
+// ── 마일스톤 편집 ──────────────────────────────────────────────────────────
+// 기간과 같은 규약(반환은 updateTask 에 넘길 patch, 대상이 없으면 null)이지만
+// **bounds 는 재계산하지 않는다** — recalcTaskBoundsSafe 는 timeRanges 만 보므로
+// 마일스톤은 작업의 시작·종료일에 들어가지 않는다. 여기서 재계산하면 기간이 없는
+// 작업의 bounds 가 빈 문자열로 덮여 표의 날짜가 사라진다.
+
+export const patchMilestone = (task, milestoneId, patch) => {
+    const list = task.milestones || [];
+    if (!list.some(m => m.id === milestoneId)) return null;
+    return { milestones: list.map(m => (m.id === milestoneId ? { ...m, ...patch } : m)) };
+};
+
+export const removeMilestone = (task, milestoneId) => {
+    const list = task.milestones || [];
+    if (!list.some(m => m.id === milestoneId)) return null;
+    return { milestones: list.filter(m => m.id !== milestoneId) };
+};
+
 // 의존성 한 건 제거 계획. holderId 는 의존성을 **보유한** 엔티티(작업/기간/마일스톤),
 // dependencyId 는 그 목록에서 뺄 id 다. 보유자 종류마다 갱신할 필드가 달라서
 // (dependencies / timeRanges[].dependencies / milestones[].dependencies) 그 분기를

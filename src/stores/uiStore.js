@@ -40,6 +40,11 @@ export const useUiStore = create((set) => ({
     selectedRangeId: null,
     setSelectedRangeId: (selectedRangeId) => set({ selectedRangeId }),
 
+    // 마일스톤도 같은 규약이다(v3). 선택 단위는 여전히 **작업 하나**이고, 기간·마일스톤은
+    // 그 안에서 어디를 지목했는지를 나타내는 포커스 힌트일 뿐이다 — 그래서 둘은 배타적이다.
+    selectedMilestoneId: null,
+    setSelectedMilestoneId: (selectedMilestoneId) => set({ selectedMilestoneId }),
+
     milestoneModalInfo: null, // { task, date }
     openMilestoneAdd: (info) => set({ milestoneModalInfo: info }),
     closeMilestoneAdd: () => set({ milestoneModalInfo: null }),
@@ -48,6 +53,7 @@ export const useUiStore = create((set) => ({
     resetViewState: () => set({
         selectedTaskId: null,
         selectedRangeId: null,
+        selectedMilestoneId: null,
         searchQuery: '',
         milestoneModalInfo: null,
     }),

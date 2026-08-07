@@ -27,6 +27,8 @@ import {
     patchRange,
     appendRange,
     removeRange,
+    patchMilestone,
+    removeMilestone,
     planDependencyRemoval,
 } from '../../src/utils/taskTree.js';
 
@@ -780,6 +782,55 @@ describe('patchRange / appendRange / removeRange', () => {
 
     it('removeRange 대상이 없으면 null', () => {
         expect(removeRange(task(), 'nope')).toBeNull();
+    });
+});
+
+describe('patchMilestone / removeMilestone', () => {
+    const task = () => node('t', {
+        timeRanges: [{ id: 'r1', startDate: '2026-06-01', endDate: '2026-06-05' }],
+        startDate: '2026-06-01',
+        endDate: '2026-06-05',
+        milestones: [
+            { id: 'm1', date: '2026-06-03', label: '중간', color: '#5CB85C', shape: 'circle' },
+            { id: 'm2', date: '2026-06-20', label: '최종', color: '#D9534F', shape: 'diamond' },
+        ],
+    });
+
+    it('patchMilestone 은 지정 마일스톤만 고친다', () => {
+        const patch = patchMilestone(task(), 'm2', { label: '릴리즈', shape: 'star' });
+        expect(patch.milestones[1]).toMatchObject({ id: 'm2', label: '릴리즈', shape: 'star', date: '2026-06-20' });
+        expect(patch.milestones[0]).toMatchObject({ id: 'm1', label: '중간' });
+    });
+
+    it('patchMilestone 은 bounds 를 건드리지 않는다 — 마일스톤은 기간이 아니다', () => {
+        // 기간 밖(2026-06-20)의 마일스톤을 옮겨도 작업의 시작·종료일은 그대로여야 한다.
+        // 여기서 recalc 를 돌리면 기간이 없는 작업의 bounds 가 빈 문자열로 덮인다.
+        const patch = patchMilestone(task(), 'm2', { date: '2026-07-01' });
+        expect(patch).toEqual({ milestones: patch.milestones });
+        expect(patch.startDate).toBeUndefined();
+        expect(patch.endDate).toBeUndefined();
+    });
+
+    it('patchMilestone 대상이 없으면 null (빈 undo 항목을 만들지 않는다)', () => {
+        expect(patchMilestone(task(), 'nope', { label: 'x' })).toBeNull();
+        expect(patchMilestone(node('empty'), 'm1', { label: 'x' })).toBeNull();
+    });
+
+    it('patchMilestone 은 원본을 제자리에서 바꾸지 않는다', () => {
+        const t = task();
+        const before = structuredClone(t);
+        patchMilestone(t, 'm1', { label: '바뀜' });
+        expect(t).toEqual(before);
+    });
+
+    it('removeMilestone 은 해당 건만 빼고 나머지를 보존한다', () => {
+        const patch = removeMilestone(task(), 'm1');
+        expect(patch.milestones.map(m => m.id)).toEqual(['m2']);
+    });
+
+    it('removeMilestone 대상이 없으면 null', () => {
+        expect(removeMilestone(task(), 'nope')).toBeNull();
+        expect(removeMilestone(node('empty'), 'm1')).toBeNull();
     });
 });
 

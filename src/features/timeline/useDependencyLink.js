@@ -92,28 +92,8 @@ export function useDependencyLink({ flatTasks, onUpdateTask, onSelectTask, toast
         cancelLinking();
     }, [isLinkingMode, linkSourceId, flatTasks, onUpdateTask, toast, cancelLinking]);
 
-    // 연결 끊기. targetId 는 작업 id 일 수도 마일스톤 id 일 수도 있다.
-    // 갱신된 마일스톤을 돌려주면 호출부가 열려 있는 팝오버를 다시 그린다.
-    const removeDependency = useCallback((targetId, dependencyId) => {
-        const targetTask = flatTasks.find(t => t.id === targetId);
-        if (targetTask) {
-            onUpdateTask(targetId, {
-                dependencies: (targetTask.dependencies || []).filter(id => id !== dependencyId),
-            });
-            return null;
-        }
-
-        const parentTask = flatTasks.find(t => (t.milestones || []).some(m => m.id === targetId));
-        if (!parentTask) return null;
-
-        const milestones = parentTask.milestones.map(m =>
-            m.id === targetId
-                ? { ...m, dependencies: (m.dependencies || []).filter(id => id !== dependencyId) }
-                : m
-        );
-        onUpdateTask(parentTask.id, { milestones });
-        return milestones.find(m => m.id === targetId);
-    }, [flatTasks, onUpdateTask]);
-
-    return { isLinkingMode, startLinking, handleTaskClick, handleMilestoneClick, removeDependency };
+    // 연결 끊기는 여기 없다 — 인스펙터가 taskTree.js 의 planDependencyRemoval 을 쓴다.
+    // (v3 전에는 이 훅에도 마일스톤/작업만 다루는 removeDependency 가 따로 있었다.
+    //  기간 보유 의존성을 못 지우는 반쪽이었고, 마일스톤 팝오버와 함께 폐기했다.)
+    return { isLinkingMode, startLinking, handleTaskClick, handleMilestoneClick };
 }

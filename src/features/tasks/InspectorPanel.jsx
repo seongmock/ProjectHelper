@@ -6,17 +6,22 @@
 //
 // v2(2026-08-07): `TimelineBarPopover`(작업/기간 설정 팝오버)를 이 패널이 전부 흡수하고
 // 그 파일을 폐기했다. 우클릭은 이제 "선택 + 인스펙터 열기 + 그 기간을 포커스"로 바뀐다.
-// 마일스톤 편집 팝오버(`MilestoneEditPopover`)는 아직 남아 있다 — 그 흡수가 v3.
+// v3(2026-08-07): `MilestoneEditPopover` 도 흡수·폐기했다. **선택 단위는 여전히 작업 하나**고,
+// 마일스톤은 기간과 똑같이 "그 작업 안에서 어디를 지목했는지"를 나타내는 포커스일 뿐이다 —
+// 마일스톤을 선택 대상으로 승격하면 선택 모델이 둘이 되어 ↑↓·표·타임라인이 전부 갈라진다.
 //
 // 파생 정보(상태·일수·롤업·앞뒤 의존성)는 여기서 계산하지 않는다 —
 // utils/taskTree.js 의 summarizeTask() 하나가 전부 계산하고 여기서는 그리기만 한다.
-// 기간 수정도 같은 원칙으로 patchRange/appendRange/removeRange 를 거친다(bounds 재계산 포함).
+// 기간·마일스톤 수정도 같은 원칙으로 patchRange/appendRange/removeRange/
+// patchMilestone/removeMilestone 을 거친다.
 import { useEffect, useRef, useState } from 'react';
 import {
     PanelRightClose, Flag, CornerDownRight, CornerUpRight, Layers,
     Plus, Trash2, X, Link2,
 } from 'lucide-react';
-import { summarizeTask, patchRange, appendRange, removeRange } from '../../utils/taskTree';
+import {
+    summarizeTask, patchRange, appendRange, removeRange, patchMilestone, removeMilestone,
+} from '../../utils/taskTree';
 import { STATUS_STYLES } from '../../themes/index.js';
 import { formatDate } from '../../utils/dataModel';
 import ColorPicker from '../../shared/ui/ColorPicker';
@@ -44,6 +49,25 @@ const BAR_HEIGHTS = [
     { value: 20, label: 'M' },
     { value: 24, label: 'L' },
     { value: 28, label: 'XL' },
+];
+
+// 폐기한 마일스톤 팝오버가 제공하던 것과 같은 목록이다. 글리프는 데이터(도형)의 표현이라
+// Lucide 아이콘으로 바꾸지 않는다 — 타임라인이 그리는 모양과 눈으로 대조되어야 한다.
+const MILESTONE_SHAPES = [
+    { value: 'diamond', label: '◆' },
+    { value: 'circle', label: '●' },
+    { value: 'square', label: '■' },
+    { value: 'triangle', label: '▲' },
+    { value: 'star', label: '★' },
+    { value: 'flag', label: '⚑' },
+];
+
+// TimelineBar 는 'left' 도 그릴 수 있지만 팝오버가 내놓던 선택지는 이 넷이었다.
+const MILESTONE_LABEL_POSITIONS = [
+    { value: 'auto', label: '자동' },
+    { value: 'top', label: '위' },
+    { value: 'bottom', label: '아래' },
+    { value: 'right', label: '우' },
 ];
 
 // 텍스트 편집은 **blur/Enter 에 커밋**한다. 글자마다 커밋하면 undo 히스토리(최대 20칸)가
@@ -81,6 +105,17 @@ function DraftField({ tag: Tag = 'input', value, onCommit, ...rest }) {
     );
 }
 
+// 우클릭으로 지목한 카드는 패널 아래쪽(마일스톤 구역은 특히)에 있어 열자마자 화면 밖일 수
+// 있다. 그러면 "무엇을 클릭했는지"를 찾으러 스크롤해야 해서 팝오버보다 나을 게 없다.
+// block:'nearest' 라 이미 보이는 카드는 움직이지 않는다.
+function useScrollIntoViewWhenFocused(isFocused) {
+    const ref = useRef(null);
+    useEffect(() => {
+        if (isFocused) ref.current?.scrollIntoView({ block: 'nearest' });
+    }, [isFocused]);
+    return ref;
+}
+
 // 라디오 성격의 작은 버튼 묶음. 기간 레이블 위치와 바 높이가 같은 모양이라 한 벌만 둔다.
 function Segmented({ label, value, options, onChange }) {
     return (
@@ -104,8 +139,9 @@ function Segmented({ label, value, options, onChange }) {
 // 기간 한 건. 라벨과 날짜만 펼쳐 두고 색·표시 옵션은 <details> 로 접는다 —
 // 색 팔레트만 한 줄(9칸)이라 전부 펼치면 기간 3개로 300px 패널을 넘긴다.
 function RangeRow({ range, task, isFocused, onPatch, onRemove }) {
+    const ref = useScrollIntoViewWhenFocused(isFocused);
     return (
-        <div className={`inspector-range ${isFocused ? 'is-focused' : ''}`} data-testid="inspector-range">
+        <div ref={ref} className={`inspector-range ${isFocused ? 'is-focused' : ''}`} data-testid="inspector-range">
             <div className="inspector-range-top">
                 <DraftField
                     key={`label-${range.id}`}
@@ -179,6 +215,70 @@ function RangeRow({ range, task, isFocused, onPatch, onRemove }) {
     );
 }
 
+// 마일스톤 한 건. 기간 카드와 같은 접기 규칙이다 — 라벨·날짜만 펼치고 도형·색·레이블
+// 위치는 <details> 안. 타임라인의 마커를 우클릭해 들어오면 isFocused 로 강조되고,
+// 그때는 손대러 온 것이므로 접힌 부분을 미리 펼쳐 둔다.
+function MilestoneRow({ milestone, isFocused, onPatch, onRemove }) {
+    const ref = useScrollIntoViewWhenFocused(isFocused);
+    return (
+        <div ref={ref} className={`inspector-milestone ${isFocused ? 'is-focused' : ''}`} data-testid="inspector-milestone">
+            <div className="inspector-range-top">
+                <Flag size={12} aria-hidden="true" style={{ color: milestone.color, flex: '0 0 auto' }} />
+                <DraftField
+                    key={`ms-label-${milestone.id}`}
+                    className="inspector-range-label"
+                    value={milestone.label || ''}
+                    placeholder="마일스톤 이름"
+                    aria-label="마일스톤 이름"
+                    data-testid="inspector-milestone-label"
+                    onCommit={(label) => onPatch({ label })}
+                />
+                <button
+                    type="button"
+                    className="inspector-icon-btn is-danger"
+                    title="마일스톤 삭제"
+                    aria-label="마일스톤 삭제"
+                    onClick={() => {
+                        if (window.confirm('이 마일스톤을 삭제하시겠습니까?')) onRemove();
+                    }}
+                >
+                    <X size={13} aria-hidden="true" />
+                </button>
+            </div>
+
+            <div className="inspector-range-dates">
+                <input
+                    type="date"
+                    value={milestone.date || ''}
+                    aria-label="마일스톤 날짜"
+                    data-testid="inspector-milestone-date"
+                    onChange={(e) => onPatch({ date: e.target.value })}
+                />
+            </div>
+
+            <details className="inspector-range-more" open={isFocused}>
+                <summary>도형 · 색상 · 레이블</summary>
+                <Segmented
+                    label="도형"
+                    value={milestone.shape || 'diamond'}
+                    options={MILESTONE_SHAPES}
+                    onChange={(shape) => onPatch({ shape })}
+                />
+                <ColorPicker
+                    color={milestone.color}
+                    onChange={(color) => onPatch({ color })}
+                />
+                <Segmented
+                    label="레이블"
+                    value={milestone.labelPosition || 'auto'}
+                    options={MILESTONE_LABEL_POSITIONS}
+                    onChange={(labelPosition) => onPatch({ labelPosition })}
+                />
+            </details>
+        </div>
+    );
+}
+
 function DividerSection({ task, onUpdateTask }) {
     const divider = task.divider || {};
     const patch = (updates) => onUpdateTask(task.id, { divider: { ...divider, ...updates } });
@@ -234,6 +334,7 @@ function InspectorPanel({
     tasks,
     selectedTaskId,
     selectedRangeId,
+    selectedMilestoneId,
     onUpdateTask,
     onSelectTask,
     onDeleteTask,
@@ -257,9 +358,25 @@ function InspectorPanel({
         if (updates) onUpdateTask(task.id, updates);
     };
 
-    // 선택된 기간(우클릭으로 들어온 것)이 지금 작업 소유가 아니면 무시한다 —
-    // 다른 작업을 선택한 뒤에도 남아 있으면 엉뚱한 기간이 강조된다.
+    // 마일스톤도 같은 규약. 다만 bounds 는 건드리지 않는다(마일스톤은 기간이 아니다).
+    const applyMilestonePatch = (milestoneId, patch) => {
+        const updates = patchMilestone(task, milestoneId, patch);
+        if (updates) onUpdateTask(task.id, updates);
+    };
+    const dropMilestone = (milestoneId) => {
+        const updates = removeMilestone(task, milestoneId);
+        if (updates) onUpdateTask(task.id, updates);
+    };
+
+    // 우클릭으로 지목한 기간/마일스톤이 지금 작업 소유가 아니면 무시한다 —
+    // 다른 작업을 선택한 뒤에도 남아 있으면 엉뚱한 항목이 강조된다.
     const focusedRangeId = summary?.ranges.some(r => r.id === selectedRangeId) ? selectedRangeId : null;
+    const focusedMilestoneId = summary?.milestones.some(m => m.id === selectedMilestoneId) ? selectedMilestoneId : null;
+    // "연결 추가"의 주체. 지목한 것이 있으면 그것, 없으면 작업 자체다.
+    const linkSourceId = focusedMilestoneId || focusedRangeId || task?.id;
+    const linkLabel = focusedMilestoneId ? ' 이 마일스톤에 연결 추가'
+        : focusedRangeId ? ' 이 기간에 연결 추가'
+            : ' 연결 추가';
 
     return (
         <aside className="inspector-panel" aria-label="인스펙터">
@@ -383,17 +500,15 @@ function InspectorPanel({
 
                     <section className="inspector-section">
                         <div className="inspector-label">마일스톤</div>
-                        {summary.milestones.length > 0 && (
-                            <ul className="inspector-list">
-                                {summary.milestones.map(m => (
-                                    <li key={m.id}>
-                                        <Flag size={12} aria-hidden="true" style={{ color: m.color }} />
-                                        <span className="inspector-list-name">{m.label || '(이름 없음)'}</span>
-                                        <span className="inspector-list-meta">{m.date}</span>
-                                    </li>
-                                ))}
-                            </ul>
-                        )}
+                        {summary.milestones.map(m => (
+                            <MilestoneRow
+                                key={m.id}
+                                milestone={m}
+                                isFocused={m.id === focusedMilestoneId}
+                                onPatch={(patch) => applyMilestonePatch(m.id, patch)}
+                                onRemove={() => dropMilestone(m.id)}
+                            />
+                        ))}
                         <button
                             type="button"
                             className="inspector-add-btn"
@@ -468,10 +583,10 @@ function InspectorPanel({
                             data-testid="inspector-link"
                             disabled={!canLink}
                             title={canLink ? '클릭 후 타임라인에서 상대를 고른다' : '타임라인 뷰에서만 연결할 수 있다'}
-                            onClick={() => onStartLinking(focusedRangeId || task.id)}
+                            onClick={() => onStartLinking(linkSourceId)}
                         >
                             <Link2 size={13} aria-hidden="true" />
-                            {focusedRangeId ? ' 이 기간에 연결 추가' : ' 연결 추가'}
+                            {linkLabel}
                         </button>
                     </section>
 

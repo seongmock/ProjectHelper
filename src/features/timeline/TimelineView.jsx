@@ -27,7 +27,6 @@ import { dateUtils } from '../../utils/dateUtils';
 import TimelineHeader from './TimelineHeader';
 import TimelineBar from './TimelineBar';
 import TimelineLegend from './TimelineLegend';
-import MilestoneEditPopover from './MilestoneEditPopover';
 import DependencyLayer from './DependencyLayer';
 import { flattenTasks } from '../../utils/dataModel';
 import { buildItemMap } from './timelineGeometry';
@@ -121,6 +120,7 @@ const TimelineView = forwardRef(({
     onIndentTask,
     onOutdentTask,
     onContextMenu,
+    onMilestoneContextMenu,
     onOpenMilestoneAdd,
     timeScale,
     viewMode,
@@ -141,7 +141,6 @@ const TimelineView = forwardRef(({
 
     const [editingTaskId, setEditingTaskId] = useState(null);
     const [editingName, setEditingName] = useState('');
-    const [milestoneEditInfo, setMilestoneEditInfo] = useState(null); // { x, y, task, milestone }
 
     const flatTasks = useMemo(() => flattenTasks(tasks), [tasks]);
     const items = useMemo(() => flatTasks.map(t => t.id), [flatTasks]);
@@ -156,7 +155,7 @@ const TimelineView = forwardRef(({
         handleBarDragEnd, handleMilestoneDragMove, handleMilestoneDragEnd,
     } = useBarDrag({ flatTasks, onUpdateTask, onUpdateTasks });
 
-    const { isLinkingMode, startLinking, handleTaskClick, handleMilestoneClick, removeDependency } =
+    const { isLinkingMode, startLinking, handleTaskClick, handleMilestoneClick } =
         useDependencyLink({ flatTasks, onUpdateTask, onSelectTask, toast });
 
     const { sidebarWidth, isResizing, startResize } = useSidebarResize(containerRef);
@@ -224,71 +223,15 @@ const TimelineView = forwardRef(({
 
     const handleContextMenu = (e, task, date, rangeId) => {
         e.preventDefault();
-        setMilestoneEditInfo(null); // 마일스톤 팝오버 닫기
         if (onContextMenu) onContextMenu(e, task.id, date, rangeId);
     };
 
+    // v3: 마일스톤 우클릭도 팝오버가 아니라 인스펙터다. 여기서는 소유 작업과 마일스톤 id 만
+    // 올려 보내고, 편집은 전부 패널이 한다.
     const handleMilestoneContextMenu = (e, task, milestone) => {
         e.preventDefault();
-        setMilestoneEditInfo({ x: e.clientX, y: e.clientY, task, milestone });
+        if (onMilestoneContextMenu) onMilestoneContextMenu(e, task.id, milestone.id);
     };
-
-    const handleUpdateMilestone = (milestoneId, updates) => {
-        if (!milestoneEditInfo) return;
-        const currentTask = flatTasks.find(t => t.id === milestoneEditInfo.task.id);
-        if (!currentTask || !currentTask.milestones) return;
-
-        const milestones = currentTask.milestones.map(m =>
-            m.id === milestoneId ? { ...m, ...updates } : m
-        );
-        onUpdateTask(currentTask.id, { milestones });
-        // 열려 있는 팝오버에 즉시 반영
-        setMilestoneEditInfo(prev => ({ ...prev, milestone: milestones.find(m => m.id === milestoneId) }));
-    };
-
-    const handleDeleteMilestone = (milestoneId) => {
-        if (!milestoneEditInfo) return;
-        const currentTask = flatTasks.find(t => t.id === milestoneEditInfo.task.id);
-        if (!currentTask || !currentTask.milestones) return;
-
-        onUpdateTask(currentTask.id, {
-            milestones: currentTask.milestones.filter(m => m.id !== milestoneId),
-        });
-        setMilestoneEditInfo(null);
-    };
-
-    const handleRemoveDependency = (targetId, dependencyId) => {
-        const updatedMilestone = removeDependency(targetId, dependencyId);
-        if (updatedMilestone && milestoneEditInfo?.milestone.id === targetId) {
-            setMilestoneEditInfo(prev => ({ ...prev, milestone: updatedMilestone }));
-        }
-    };
-
-    // 팝오버에 표시할 마일스톤의 선행/후행
-    const milestonePredecessors = useMemo(() => {
-        if (!milestoneEditInfo) return [];
-        return (milestoneEditInfo.milestone.dependencies || [])
-            .map(depId => itemMap.get(depId))
-            .filter(Boolean)
-            .map(item => ({ id: item.data.id, name: item.name }));
-    }, [milestoneEditInfo, itemMap]);
-
-    const milestoneSuccessors = useMemo(() => {
-        if (!milestoneEditInfo) return [];
-        const { id } = milestoneEditInfo.milestone;
-        const succs = [];
-        flatTasks.forEach(t => {
-            if (t.dependencies && t.dependencies.includes(id)) {
-                succs.push({ id: t.id, name: t.name });
-            }
-            (t.milestones || []).forEach(ms => {
-                if (ms.dependencies && ms.dependencies.includes(id)) {
-                    succs.push({ id: ms.id, name: ms.label || '마일스톤' });
-                }
-            });
-        });
-        return succs;
-    }, [milestoneEditInfo, flatTasks]);
 
     useImperativeHandle(ref, () => ({
         copyToClipboard,
@@ -469,20 +412,6 @@ const TimelineView = forwardRef(({
                 PNG 캡처는 높이를 행 수로 계산하므로 안에 넣으면 계산이 어긋난다.
                 HTML 내보내기는 자체 범례를 그린다(htmlExporter.js). */}
             {colorMode === 'status' && <TimelineLegend />}
-
-            {milestoneEditInfo && (
-                <MilestoneEditPopover
-                    position={{ x: milestoneEditInfo.x, y: milestoneEditInfo.y }}
-                    milestone={milestoneEditInfo.milestone}
-                    predecessors={milestonePredecessors}
-                    successors={milestoneSuccessors}
-                    onClose={() => setMilestoneEditInfo(null)}
-                    onUpdate={handleUpdateMilestone}
-                    onDelete={handleDeleteMilestone}
-                    onStartLinking={() => startLinking(milestoneEditInfo.milestone.id)}
-                    onRemoveDependency={handleRemoveDependency}
-                />
-            )}
         </div>
     );
 });

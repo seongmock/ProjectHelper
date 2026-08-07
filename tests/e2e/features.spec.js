@@ -289,4 +289,42 @@ test.describe('인스펙터 패널', () => {
         await page.getByTitle('인스펙터 패널').click();
         await expect(panel).toHaveCount(0);
     });
+
+    // v3: MilestoneEditPopover 도 흡수·폐기했다. 선택 단위는 여전히 작업 하나이고,
+    // 마일스톤은 기간과 마찬가지로 "그 작업 안에서 지목한 항목"이다.
+    test('마일스톤 우클릭이 인스펙터에서 그 마일스톤을 열고, 편집·삭제를 여기서 한다', async ({ page }) => {
+        const panel = page.locator('.inspector-panel');
+        const marker = page.locator('.milestone-marker').first();
+
+        await marker.click({ button: 'right' });
+        await expect(panel).toBeVisible();
+        await expect(page.locator('.milestone-popover')).toHaveCount(0); // 팝오버는 더 이상 없다
+
+        // 선택은 마일스톤이 아니라 그 소유 작업으로 간다
+        await expect(page.getByTestId('inspector-name')).toHaveValue('프로젝트 기획');
+        const focused = panel.locator('.inspector-milestone.is-focused');
+        await expect(focused).toHaveCount(1);
+        // 마일스톤 구역은 패널 아래쪽이라 열기만 해서는 화면 밖이다 — 지목한 카드까지 스크롤한다
+        await expect(focused).toBeInViewport();
+
+        // 날짜 편집 → 타임라인 마커에 즉시 반영 (title = "라벨 (날짜)")
+        await panel.getByTestId('inspector-milestone-date').first().fill('2026-01-27');
+        await expect(marker).toHaveAttribute('title', '초안 완료 (2026-01-27)');
+
+        // 이름은 기간 라벨과 같이 Enter/blur 커밋이다
+        const label = panel.getByTestId('inspector-milestone-label').first();
+        await label.fill('초안 확정');
+        await label.press('Enter');
+        await expect(marker).toHaveAttribute('title', '초안 확정 (2026-01-27)');
+
+        // 삭제 → undo 로 복원
+        page.on('dialog', (d) => d.accept());
+        await panel.getByLabel('마일스톤 삭제').first().click();
+        await expect(panel.getByTestId('inspector-milestone')).toHaveCount(0);
+        await page.keyboard.press('Control+z');
+        await expect(panel.getByTestId('inspector-milestone')).toHaveCount(1);
+
+        await page.getByTitle('인스펙터 패널').click();
+        await expect(panel).toHaveCount(0);
+    });
 });

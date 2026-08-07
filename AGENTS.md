@@ -20,7 +20,7 @@ npm run test:e2e  # Playwright E2E (API·dev 서버 자동 기동, 28 테스트)
 npm run preview   # 빌드 결과물 로컬 미리보기
 ```
 
-> **코드 변경 후 `npm run verify` 필수** (lint + 단위 167 + 서버 97 + 빌드 + E2E 36건).
+> **코드 변경 후 `npm run verify` 필수** (lint + 단위 173 + 서버 97 + 빌드 + E2E 37건).
 > E2E는 playwright.config.js가 API 서버까지 자동 기동하므로 skip이 발생하지 않는다.
 > skip이 1건이라도 있으면 그 테스트는 아무것도 검증하지 않은 것이다 — 불합격으로 본다.
 
@@ -266,7 +266,7 @@ src/
 │   ├── shell/               # Header, Toolbar, DisplayOptionsMenu (앱 껍데기)
 │   ├── table/               # TableView, TaskRow (표 뷰 + @dnd-kit 정렬)
 │   ├── timeline/            # TimelineView/Bar/Header/BarPopover, DependencyLayer,
-│   │                        #   MilestoneEditPopover/QuickAdd,
+│   │                        #   MilestoneQuickAdd,
 │   │                        #   useBarDrag/useDependencyLink/useTimelineScale/
 │   │                        #   useTimelineCapture/useSidebarResize,
 │   │                        #   timelineGeometry.js, timelineMutations.js
@@ -276,7 +276,7 @@ src/
 │                            #   useImportExport, htmlExporter.js
 ├── shared/
 │   ├── ui/                  # Modal, Toast, Tooltip, ColorPicker, ErrorBoundary
-│   └── hooks/               # useUndoRedo, useToast, usePopover
+│   └── hooks/               # useUndoRedo, useToast
 ├── stores/                  # settingsStore, uiStore (Zustand)
 ├── themes/                  # 차트 색상 테마
 └── utils/                   # 도메인 코어 — 특정 기능 소유가 아니다
