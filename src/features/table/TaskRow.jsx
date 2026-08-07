@@ -1,9 +1,8 @@
 import { useState } from 'react';
 import { IndentDecrease, IndentIncrease, Plus, Trash2, Flag, TriangleAlert } from 'lucide-react';
 import { generateId, formatDate } from '../../utils/dataModel';
-import { recalcTaskBoundsSafe, isTaskOverdue } from '../../utils/taskTree';
+import { recalcTaskBoundsSafe, isTaskOverdue, milestonesInDateOrder } from '../../utils/taskTree';
 import ColorPicker from '../../shared/ui/ColorPicker';
-import Modal from '../../shared/ui/Modal';
 import './TaskRow.css';
 
 function TaskRow({
@@ -16,13 +15,12 @@ function TaskRow({
     onAddTask,
     onIndentTask,
     onOutdentTask,
+    onOpenMilestones,
     renderChildren = true
 }) {
     const [isEditing, setIsEditing] = useState(false);
     const [editedName, setEditedName] = useState(task.name);
     const [showColorPicker, setShowColorPicker] = useState(false);
-    const [showMilestoneModal, setShowMilestoneModal] = useState(false);
-    const [editingMilestoneColor, setEditingMilestoneColor] = useState(null);
 
     const isSelected = task.id === selectedTaskId;
     const hasChildren = task.children && task.children.length > 0;
@@ -109,37 +107,12 @@ function TaskRow({
         onAddTask(task.id);
     };
 
-    // 마일스톤 추가
-    const handleAddMilestone = () => {
-        const milestones = task.milestones || [];
-        const newMilestone = {
-            id: `m-${Date.now()}`,
-            date: firstRange?.startDate || formatDate(new Date()),
-            label: '새 마일스톤',
-            color: '#5CB85C',
-            shape: 'diamond'
-        };
-        onUpdateTask(task.id, { milestones: [...milestones, newMilestone] });
-    };
+    // 마일스톤 편집은 인스펙터가 유일한 표면이다(v4). 여기서는 지목만 한다 —
+    // 미리보기를 누르면 그 작업을 선택하고 인스펙터를 열어 첫 마일스톤을 포커스한다.
+    const orderedMilestones = milestonesInDateOrder(task);
 
-    // 마일스톤 삭제
-    const handleDeleteMilestone = (milestoneId) => {
-        const milestones = task.milestones.filter(m => m.id !== milestoneId);
-        onUpdateTask(task.id, { milestones });
-    };
-
-    // 마일스톤 수정
-    const handleUpdateMilestone = (milestoneId, field, value) => {
-        const milestones = task.milestones.map(m =>
-            m.id === milestoneId ? { ...m, [field]: value } : m
-        );
-        onUpdateTask(task.id, { milestones });
-    };
-
-    // 마일스톤 색상 변경 (ColorPicker 사용)
-    const handleMilestoneColorChange = (milestoneId, color) => {
-        handleUpdateMilestone(milestoneId, 'color', color);
-        setEditingMilestoneColor(null);
+    const handleOpenMilestones = () => {
+        onOpenMilestones(task.id, orderedMilestones[0]?.id || null);
     };
 
     // 마일스톤 모양 아이콘 렌더링
@@ -271,18 +244,18 @@ function TaskRow({
                         className="milestone-button"
                         onClick={(e) => {
                             e.stopPropagation();
-                            setShowMilestoneModal(true);
+                            handleOpenMilestones();
                         }}
-                        title="마일스톤 관리"
+                        title="마일스톤 — 인스펙터에서 편집"
                     >
-                        {task.milestones && task.milestones.length > 0 ? (
+                        {orderedMilestones.length > 0 ? (
                             <div className="milestone-preview">
-                                {task.milestones.slice(0, 3).map((m) => (
+                                {orderedMilestones.slice(0, 3).map((m) => (
                                     <span key={m.id} className="milestone-shape-preview">
                                         {renderMilestoneShape(m.shape || 'diamond', m.color, 12)}
                                     </span>
                                 ))}
-                                {task.milestones.length > 3 && <span className="milestone-more">+{task.milestones.length - 3}</span>}
+                                {orderedMilestones.length > 3 && <span className="milestone-more">+{orderedMilestones.length - 3}</span>}
                             </div>
                         ) : (
                             <><Flag size={13} aria-hidden="true" /> 0</>
@@ -356,88 +329,6 @@ function TaskRow({
                 </div>
             </div>
 
-            {/* 마일스톤 모달 */}
-            <Modal
-                isOpen={showMilestoneModal}
-                onClose={() => {
-                    setShowMilestoneModal(false);
-                    setEditingMilestoneColor(null);
-                }}
-                title={`마일스톤 관리: ${task.name}`}
-            >
-                <div className="milestone-manager">
-                    {task.milestones && task.milestones.length > 0 ? (
-                        <div className="milestone-list">
-                            {task.milestones.map((milestone) => (
-                                <div key={milestone.id} className="milestone-item">
-                                    <input
-                                        type="text"
-                                        value={milestone.label}
-                                        onChange={(e) => handleUpdateMilestone(milestone.id, 'label', e.target.value)}
-                                        placeholder="레이블"
-                                        className="milestone-label-input"
-                                    />
-                                    <input
-                                        type="date"
-                                        value={milestone.date}
-                                        onChange={(e) => handleUpdateMilestone(milestone.id, 'date', e.target.value)}
-                                        className="milestone-date-input"
-                                    />
-
-                                    {/* 색상 선택 (ColorPicker 사용) */}
-                                    <div className="milestone-color-wrapper">
-                                        <button
-                                            className="milestone-color-button"
-                                            style={{ backgroundColor: milestone.color }}
-                                            onClick={() => setEditingMilestoneColor(
-                                                editingMilestoneColor === milestone.id ? null : milestone.id
-                                            )}
-                                            title="색상 선택"
-                                        />
-                                        {editingMilestoneColor === milestone.id && (
-                                            <div style={{ position: 'absolute', zIndex: 100 }}>
-                                                <ColorPicker
-                                                    color={milestone.color}
-                                                    onChange={(color) => handleMilestoneColorChange(milestone.id, color)}
-                                                />
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    {/* 모양 선택 */}
-                                    <select
-                                        value={milestone.shape || 'diamond'}
-                                        onChange={(e) => handleUpdateMilestone(milestone.id, 'shape', e.target.value)}
-                                        className="milestone-shape-select"
-                                    >
-                                        <option value="diamond">◆ 다이아몬드</option>
-                                        <option value="circle">● 원형</option>
-                                        <option value="triangle">▲ 삼각형</option>
-                                        <option value="square">■ 정사각형</option>
-                                        <option value="star">★ 별표</option>
-                                        <option value="flag">⚑ 깃발</option>
-                                    </select>
-
-                                    <button
-                                        className="icon danger"
-                                        onClick={() => handleDeleteMilestone(milestone.id)}
-                                        title="삭제"
-                                    >
-                                        <Trash2 size={15} aria-hidden="true" />
-                                    </button>
-                                </div>
-                            ))}
-                        </div>
-                    ) : (
-                        <p className="no-milestones">마일스톤이 없습니다.</p>
-                    )}
-                    <button className="primary add-milestone-button" onClick={handleAddMilestone}>
-                        <Plus size={15} aria-hidden="true" />
-                        <span>마일스톤 추가</span>
-                    </button>
-                </div>
-            </Modal>
-
             {/* 하위 작업들 */}
             {renderChildren && hasChildren && task.expanded && (
                 <>
@@ -453,6 +344,7 @@ function TaskRow({
                             onAddTask={onAddTask}
                             onIndentTask={onIndentTask}
                             onOutdentTask={onOutdentTask}
+                            onOpenMilestones={onOpenMilestones}
                         />
                     ))}
                 </>

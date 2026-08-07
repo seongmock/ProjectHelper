@@ -29,6 +29,7 @@ import {
     removeRange,
     patchMilestone,
     removeMilestone,
+    milestonesInDateOrder,
     planDependencyRemoval,
     expandAncestors,
 } from '../../src/utils/taskTree.js';
@@ -832,6 +833,53 @@ describe('patchMilestone / removeMilestone', () => {
     it('removeMilestone 대상이 없으면 null', () => {
         expect(removeMilestone(task(), 'nope')).toBeNull();
         expect(removeMilestone(node('empty'), 'm1')).toBeNull();
+    });
+});
+
+// 표의 미리보기와 인스펙터의 카드 목록은 같은 순서여야 한다 — 표에서 미리보기를 누르면
+// "첫 마일스톤"이 포커스되는데, 두 목록의 1번이 다르면 무엇을 지목했는지 읽을 수 없다.
+describe('milestonesInDateOrder', () => {
+    it('날짜 오름차순으로 정렬한다 (입력 순서와 무관)', () => {
+        const task = node('t', {
+            milestones: [
+                { id: 'm2', date: '2026-06-20' },
+                { id: 'm1', date: '2026-06-03' },
+                { id: 'm3', date: '2026-12-01' },
+            ],
+        });
+        expect(milestonesInDateOrder(task).map(m => m.id)).toEqual(['m1', 'm2', 'm3']);
+    });
+
+    it('summarizeTask 의 마일스톤 순서와 일치한다', () => {
+        const task = node('t', {
+            milestones: [
+                { id: 'm2', date: '2026-06-20' },
+                { id: 'm1', date: '2026-06-03' },
+            ],
+        });
+        const summary = summarizeTask([task], 't', '2026-06-10');
+        expect(summary.milestones.map(m => m.id)).toEqual(milestonesInDateOrder(task).map(m => m.id));
+    });
+
+    it('마일스톤이 없거나 task 가 없어도 빈 배열', () => {
+        expect(milestonesInDateOrder(node('t'))).toEqual([]);
+        expect(milestonesInDateOrder(undefined)).toEqual([]);
+        expect(milestonesInDateOrder(null)).toEqual([]);
+    });
+
+    it('원본 배열을 제자리에서 정렬하지 않는다', () => {
+        const task = node('t', {
+            milestones: [{ id: 'm2', date: '2026-06-20' }, { id: 'm1', date: '2026-06-03' }],
+        });
+        milestonesInDateOrder(task);
+        expect(task.milestones.map(m => m.id)).toEqual(['m2', 'm1']);
+    });
+
+    it('날짜가 없는 마일스톤도 떨어뜨리지 않는다', () => {
+        const task = node('t', {
+            milestones: [{ id: 'm1', date: '2026-06-03' }, { id: 'm2' }],
+        });
+        expect(milestonesInDateOrder(task)).toHaveLength(2);
     });
 });
 

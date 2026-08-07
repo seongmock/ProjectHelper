@@ -68,6 +68,7 @@ function TableView({
     onOutdentTask,
     onMoveTask,
     onContextMenu, // Add prop
+    onOpenMilestones,
     viewMode
 }) {
     // 트리 구조를 평탄화하여 DnD에 사용
@@ -184,6 +185,7 @@ function TableView({
                                         onIndentTask={onIndentTask}
                                         onOutdentTask={onOutdentTask}
                                         onContextMenu={onContextMenu} // Pass prop
+                                        onOpenMilestones={onOpenMilestones}
                                         renderChildren={false} // 평탄화된 리스트이므로 자식 렌더링 방지
                                     />
                                 ))}

@@ -374,6 +374,13 @@ const diffDays = (a, b) => {
     return Math.round((tb - ta) / 86_400_000);
 };
 
+// 마일스톤을 날짜순으로 정렬해 돌려준다(원본은 건드리지 않는다).
+// 표의 미리보기와 인스펙터의 카드 목록이 **같은 순서**를 써야 한다 — 표에서 미리보기를
+// 눌렀을 때 포커스되는 "첫 마일스톤"이 인스펙터 첫 카드와 다르면 무엇을 지목했는지
+// 화면에서 읽을 수 없다.
+export const milestonesInDateOrder = (task) =>
+    [...(task?.milestones || [])].sort((a, b) => String(a.date).localeCompare(String(b.date)));
+
 // 인스펙터 패널이 보여 줄 파생 정보를 한 번에 계산한다.
 // 화면이 아니라 여기서 계산하는 이유: 상태·일수·롤업·의존성은 전부 순수 계산이고,
 // 컴포넌트에 흩어 놓으면 테스트할 수 없다.
@@ -386,7 +393,7 @@ export const summarizeTask = (tasks, taskId, todayStr) => {
 
     const { startDate, endDate } = recalcTaskBoundsSafe(task.timeRanges);
     const ranges = [...(task.timeRanges || [])].sort((a, b) => String(a.startDate).localeCompare(String(b.startDate)));
-    const milestones = [...(task.milestones || [])].sort((a, b) => String(a.date).localeCompare(String(b.date)));
+    const milestones = milestonesInDateOrder(task);
 
     // 하위 진행률 롤업. 자신은 빼고 자손 전체의 평균이다 — 부모의 progress 는 사용자가
     // 직접 넣는 값이라, 자손 평균과 어긋나 있다는 사실 자체가 봐야 할 정보다.

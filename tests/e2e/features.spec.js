@@ -78,15 +78,57 @@ test.describe('표 날짜 편집 ↔ 타임라인 동기화', () => {
         await expect(bar).toHaveAttribute('title', /2026-01-02|2026\.01\.02/);
     });
 
-    test('표에서 마일스톤 추가 시 유효한 날짜 부여', async ({ page }) => {
+});
+
+// v4: 표가 갖고 있던 "마일스톤 관리" 모달을 폐기하고 인스펙터로 흡수했다. 표의 칼럼은
+// 이제 읽기(미리보기) + 지목만 한다 — 타임라인 마일스톤 우클릭과 같은 경로다.
+// showInspector 는 전역 설정이라 각 테스트가 끝에서 되돌린다.
+test.describe('표 마일스톤 칼럼 → 인스펙터', () => {
+    const dateLike = /^\d{4}-\d{2}-\d{2}$/;
+
+    test('미리보기를 누르면 그 작업을 선택하고 첫 마일스톤을 지목한다 (표 자체 모달은 없다)', async ({ page }) => {
+        await page.getByTitle('표 뷰').click();
+        const row = page.locator('.task-row', { hasText: '프로젝트 기획' }).first();
+        await row.getByTitle('마일스톤 — 인스펙터에서 편집').click();
+
+        const panel = page.locator('.inspector-panel');
+        await expect(panel).toBeVisible();
+        await expect(page.locator('.milestone-manager')).toHaveCount(0); // 폐기한 모달
+        await expect(page.getByTestId('inspector-name')).toHaveValue('프로젝트 기획');
+
+        const focused = panel.locator('.inspector-milestone.is-focused');
+        await expect(focused).toHaveCount(1);
+        await expect(focused).toBeInViewport();
+        await expect(panel.getByTestId('inspector-milestone-label').first()).toHaveValue('초안 완료');
+
+        await page.getByTitle('인스펙터 패널').click();
+        await expect(panel).toHaveCount(0);
+    });
+
+    test('마일스톤 없는 작업 → 인스펙터에서 추가, 유효한 날짜가 붙고 표 미리보기에 반영', async ({ page }) => {
         await page.getByTitle('표 뷰').click();
         const row = page.locator('.task-row', { hasText: '요구사항 분석' }).first();
-        await row.getByTitle('마일스톤 관리').click();
-        await page.getByRole('button', { name: '마일스톤 추가' }).click();
-        // 새 마일스톤의 date input이 비어있지 않아야 함 (기존 버그: undefined)
-        const dateInput = page.locator('.milestone-date-input').last();
-        const value = await dateInput.inputValue();
-        expect(value).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+        await row.getByTitle('마일스톤 — 인스펙터에서 편집').click();
+
+        const panel = page.locator('.inspector-panel');
+        await expect(page.getByTestId('inspector-name')).toHaveValue('요구사항 분석');
+        await expect(panel.getByTestId('inspector-milestone')).toHaveCount(0);
+
+        await panel.getByTestId('inspector-add-milestone').click();
+        // 추가 모달의 날짜는 미리 채워져 있어야 한다 (과거 버그: undefined 가 들어갔다)
+        const quickAdd = page.locator('.modal-overlay', { hasText: '마일스톤 추가' });
+        await expect(quickAdd.locator('input[type="date"]')).toHaveValue(dateLike);
+        await quickAdd.getByRole('button', { name: '추가' }).click();
+
+        await expect(panel.getByTestId('inspector-milestone')).toHaveCount(1);
+        await expect(panel.getByTestId('inspector-milestone-date')).toHaveValue(dateLike);
+        await expect(row.locator('.milestone-shape-preview')).toHaveCount(1);
+
+        await page.keyboard.press('Control+z');
+        await expect(panel.getByTestId('inspector-milestone')).toHaveCount(0);
+
+        await page.getByTitle('인스펙터 패널').click();
+        await expect(panel).toHaveCount(0);
     });
 });
 
@@ -347,6 +389,18 @@ test.describe('명령 팔레트 (Ctrl+K)', () => {
         await expect(input(page)).toBeFocused();
         await page.keyboard.press('Escape');
         await expect(input(page)).toHaveCount(0);
+    });
+
+    // 팔레트는 열 때마다 새로 마운트된다 — 질의를 effect 로 비우던 예전 구조는 열고 곧바로
+    // 친 글자를 지웠다. 이전 질의가 남는 것도 안 된다(첫 Enter 가 엉뚱한 명령을 실행한다).
+    test('다시 열면 질의가 비어 있다', async ({ page }) => {
+        await page.keyboard.press('Control+k');
+        await input(page).fill('다크');
+        await expect(page.getByTestId('command-item')).toHaveCount(1);
+
+        await page.keyboard.press('Escape');
+        await page.keyboard.press('Control+k');
+        await expect(input(page)).toHaveValue('');
     });
 
     test('이름으로 명령을 찾아 Enter 로 실행한다', async ({ page }) => {

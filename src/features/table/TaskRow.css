@@ -149,88 +149,6 @@
     opacity: 1;
 }
 
-/* 마일스톤 모달 */
-.milestone-manager {
-    display: flex;
-    flex-direction: column;
-    gap: var(--spacing-md);
-}
-
-.milestone-list {
-    display: flex;
-    flex-direction: column;
-    gap: var(--spacing-sm);
-}
-
-.milestone-item {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--spacing-sm);
-    align-items: center;
-    padding: var(--spacing-sm);
-    background-color: var(--color-bg-secondary);
-    border-radius: var(--border-radius);
-}
-
-.milestone-label-input {
-    padding: 6px 10px;
-    font-size: var(--font-size-sm);
-    border: 1px solid var(--color-border);
-    border-radius: var(--border-radius);
-    flex: 1;
-    min-width: 150px;
-}
-
-.milestone-date-input {
-    padding: 6px 10px;
-    font-size: var(--font-size-sm);
-    border: 1px solid var(--color-border);
-    border-radius: var(--border-radius);
-    min-width: 140px;
-}
-
-.milestone-color-wrapper {
-    position: relative;
-    display: flex;
-    align-items: center;
-}
-
-.milestone-color-button {
-    width: 40px;
-    height: 36px;
-    border: 1px solid var(--color-border);
-    border-radius: var(--border-radius);
-    cursor: pointer;
-    transition: transform var(--transition-fast);
-    padding: 0;
-}
-
-.milestone-color-button:hover {
-    transform: scale(1.05);
-    border-color: var(--color-primary);
-}
-
-.milestone-shape-select {
-    padding: 6px 10px;
-    font-size: var(--font-size-sm);
-    border: 1px solid var(--color-border);
-    border-radius: var(--border-radius);
-    background-color: var(--color-bg-primary);
-    cursor: pointer;
-    min-width: 140px;
-}
-
-.milestone-shape-select:hover {
-    border-color: var(--color-primary);
-}
-
-.no-milestones {
-    text-align: center;
-    color: var(--color-text-secondary);
-    padding: var(--spacing-lg);
-    margin: 0;
-}
-
 @media (max-width: 768px) {
     .task-row {
         grid-template-columns: 1fr 100px 100px 100px 60px 150px;
@@ -246,15 +164,6 @@
     .color-button {
         width: 24px;
         height: 24px;
-    }
-
-    .milestone-item {
-        grid-template-columns: 1fr;
-        gap: var(--spacing-xs);
-    }
-
-    .milestone-shape-select {
-        width: 100%;
     }
 }
 /* 복수 기간 표시 배지 (표에서는 첫 번째 기간만 편집) */
@@ -300,14 +209,6 @@
 .col-dates.overdue input[type="date"] {
     color: var(--color-overdue, #d9534f);
     font-weight: 600;
-}
-
-/* 마일스톤 모달 하단 추가 버튼 — 인라인 style 대신 */
-.add-milestone-button {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    margin-top: 12px;
 }
 
 .milestone-button {

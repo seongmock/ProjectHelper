@@ -160,6 +160,13 @@ function App() {
         focusInInspector(taskId, { milestoneId });
     }, [focusInInspector]);
 
+    // v4: 표의 마일스톤 칼럼은 더 이상 자체 편집 모달을 갖지 않는다 — 타임라인의 마일스톤
+    // 우클릭과 **같은 경로**로 인스펙터를 지목한다. 마일스톤이 없는 작업이면 포커스 없이
+    // 열리고, 인스펙터의 "마일스톤 추가"가 유일한 추가 경로다.
+    const handleOpenMilestones = useCallback((taskId, milestoneId) => {
+        focusInInspector(taskId, { milestoneId });
+    }, [focusInInspector]);
+
     // 인스펙터의 "마일스톤 추가" → 기존 MilestoneQuickAdd 모달 재사용.
     // 로컬 자정으로 파싱한다 — new Date('2026-06-20') 는 UTC 자정이라 음수 오프셋 지역에서
     // 모달이 하루 이른 날짜를 보여 준다.
@@ -358,6 +365,7 @@ function App() {
                                 onOutdentTask={actions.outdent}
                                 onMoveTask={actions.moveTask}
                                 onContextMenu={handleContextMenu}
+                                onOpenMilestones={handleOpenMilestones}
                                 viewMode={viewMode}
                             />
                         )}
@@ -427,13 +435,15 @@ function App() {
                 />
             )}
 
-            <CommandPalette
-                isOpen={isPaletteOpen}
-                onClose={ui.closePalette}
-                commands={commands}
-                tasks={tasks}
-                onJumpToTask={jumpToTask}
-            />
+            {/* 열 때마다 새로 마운트한다 — 질의를 effect 로 비우면 열자마자 친 글자가 지워진다 */}
+            {isPaletteOpen && (
+                <CommandPalette
+                    onClose={ui.closePalette}
+                    commands={commands}
+                    tasks={tasks}
+                    onJumpToTask={jumpToTask}
+                />
+            )}
 
             <PromptGuideModal
                 isOpen={isPromptGuideOpen}

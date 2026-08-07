@@ -22,7 +22,11 @@ const Highlighted = ({ text, indices }) => {
     ));
 };
 
-function CommandPalette({ isOpen, onClose, commands, tasks, onJumpToTask }) {
+// App 이 **열려 있을 때만 렌더**한다(조건부 마운트). 그래서 여기서 열림 상태를 초기화하지
+// 않는다 — 예전에는 isOpen 이 true 로 바뀌는 effect 에서 질의를 비웠는데, 입력이 DOM 에
+// 붙는 시점과 effect 가 도는 시점 사이에 친 글자가 그 초기화에 지워졌다(팔레트를 열고
+// 곧바로 타이핑하면 첫 글자들이 사라진다. E2E 에서 간헐적으로 실제로 사라졌다).
+function CommandPalette({ onClose, commands, tasks, onJumpToTask }) {
     const [query, setQuery] = useState('');
     const [activeIndex, setActiveIndex] = useState(0);
     const inputRef = useRef(null);
@@ -38,18 +42,13 @@ function CommandPalette({ isOpen, onClose, commands, tasks, onJumpToTask }) {
     }, [commands, taskItems, query]);
 
     useEffect(() => {
-        if (!isOpen) return;
-        setQuery('');
-        setActiveIndex(0);
         inputRef.current?.focus();
-    }, [isOpen]);
+    }, []);
 
     // 키보드로 내려간 항목이 화면 밖이면 따라간다 (block:'nearest' — 보이면 안 움직인다)
     useEffect(() => {
         listRef.current?.querySelector('.command-item.active')?.scrollIntoView({ block: 'nearest' });
     }, [activeIndex]);
-
-    if (!isOpen) return null;
 
     const runEntry = (entry) => {
         if (!entry) return;
@@ -77,7 +76,7 @@ function CommandPalette({ isOpen, onClose, commands, tasks, onJumpToTask }) {
     };
 
     return (
-        <Modal isOpen={isOpen} onClose={onClose} title="명령 팔레트" className="command-palette" width={560}>
+        <Modal isOpen onClose={onClose} title="명령 팔레트" className="command-palette" width={560}>
             <input
                 ref={inputRef}
                 className="command-palette-input"
