@@ -278,13 +278,89 @@ describe('getDependencyIssues', () => {
         assert.equal(res.dangling[0].missingId, '사라진-id');
     });
 
-    test('작업을 지우면 상대에 끊어진 참조가 남는다 — 그것이 여기 드러난다', () => {
+    // 여기 남는 dangling 은 이 서비스를 거치지 않은 쓰기(blob POST /api/data, 손으로 넣은
+    // 데이터, 2026-08-10 이전에 만들어진 것)가 원인이다 — 삭제 경로 자체는 더 이상 만들지 않는다.
+    test('삭제가 남긴 끊어진 참조는 이제 없다 — 삭제 시점에 함께 정리된다', () => {
         const a = svc.createTask(s, { name: 'a', startDate: '2026-01-01', endDate: '2026-01-10' }).task;
         const b = svc.createTask(s, { name: 'b', startDate: '2026-01-11', endDate: '2026-01-20' }).task;
         svc.updateTimeRange(s, b.id, b.timeRanges[0].id, { dependencies: [a.timeRanges[0].id] });
         assert.deepEqual(svc.getDependencyIssues(s).dangling, []);
 
         svc.deleteTask(s, a.id);
-        assert.equal(svc.getDependencyIssues(s).dangling.length, 1);
+        assert.deepEqual(svc.getDependencyIssues(s).dangling, []);
+        assert.deepEqual(svc.getTask(s, b.id).task.timeRanges[0].dependencies, []);
+    });
+});
+
+// 삭제가 상대의 dependencies 를 정리하지 않으면 존재하지 않는 id 를 가리키는 참조가
+// 남는다. 화면에는 인스펙터의 정리 버튼이 있지만, REST/MCP 로 지운 것까지 사람이 화면을
+// 열어 눌러 줄 것을 기대할 수 없다 — 만들지 않는 편이 낫다.
+describe('삭제 시 참조 정리 (작업/기간/마일스톤)', () => {
+    let s;
+    let seq = 0;
+    beforeEach(() => {
+        s = store.getProjectStore(`depdel-${++seq}`);
+        s.writeTasks([]);
+    });
+
+    // a(지울 대상) ← b 가 참조. 반환: { a, b, depOn(id 를 b 의 기간 의존성으로 건다) }
+    const pair = () => {
+        const a = svc.createTask(s, { name: 'a', startDate: '2026-01-01', endDate: '2026-01-10' }).task;
+        const b = svc.createTask(s, { name: 'b', startDate: '2026-01-11', endDate: '2026-01-20' }).task;
+        const depOn = (id) => svc.updateTimeRange(s, b.id, b.timeRanges[0].id, { dependencies: [id] });
+        const bDeps = () => svc.getTask(s, b.id).task.timeRanges[0].dependencies;
+        return { a, b, depOn, bDeps };
+    };
+
+    test('작업을 지우면 그 작업의 기간을 가리키던 참조도 사라진다', () => {
+        const { a, depOn, bDeps } = pair();
+        depOn(a.timeRanges[0].id);
+        svc.deleteTask(s, a.id);
+        assert.deepEqual(bDeps(), []);
+    });
+
+    test('자손이 소유한 id 를 가리키던 참조도 사라진다 — 지우는 것은 가지 전체다', () => {
+        const { a, depOn, bDeps } = pair();
+        const child = svc.createTask(s, {
+            name: 'child', parentId: a.id, startDate: '2026-01-02', endDate: '2026-01-05',
+        }).task;
+        depOn(child.timeRanges[0].id);
+        svc.deleteTask(s, a.id);
+        assert.deepEqual(bDeps(), []);
+    });
+
+    test('기간 하나만 지워도 그 기간을 가리키던 참조가 사라진다', () => {
+        const { a, depOn, bDeps } = pair();
+        const extra = svc.addTimeRange(s, a.id, { startDate: '2026-03-01', endDate: '2026-03-05' }).timeRange;
+        depOn(extra.id);
+        svc.deleteTimeRange(s, a.id, extra.id);
+        assert.deepEqual(bDeps(), []);
+    });
+
+    test('마일스톤을 지워도 그것을 가리키던 참조가 사라진다', () => {
+        const { a, depOn, bDeps } = pair();
+        const m = svc.addMilestone(s, a.id, { date: '2026-01-05', label: 'M' }).milestone;
+        depOn(m.id);
+        svc.deleteMilestone(s, a.id, m.id);
+        assert.deepEqual(bDeps(), []);
+    });
+
+    test('관계 없는 의존성은 건드리지 않는다', () => {
+        const { a, b, depOn, bDeps } = pair();
+        const c = svc.createTask(s, { name: 'c', startDate: '2026-02-01', endDate: '2026-02-10' }).task;
+        depOn(c.timeRanges[0].id);
+        svc.deleteTask(s, a.id);
+        assert.deepEqual(bDeps(), [c.timeRanges[0].id]);
+        assert.equal(svc.getTask(s, b.id).task.id, b.id);
+    });
+
+    // moveTask 도 deleteFromTree 를 쓴다(제거 후 재삽입). 거기에 정리를 걸면 작업을
+    // 옮기는 것만으로 의존성이 사라진다 — 그래서 정리는 삭제 경로에만 조합돼 있다.
+    test('작업을 옮기는 것은 의존성을 지우지 않는다', () => {
+        const { a, depOn, bDeps } = pair();
+        depOn(a.timeRanges[0].id);
+        const parent = svc.createTask(s, { name: 'parent' }).task;
+        svc.moveTask(s, a.id, { parentId: parent.id, position: 0 });
+        assert.deepEqual(bDeps(), [a.timeRanges[0].id]);
     });
 });

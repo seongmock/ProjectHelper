@@ -83,7 +83,8 @@ const getTask = (store, id) => {
 
 // 트리 전체의 의존성 문제를 훑는다 — 화면(타임라인 화살표·인스펙터 배지)이 보는 것과
 // 같은 판정이다. 쓰기 전 차단(assertDependenciesWritable)이 막지 못하는 것들을 여기서 본다:
-// 일정 위반, 그리고 상대가 삭제되면서 끊어진 참조(deleteTask 는 참조를 정리하지 않는다).
+// 일정 위반, 그리고 끊어진 참조. 후자는 이제 삭제 경로가 스스로 정리하므로(pruneDependencies)
+// 이 서비스를 거치지 않은 쓰기(blob POST /api/data·과거 데이터)가 남긴 것만 남는다.
 // successors 는 Map 이라, edgeIssues 는 화살표 색을 정하는 화면 전용이라 응답에서 뺀다.
 const getDependencyIssues = (store) => {
     const { cycles, overlaps, dangling } = tree.findDependencyIssues(store.readTasks());
@@ -165,11 +166,14 @@ const updateTask = (store, id, body, ifMatch) => {
     return { revision: result.meta.revision, task: updated };
 };
 
+// 삭제 3종은 지운 id 를 가리키던 참조까지 같은 쓰기에서 걷어낸다 — 남겨 두면
+// 존재하지 않는 상대를 가리키는 dependencies 가 화면 어디에도 안 나온 채 영원히 남는다.
 const deleteTask = (store, id, ifMatch) => {
     assertRevision(store, ifMatch);
     const result = mustWrite(store.withTasks((tasks) => {
-        if (!tree.findTask(tasks, id)) throw notFound();
-        return tree.deleteFromTree(tasks, id);
+        const task = tree.findTask(tasks, id);
+        if (!task) throw notFound();
+        return tree.pruneDependencies(tree.deleteFromTree(tasks, id), tree.collectOwnedIds(task));
     }));
     return { revision: result.meta.revision };
 };
@@ -288,7 +292,8 @@ const deleteTimeRange = (store, id, rangeId, ifMatch) => {
         if (!task) throw notFound();
         const ranges = task.timeRanges || [];
         if (!ranges.some(r => r.id === rangeId)) throw notFound('timeRange');
-        return withRecalcedBounds(tasks, id, ranges.filter(r => r.id !== rangeId));
+        return tree.pruneDependencies(
+            withRecalcedBounds(tasks, id, ranges.filter(r => r.id !== rangeId)), [rangeId]);
     }));
     return { revision: result.meta.revision };
 };
@@ -329,9 +334,9 @@ const deleteMilestone = (store, id, milestoneId, ifMatch) => {
         if (!task) throw notFound();
         const milestones = task.milestones || [];
         if (!milestones.some(m => m.id === milestoneId)) throw notFound('milestone');
-        return tree.updateTaskInTree(tasks, id, {
+        return tree.pruneDependencies(tree.updateTaskInTree(tasks, id, {
             milestones: milestones.filter(m => m.id !== milestoneId),
-        });
+        }), [milestoneId]);
     }));
     return { revision: result.meta.revision };
 };

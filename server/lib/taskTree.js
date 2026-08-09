@@ -115,6 +115,43 @@ const recalcTaskBounds = (timeRanges) => {
     };
 };
 
+// ── 삭제가 남기는 참조 정리 (src/utils/taskTree.js 의 미러) ──
+// deleteFromTree 는 상대의 dependencies 를 정리하지 않으므로, 삭제 경로가
+// pruneDependencies 를 이어서 부른다. deleteFromTree 자체에 넣지 않는 이유는
+// moveTask 가 "제거 후 재삽입"에 그 함수를 쓰기 때문이다 — 이동이 의존성을 지우면 안 된다.
+
+const collectOwnedIds = (task) => {
+    const ids = new Set();
+    const walk = (t) => {
+        if (!t) return;
+        ids.add(t.id);
+        (t.timeRanges || []).forEach(r => ids.add(r.id));
+        (t.milestones || []).forEach(m => ids.add(m.id));
+        (t.children || []).forEach(walk);
+    };
+    walk(task);
+    return ids;
+};
+
+const pruneDependencies = (tasks, removedIds) => {
+    const gone = removedIds instanceof Set ? removedIds : new Set(removedIds);
+    if (gone.size === 0) return tasks;
+
+    const strip = (holder) => {
+        const deps = holder.dependencies;
+        if (!deps || !deps.some(id => gone.has(id))) return holder;
+        return { ...holder, dependencies: deps.filter(id => !gone.has(id)) };
+    };
+
+    const prune = (items) => items.map(item => ({
+        ...strip(item),
+        ...(item.timeRanges ? { timeRanges: item.timeRanges.map(strip) } : {}),
+        ...(item.milestones ? { milestones: item.milestones.map(strip) } : {}),
+        children: prune(item.children || []),
+    }));
+    return prune(tasks);
+};
+
 // ── 의존성 정합성 (src/utils/taskTree.js 의 같은 이름 함수들의 미러) ──
 // 클라이언트는 2026-08-09 부터 순환을 만들기 전에 막지만, REST/MCP 로 들어오는 AI 는
 // 그 검사를 거치지 않는다. 판정 규칙이 두 벌이 되면 화면과 API 가 다른 말을 하므로
@@ -260,6 +297,8 @@ module.exports = {
     isDescendant,
     flattenAll,
     recalcTaskBounds,
+    collectOwnedIds,
+    pruneDependencies,
     collectEntities,
     dependencyEdgeKey,
     findDependencyIssues,

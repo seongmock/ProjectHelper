@@ -59,11 +59,11 @@ test('의존성 정합성 — 순환은 400 으로 거부되고, 위반·끊어�
     });
     expect((await issues()).overlaps).toHaveLength(1);
 
-    // 선행을 지우면 후행에 끊어진 참조가 남는다
+    // 선행을 지우면 그것을 가리키던 참조도 같은 쓰기에서 걷어낸다
     await request.delete(`/api/tasks/${a.id}`);
     const after = await issues();
     expect(after.overlaps).toEqual([]);
-    expect(after.dangling).toHaveLength(1);
+    expect(after.dangling).toEqual([]);
 });
 
 test('편집 충돌(409) → 서버 우선으로 자동 재로드', async ({ page, request }) => {

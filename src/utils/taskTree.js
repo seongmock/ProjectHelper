@@ -548,10 +548,58 @@ export const planDependencyRemoval = (flatList, holderId, dependencyId) => {
     };
 };
 
+// ── 삭제가 남기는 참조 정리 ────────────────────────────────────────────────
+// 무언가를 지우면 그것을 가리키던 상대의 dependencies 에 존재하지 않는 id 가 남는다.
+// 그 끊어진 참조는 findDependencyIssues 가 진단해 주지만, **애초에 만들지 않는 편이
+// 낫다** — 진단은 사람이 보고 눌러야 사라지고, 그 사이 화면은 없는 상대를 가리킨다.
+//
+// 정리는 삭제 경로에서만 조합한다. deleteFromTree 자체에 넣지 않는 이유는 moveTask 가
+// "제거 후 재삽입"에 그 함수를 쓰기 때문이다 — 거기서 참조를 걷어내면 작업을 옮기는 것만으로
+// 의존성이 사라진다.
+
+// 작업 하나가 (자손까지 포함해) 소유한 엔티티 id 전부 — 작업·기간·마일스톤.
+// 그 작업을 지우면 이 id 들을 가리키던 참조가 모두 끊어진 참조가 된다.
+export const collectOwnedIds = (task) => {
+    const ids = new Set();
+    const walk = (t) => {
+        if (!t) return;
+        ids.add(t.id);
+        (t.timeRanges || []).forEach(r => ids.add(r.id));
+        (t.milestones || []).forEach(m => ids.add(m.id));
+        (t.children || []).forEach(walk);
+    };
+    walk(task);
+    return ids;
+};
+
+// removedIds 를 가리키는 dependencies 를 트리 전체(작업·기간·마일스톤)에서 걷어낸다.
+export const pruneDependencies = (tasks, removedIds) => {
+    const gone = removedIds instanceof Set ? removedIds : new Set(removedIds);
+    if (gone.size === 0) return tasks;
+
+    // 걷어낼 것이 없는 보유자는 원본을 그대로 돌려준다 — 없던 dependencies 필드가
+    // 빈 배열로 새로 생기지 않고, 참조가 유지되어 불필요한 리렌더도 줄어든다.
+    const strip = (holder) => {
+        const deps = holder.dependencies;
+        if (!deps || !deps.some(id => gone.has(id))) return holder;
+        return { ...holder, dependencies: deps.filter(id => !gone.has(id)) };
+    };
+
+    const prune = (items) => items.map(item => ({
+        ...strip(item),
+        ...(item.timeRanges ? { timeRanges: item.timeRanges.map(strip) } : {}),
+        ...(item.milestones ? { milestones: item.milestones.map(strip) } : {}),
+        children: prune(item.children || []),
+    }));
+    return prune(tasks);
+};
+
 // ── 의존성 정합성 ──────────────────────────────────────────────────────────
 // 지금까지 의존성은 **그려지기만 했다**. 순환(A→B→A)을 만들 수 있었고, 후행이 선행보다
 // 먼저 시작해도 아무도 말해 주지 않았고, 작업을 지우면 상대의 dependencies 에 존재하지
-// 않는 id 가 남았다(deleteFromTree 는 참조를 정리하지 않는다). 그 세 가지를 여기서 판정한다.
+// 않는 id 가 남았다. 그 세 가지를 여기서 판정한다. (끊어진 참조는 이제 삭제 경로가
+// pruneDependencies 로 스스로 정리하므로, 여기 걸리는 것은 그 경로를 거치지 않은
+// 쓰기 — blob POST /api/data·가져오기·과거 데이터 — 가 남긴 것이다.)
 //
 // 간선의 방향: 보유자 H 의 dependencies 에 P 가 들어 있으면 **P(선행) → H(후행)** 이다.
 // 화면(DependencyLayer)이 그리는 화살표와 같은 방향이다.

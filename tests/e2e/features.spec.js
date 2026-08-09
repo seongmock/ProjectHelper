@@ -506,19 +506,41 @@ test.describe('의존성 정합성', () => {
         await closeInspector(page);
     });
 
-    test('선행 작업을 지우면 남는 끊어진 참조를 인스펙터에서 정리한다', async ({ page }) => {
+    test('선행 작업을 지워도 끊어진 참조가 남지 않는다', async ({ page }) => {
         await linkOverlapping(page); // 설계 → 개발
 
-        // deleteFromTree 는 상대의 dependencies 를 정리하지 않는다 — 참조만 남는다
+        // 삭제는 지운 작업(과 그 기간·마일스톤)을 가리키던 참조까지 함께 걷어낸다.
         page.once('dialog', d => d.accept());
         await bar(page, '설계 문서 작성').click({ button: 'right' });
         await page.getByTestId('inspector-delete').click();
         await expect(page.locator('.dependency-layer path')).toHaveCount(0);
 
         await bar(page, '개발').click({ button: 'right' });
+        await expect(page.getByTestId('inspector-broken-refs')).toHaveCount(0);
+
+        // undo 한 번에 작업과 참조가 함께 돌아온다 — 두 번의 트리 변경이었다면 못 돌아온다
+        await page.keyboard.press('Control+z');
+        await expect(page.locator('.dependency-layer path')).toHaveCount(1);
+
+        await closeInspector(page);
+    });
+
+    test('이 화면을 거치지 않은 쓰기가 남긴 끊어진 참조는 인스펙터에서 정리한다', async ({ page, request }) => {
+        // 삭제 경로는 더 이상 끊어진 참조를 만들지 않는다(위 테스트). 그래도 정리 수단은
+        // 남아 있어야 한다 — blob POST /api/data 는 순환·끊어진 참조를 막지 않고(브라우저의
+        // 저장 경로이기도 하다), 2026-08-10 이전 데이터에도 남아 있을 수 있다.
+        await page.waitForTimeout(2500); // 초기 저장 안정화
+        const { data } = await (await request.get('/api/data')).json();
+        const target = data.find(t => (t.timeRanges || []).length > 0);
+        target.timeRanges[0].dependencies = ['사라진-id'];
+        expect((await request.post('/api/data', { data })).ok()).toBe(true);
+
+        await page.reload();
+        await expect(page.getByText('데이터 불러오는 중')).toHaveCount(0);
+        await bar(page, target.name).click({ button: 'right' });
+
         const broken = page.getByTestId('inspector-broken-refs');
         await expect(broken).toBeVisible();
-
         await broken.getByLabel('끊어진 참조 정리').click();
         await expect(page.getByTestId('inspector-broken-refs')).toHaveCount(0);
 

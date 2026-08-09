@@ -24,9 +24,9 @@ npm run dev          # Vite dev server, http://localhost:5173, hot-reload
 npm run dev:api      # Express API server (PORT env, default 3000)
 npm run build        # Production build → dist/
 npm run lint         # ESLint 9 (flat config)
-npm run test:unit    # Vitest — 도메인 순수함수 + XSS 회귀 (225건)
-npm run test:server  # node:test — 검증·서비스·저장소 내구성·감사 로그·의존성 정합성 (122건)
-npm run test:e2e     # Playwright E2E 46건 (API·dev 서버 자동 기동)
+npm run test:unit    # Vitest — 도메인 순수함수 + XSS 회귀 (233건)
+npm run test:server  # node:test — 검증·서비스·저장소 내구성·감사 로그·의존성 정합성 (128건)
+npm run test:e2e     # Playwright E2E 47건 (API·dev 서버 자동 기동)
 npm run verify       # 위 전부 + 빌드 — 변경 후 이것을 돌려라
 ```
 
@@ -44,8 +44,8 @@ npx playwright test -g "프로젝트"                   # by test-title substrin
 npx playwright test --headed --debug                # watch it / step through
 ```
 
-**변경 후에는 `npm run verify`** — 합격 기준은 lint 0 error · unit 225/225 · server 122/122 ·
-빌드 성공 · **E2E 46/46 (skip 0)**.
+**변경 후에는 `npm run verify`** — 합격 기준은 lint 0 error · unit 233/233 · server 128/128 ·
+빌드 성공 · **E2E 47/47 (skip 0)**.
 
 `playwright.config.js` 는 **API 서버와 dev 서버를 모두 자동 기동**하며, API는
 `PH_DATA_DIR=.tmp-e2e-data` 로 격리된다. 예전에는 API 서버를 수동으로 띄우지 않으면 8건이
@@ -150,6 +150,13 @@ client's — keep them in sync), `taskService` rejects unknown-id and cycle-clos
 reports what a single write can't judge (schedule violations, dangling refs). The blob
 `POST /api/data` is deliberately *not* gated on cycles — it is also the browser's save path,
 and rejecting it would lock a user out of fixing pre-existing data.
+**Deletes prune the references to what they removed** (`collectOwnedIds` + `pruneDependencies`,
+mirrored on both sides): deleting a task/time-range/milestone strips every `dependencies` entry
+pointing at it, in the same write, so dangling refs are no longer created. `deleteFromTree`
+itself is *not* where this lives — `moveTask` uses it to remove-then-reinsert, and pruning there
+would make moving a task destroy its dependencies. Dangling refs that remain come from writes
+that bypass those paths (blob `POST /api/data`, imports, pre-existing data); the inspector's
+cleanup button and `GET .../dependency-issues` still surface them.
 No database. Auth is Caddy basicauth; the authenticated user is forwarded as `X-Auth-User` and
 recorded (owner/createdBy) but not yet enforced.
 

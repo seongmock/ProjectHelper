@@ -12,15 +12,16 @@
 //
 // 파생 정보(상태·일수·롤업·앞뒤 의존성)는 여기서 계산하지 않는다 —
 // utils/taskTree.js 의 summarizeTask() 하나가 전부 계산하고 여기서는 그리기만 한다.
-// 기간·마일스톤 수정도 같은 원칙으로 patchRange/appendRange/removeRange/
-// patchMilestone/removeMilestone 을 거친다.
+// 기간·마일스톤 수정도 같은 원칙으로 patchRange/appendRange 를 거친다. 삭제만은
+// 예외로 전용 핸들러다 — 지운 것을 가리키던 참조를 트리 전체에서 걷어내야 해서
+// 이 작업 하나의 patch 로 표현되지 않는다.
 import { useEffect, useRef, useState } from 'react';
 import {
     PanelRightClose, Flag, CornerDownRight, CornerUpRight, Layers,
     Plus, Trash2, X, Link2, AlertTriangle, Unlink,
 } from 'lucide-react';
 import {
-    summarizeTask, patchRange, appendRange, removeRange, patchMilestone, removeMilestone,
+    summarizeTask, patchRange, appendRange, patchMilestone,
     dependencyEdgeKey,
 } from '../../utils/taskTree';
 import { STATUS_STYLES } from '../../themes/index.js';
@@ -356,6 +357,8 @@ function InspectorPanel({
     onUpdateTask,
     onSelectTask,
     onDeleteTask,
+    onDeleteRange,
+    onDeleteMilestone,
     onRemoveDependency,
     onAddMilestone,
     onStartLinking,
@@ -372,20 +375,16 @@ function InspectorPanel({
         const updates = patchRange(task, rangeId, patch);
         if (updates) onUpdateTask(task.id, updates);
     };
-    const dropRange = (rangeId) => {
-        const updates = removeRange(task, rangeId);
-        if (updates) onUpdateTask(task.id, updates);
-    };
+    // 삭제는 트리 전체를 건드린다(지운 기간을 가리키던 참조도 함께 걷어낸다) — patch 로는
+    // 표현할 수 없어서 onUpdateTask 가 아니라 전용 핸들러다.
+    const dropRange = (rangeId) => onDeleteRange(task.id, rangeId);
 
     // 마일스톤도 같은 규약. 다만 bounds 는 건드리지 않는다(마일스톤은 기간이 아니다).
     const applyMilestonePatch = (milestoneId, patch) => {
         const updates = patchMilestone(task, milestoneId, patch);
         if (updates) onUpdateTask(task.id, updates);
     };
-    const dropMilestone = (milestoneId) => {
-        const updates = removeMilestone(task, milestoneId);
-        if (updates) onUpdateTask(task.id, updates);
-    };
+    const dropMilestone = (milestoneId) => onDeleteMilestone(task.id, milestoneId);
 
     // 우클릭으로 지목한 기간/마일스톤이 지금 작업 소유가 아니면 무시한다 —
     // 다른 작업을 선택한 뒤에도 남아 있으면 엉뚱한 항목이 강조된다.
@@ -396,8 +395,9 @@ function InspectorPanel({
     const edgeIssues = dependencyIssues?.edgeIssues;
     const issueOf = (fromId, toId) => edgeIssues?.[dependencyEdgeKey(fromId, toId)];
 
-    // 지워진 상대를 가리키는 참조 중 **이 작업이 들고 있는 것**. deleteFromTree 는
-    // 참조를 정리하지 않아 남는데, 화면 어디에도 안 나오면 영원히 남는다.
+    // 지워진 상대를 가리키는 참조 중 **이 작업이 들고 있는 것**. 삭제 경로는 이제 스스로
+    // 정리하므로 여기 걸리는 것은 그 경로를 거치지 않은 쓰기(API blob·가져오기·과거 데이터)가
+    // 남긴 것이다 — 화면 어디에도 안 나오면 영원히 남는다.
     const ownIds = new Set([task?.id, ...(summary?.ranges || []).map(r => r.id),
         ...(summary?.milestones || []).map(m => m.id)]);
     const brokenRefs = (dependencyIssues?.dangling || []).filter(d => ownIds.has(d.holderId));

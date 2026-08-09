@@ -419,6 +419,8 @@ function App() {
                                 onUpdateTask={actions.updateTask}
                                 onSelectTask={setSelectedTaskId}
                                 onDeleteTask={actions.deleteTask}
+                                onDeleteRange={actions.deleteRange}
+                                onDeleteMilestone={actions.deleteMilestone}
                                 onAddMilestone={handleOpenMilestoneAdd}
                                 onRemoveDependency={handleRemoveDependency}
                                 dependencyIssues={dependencyIssues}

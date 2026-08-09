@@ -12,6 +12,10 @@ import {
     outdentTask,
     moveTaskInTree,
     findTaskAndParent,
+    collectOwnedIds,
+    pruneDependencies,
+    removeRange,
+    removeMilestone,
 } from '../../utils/taskTree';
 
 export function useTaskActions({ setTasks, setTasksSilent, onSelect }) {
@@ -38,10 +42,34 @@ export function useTaskActions({ setTasks, setTasksSilent, onSelect }) {
         ));
     }, [setTasks]);
 
+    // 삭제 3종(작업/기간/마일스톤)은 지운 id 를 가리키던 참조까지 한 번에 걷어낸다.
+    // 트리 변경 하나로 끝나야 undo 한 번에 삭제와 참조가 함께 돌아온다.
     const deleteTask = useCallback((taskId) => {
-        setTasks(prev => deleteFromTree(prev, taskId));
+        setTasks(prev => {
+            const found = findTaskAndParent(prev, taskId);
+            if (!found) return prev;
+            return pruneDependencies(deleteFromTree(prev, taskId), collectOwnedIds(found.task));
+        });
         onSelect(null);
     }, [setTasks, onSelect]);
+
+    const deleteRange = useCallback((taskId, rangeId) => {
+        setTasks(prev => {
+            const found = findTaskAndParent(prev, taskId);
+            const updates = found && removeRange(found.task, rangeId);
+            if (!updates) return prev;
+            return pruneDependencies(updateTaskInTree(prev, taskId, updates), [rangeId]);
+        });
+    }, [setTasks]);
+
+    const deleteMilestone = useCallback((taskId, milestoneId) => {
+        setTasks(prev => {
+            const found = findTaskAndParent(prev, taskId);
+            const updates = found && removeMilestone(found.task, milestoneId);
+            if (!updates) return prev;
+            return pruneDependencies(updateTaskInTree(prev, taskId, updates), [milestoneId]);
+        });
+    }, [setTasks]);
 
     const indent = useCallback((taskId) => {
         setTasks(prev => indentTask(prev, taskId));
@@ -75,11 +103,13 @@ export function useTaskActions({ setTasks, setTasksSilent, onSelect }) {
         updateTaskSilent,
         updateTasks,
         deleteTask,
+        deleteRange,
+        deleteMilestone,
         indent,
         outdent,
         moveTask,
         reorderTasks,
         addMilestone,
-    }), [addTask, updateTask, updateTaskSilent, updateTasks, deleteTask,
-        indent, outdent, moveTask, reorderTasks, addMilestone]);
+    }), [addTask, updateTask, updateTaskSilent, updateTasks, deleteTask, deleteRange,
+        deleteMilestone, indent, outdent, moveTask, reorderTasks, addMilestone]);
 }

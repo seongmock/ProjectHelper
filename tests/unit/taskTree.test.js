@@ -35,6 +35,8 @@ import {
     findDependencyIssues,
     wouldCreateDependencyCycle,
     dependencyEdgeKey,
+    collectOwnedIds,
+    pruneDependencies,
 } from '../../src/utils/taskTree.js';
 
 // 테스트용 트리 빌더 — children 은 항상 배열로 채운다 (정규화된 데이터 형태)
@@ -996,6 +998,70 @@ describe('expandAncestors', () => {
         const next = expandAncestors(tree, 'a1x');
         expect(tree).toEqual(before);
         expect(next[1]).toBe(tree[1]);
+    });
+});
+
+describe('collectOwnedIds', () => {
+    it('작업 자신 + 기간 + 마일스톤 + 자손의 것까지 모은다', () => {
+        const task = node('a', {
+            timeRanges: [{ id: 'r1' }],
+            milestones: [{ id: 'm1' }],
+            children: [node('b', { timeRanges: [{ id: 'r2' }], milestones: [{ id: 'm2' }] })],
+        });
+        expect([...collectOwnedIds(task)].sort()).toEqual(['a', 'b', 'm1', 'm2', 'r1', 'r2']);
+    });
+
+    it('정규화되지 않은 노드(필드 없음)도 견딘다', () => {
+        expect([...collectOwnedIds({ id: 'a' })]).toEqual(['a']);
+    });
+});
+
+describe('pruneDependencies', () => {
+    // 보유자 세 종류(작업/기간/마일스톤)가 모두 'gone' 을 가리키는 트리
+    const holdersTree = () => [
+        node('a', { dependencies: ['gone', 'keep'] }),
+        node('b', { timeRanges: [{ id: 'r1', dependencies: ['gone'] }] }),
+        node('c', { children: [node('d', { milestones: [{ id: 'm1', dependencies: ['keep', 'gone'] }] })] }),
+    ];
+
+    it('세 종류의 보유자 모두에서 지운 id 를 걷어낸다', () => {
+        const pruned = pruneDependencies(holdersTree(), ['gone']);
+        expect(pruned[0].dependencies).toEqual(['keep']);
+        expect(pruned[1].timeRanges[0].dependencies).toEqual([]);
+        expect(pruned[2].children[0].milestones[0].dependencies).toEqual(['keep']);
+    });
+
+    it('원본을 변경하지 않는다', () => {
+        const tree = holdersTree();
+        pruneDependencies(tree, ['gone']);
+        expect(tree[0].dependencies).toEqual(['gone', 'keep']);
+    });
+
+    it('지울 것이 없으면 트리를 그대로 돌려준다', () => {
+        const tree = holdersTree();
+        expect(pruneDependencies(tree, [])).toBe(tree);
+    });
+
+    it('dependencies 필드가 없던 보유자에 빈 배열을 새로 만들지 않는다', () => {
+        const tree = [node('a', { timeRanges: [{ id: 'r1' }] })];
+        const pruned = pruneDependencies(tree, ['gone']);
+        expect(pruned[0].timeRanges[0]).not.toHaveProperty('dependencies');
+    });
+
+    it('Set 도 배열과 똑같이 받는다', () => {
+        const pruned = pruneDependencies(holdersTree(), new Set(['gone', 'keep']));
+        expect(pruned[0].dependencies).toEqual([]);
+    });
+
+    // 이 조합이 곧 앱의 삭제 경로다 (useTaskActions.deleteTask / 서버 taskService.deleteTask).
+    it('삭제 + 정리를 조합하면 끊어진 참조가 남지 않는다', () => {
+        const tree = [
+            node('a', { timeRanges: [{ id: 'r1', startDate: '2026-01-01', endDate: '2026-01-10' }] }),
+            node('b', { timeRanges: [{ id: 'r2', startDate: '2026-01-11', endDate: '2026-01-20', dependencies: ['r1'] }] }),
+        ];
+        const gone = collectOwnedIds(tree[0]);
+        expect(findDependencyIssues(deleteFromTree(tree, 'a')).dangling).toHaveLength(1);
+        expect(findDependencyIssues(pruneDependencies(deleteFromTree(tree, 'a'), gone)).dangling).toEqual([]);
     });
 });
 
