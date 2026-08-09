@@ -219,6 +219,43 @@
     font-size: 12px;
 }
 
+/* 의존성 간선의 문제 배지. 타임라인 화살표와 같은 색을 쓴다 —
+   빨강=순환(구조 결함), 주황=일정 위반. 아이콘·텍스트를 함께 두어 색 단독 인코딩을 피한다 */
+.inspector-issue {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    flex-shrink: 0;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 10px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.inspector-issue.is-cycle {
+    color: #dc2626;
+    background: rgb(220 38 38 / 12%);
+}
+
+.inspector-issue.is-overlap {
+    color: #b45309;
+    background: rgb(245 158 11 / 16%);
+}
+
+[data-theme="dark"] .inspector-issue.is-overlap {
+    color: #fbbf24;
+}
+
+/* 지워진 상대를 가리키는 참조 — 이름이 없으므로 자리만 표시하고 정리 버튼을 준다 */
+.inspector-broken {
+    flex: 1;
+    min-width: 0;
+    color: var(--color-text-muted);
+    font-size: 12px;
+    font-style: italic;
+}
+
 /* ── 기간·마일스톤 편집 (v2: TimelineBarPopover, v3: MilestoneEditPopover 흡수) ──
    둘은 같은 카드다 — 한쪽만 다르게 보이면 "작업 안의 항목"이라는 같은 층위가 안 읽힌다 */
 .inspector-range,

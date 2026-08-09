@@ -32,6 +32,9 @@ import {
     milestonesInDateOrder,
     planDependencyRemoval,
     expandAncestors,
+    findDependencyIssues,
+    wouldCreateDependencyCycle,
+    dependencyEdgeKey,
 } from '../../src/utils/taskTree.js';
 
 // 테스트용 트리 빌더 — children 은 항상 배열로 채운다 (정규화된 데이터 형태)
@@ -993,5 +996,158 @@ describe('expandAncestors', () => {
         const next = expandAncestors(tree, 'a1x');
         expect(tree).toEqual(before);
         expect(next[1]).toBe(tree[1]);
+    });
+});
+
+describe('findDependencyIssues', () => {
+    // 의존성 간선의 방향: 보유자의 dependencies 에 들어 있는 id 가 **선행**이다.
+    // 즉 { id:'r2', dependencies:['r1'] } 은 r1 → r2 를 뜻한다.
+    const range = (id, startDate, endDate, dependencies = []) =>
+        ({ id, startDate, endDate, dependencies });
+
+    // a(r1: 1/1~1/10) → b(r2: 1/11~1/20) — 정상 계획
+    const linearTree = () => [
+        node('a', { timeRanges: [range('r1', '2026-01-01', '2026-01-10')] }),
+        node('b', { timeRanges: [range('r2', '2026-01-11', '2026-01-20', ['r1'])] }),
+    ];
+
+    it('정상 계획에는 아무 문제도 없다', () => {
+        const issues = findDependencyIssues(linearTree());
+        expect(issues.cycles).toEqual([]);
+        expect(issues.overlaps).toEqual([]);
+        expect(issues.dangling).toEqual([]);
+        expect(issues.edgeIssues).toEqual({});
+    });
+
+    it('후행이 선행 종료보다 먼저 시작하면 overlap 이다', () => {
+        const tree = linearTree();
+        tree[1].timeRanges[0].startDate = '2026-01-06';
+        const issues = findDependencyIssues(tree);
+        expect(issues.overlaps).toHaveLength(1);
+        expect(issues.overlaps[0]).toMatchObject({
+            fromId: 'r1', toId: 'r2', fromEnd: '2026-01-10', toStart: '2026-01-06', days: 4,
+        });
+        expect(issues.edgeIssues[dependencyEdgeKey('r1', 'r2')]).toBe('overlap');
+    });
+
+    it('같은 날 인계(후행 시작 = 선행 종료)는 위반이 아니다 — 오탐을 만들지 않는다', () => {
+        const tree = linearTree();
+        tree[1].timeRanges[0].startDate = '2026-01-10';
+        expect(findDependencyIssues(tree).overlaps).toEqual([]);
+    });
+
+    it('날짜가 없는 쪽이 있으면 판정 근거가 없으므로 건너뛴다', () => {
+        const tree = linearTree();
+        tree[0].timeRanges = [];
+        expect(findDependencyIssues(tree).overlaps).toEqual([]);
+    });
+
+    it('마일스톤은 한 점으로 다룬다 — 그 날 이전에 시작하는 후행만 위반이다', () => {
+        const tree = [
+            node('a', { milestones: [{ id: 'm1', date: '2026-01-10', label: 'M1' }] }),
+            node('b', { timeRanges: [range('r2', '2026-01-09', '2026-01-20', ['m1'])] }),
+        ];
+        expect(findDependencyIssues(tree).overlaps).toHaveLength(1);
+        tree[1].timeRanges[0].startDate = '2026-01-10';
+        expect(findDependencyIssues(tree).overlaps).toEqual([]);
+    });
+
+    it('순환을 찾아내고 그 간선 전부에 cycle 을 붙인다', () => {
+        const tree = [
+            node('a', { timeRanges: [range('r1', '2026-01-01', '2026-01-10', ['r3'])] }),
+            node('b', { timeRanges: [range('r2', '2026-01-11', '2026-01-20', ['r1'])] }),
+            node('c', { timeRanges: [range('r3', '2026-01-21', '2026-01-30', ['r2'])] }),
+        ];
+        const issues = findDependencyIssues(tree);
+        expect(issues.cycles).toHaveLength(1);
+        expect([...issues.cycles[0].ids].sort()).toEqual(['r1', 'r2', 'r3']);
+        expect(Object.values(issues.edgeIssues)).toEqual(['cycle', 'cycle', 'cycle']);
+    });
+
+    it('같은 순환을 여러 간선에서 발견해도 한 번만 보고한다', () => {
+        const tree = [
+            node('a', { timeRanges: [range('r1', '2026-01-01', '2026-01-10', ['r2'])] }),
+            node('b', { timeRanges: [range('r2', '2026-01-11', '2026-01-20', ['r1'])] }),
+        ];
+        expect(findDependencyIssues(tree).cycles).toHaveLength(1);
+    });
+
+    it('자기 자신을 가리키는 참조도 순환이다', () => {
+        const tree = [node('a', { timeRanges: [range('r1', '2026-01-01', '2026-01-10', ['r1'])] })];
+        const issues = findDependencyIssues(tree);
+        expect(issues.cycles).toEqual([{ ids: ['r1'], names: [expect.any(String)] }]);
+    });
+
+    it('순환인 간선에는 overlap 을 함께 붙이지 않는다 — 구조 결함이 앞선다', () => {
+        const tree = [
+            node('a', { timeRanges: [range('r1', '2026-01-11', '2026-01-20', ['r2'])] }),
+            node('b', { timeRanges: [range('r2', '2026-01-01', '2026-01-10', ['r1'])] }),
+        ];
+        const issues = findDependencyIssues(tree);
+        expect(issues.overlaps).toEqual([]);
+        expect(issues.edgeIssues[dependencyEdgeKey('r1', 'r2')]).toBe('cycle');
+    });
+
+    it('지워진 상대를 가리키는 참조는 dangling 이다 (deleteFromTree 가 남긴다)', () => {
+        const tree = linearTree();
+        const pruned = deleteFromTree(tree, 'a');
+        const issues = findDependencyIssues(pruned);
+        expect(issues.dangling).toEqual([{ holderId: 'r2', holderName: expect.any(String), missingId: 'r1' }]);
+        expect(issues.edgeIssues).toEqual({}); // 그릴 화살표 자체가 없다
+    });
+
+    it('접힌 가지 안의 의존성도 본다', () => {
+        const tree = [
+            node('p', {
+                expanded: false,
+                children: [
+                    node('a', { timeRanges: [range('r1', '2026-01-01', '2026-01-10')] }),
+                    node('b', { timeRanges: [range('r2', '2026-01-05', '2026-01-20', ['r1'])] }),
+                ],
+            }),
+        ];
+        expect(findDependencyIssues(tree).overlaps).toHaveLength(1);
+    });
+
+    it('레거시 작업 단위 의존성도 간선으로 센다', () => {
+        const tree = [
+            node('a', { startDate: '2026-01-01', endDate: '2026-01-10' }),
+            node('b', { startDate: '2026-01-05', endDate: '2026-01-20', dependencies: ['a'] }),
+        ];
+        const issues = findDependencyIssues(tree);
+        expect(issues.overlaps).toHaveLength(1);
+        expect(issues.overlaps[0]).toMatchObject({ fromId: 'a', toId: 'b' });
+    });
+
+    it('빈 트리에서도 죽지 않는다', () => {
+        const issues = findDependencyIssues([]);
+        expect(issues.cycles).toEqual([]);
+        expect(issues.successors.size).toBe(0);
+    });
+});
+
+describe('wouldCreateDependencyCycle', () => {
+    // r1 → r2 → r3 사슬
+    const chain = () => findDependencyIssues([
+        node('a', { timeRanges: [{ id: 'r1', startDate: '2026-01-01', endDate: '2026-01-10', dependencies: [] }] }),
+        node('b', { timeRanges: [{ id: 'r2', startDate: '2026-01-11', endDate: '2026-01-20', dependencies: ['r1'] }] }),
+        node('c', { timeRanges: [{ id: 'r3', startDate: '2026-01-21', endDate: '2026-01-30', dependencies: ['r2'] }] }),
+    ]).successors;
+
+    it('후행에서 선행으로 되돌리는 연결은 순환이다', () => {
+        expect(wouldCreateDependencyCycle(chain(), 'r3', 'r1')).toBe(true);
+    });
+
+    it('사슬을 더 잇는 연결은 순환이 아니다', () => {
+        expect(wouldCreateDependencyCycle(chain(), 'r3', 'r4')).toBe(false);
+    });
+
+    it('자기 자신으로의 연결은 순환이다', () => {
+        expect(wouldCreateDependencyCycle(chain(), 'r1', 'r1')).toBe(true);
+    });
+
+    it('한쪽이 비어 있으면 false (판정할 것이 없다)', () => {
+        expect(wouldCreateDependencyCycle(chain(), null, 'r1')).toBe(false);
+        expect(wouldCreateDependencyCycle(undefined, 'r1', 'r2')).toBe(false);
     });
 });

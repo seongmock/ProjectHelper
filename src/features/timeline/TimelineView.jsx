@@ -135,6 +135,7 @@ const TimelineView = forwardRef(({
     toast,
     chartTheme = 'default',
     colorMode = 'task',
+    dependencyIssues,
 }, ref) => {
     const containerRef = useRef(null);
     const captureRef = useRef(null);
@@ -156,7 +157,15 @@ const TimelineView = forwardRef(({
     } = useBarDrag({ flatTasks, onUpdateTask, onUpdateTasks });
 
     const { isLinkingMode, startLinking, handleTaskClick, handleMilestoneClick } =
-        useDependencyLink({ flatTasks, onUpdateTask, onSelectTask, toast });
+        useDependencyLink({
+            flatTasks,
+            onUpdateTask,
+            onSelectTask,
+            toast,
+            // 순환 판정은 전체 트리 기준이다 — flatTasks 는 검색·접기로 걸러진 목록이라
+            // 여기 없는 작업을 거쳐 도는 순환을 놓친다.
+            dependencySuccessors: dependencyIssues?.successors,
+        });
 
     const { sidebarWidth, isResizing, startResize } = useSidebarResize(containerRef);
 
@@ -368,6 +377,7 @@ const TimelineView = forwardRef(({
                             dateRange={dateRange}
                             contentWidth={contentWidth}
                             rowHeight={rowHeight}
+                            edgeIssues={dependencyIssues?.edgeIssues}
                         />
 
                         {tasks.length === 0 ? (

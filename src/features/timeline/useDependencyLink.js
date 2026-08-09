@@ -3,8 +3,11 @@
 // 연결의 단위는 기간(timeRange)과 마일스톤이다. 작업 단위 의존성(task.dependencies)은
 // 레거시라 새로 만들지는 않지만, 남아 있는 데이터를 끊을 수는 있어야 한다.
 import { useCallback, useEffect, useState } from 'react';
+import { wouldCreateDependencyCycle } from '../../utils/taskTree';
 
-export function useDependencyLink({ flatTasks, onUpdateTask, onSelectTask, toast }) {
+export function useDependencyLink({
+    flatTasks, onUpdateTask, onSelectTask, toast, dependencySuccessors,
+}) {
     const [isLinkingMode, setIsLinkingMode] = useState(false);
     const [linkSourceId, setLinkSourceId] = useState(null);
 
@@ -26,6 +29,15 @@ export function useDependencyLink({ flatTasks, onUpdateTask, onSelectTask, toast
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [isLinkingMode, cancelLinking]);
+
+    // 순환은 **만들어지기 전에** 막는다. 만든 뒤에 빨간 화살표로 알리는 것보다 낫다 —
+    // 순환이 있는 계획은 "무엇이 먼저인가"에 답이 없어서 고치는 것 말고 할 일이 없다.
+    const blocksCycle = useCallback((targetId) => {
+        if (!wouldCreateDependencyCycle(dependencySuccessors, linkSourceId, targetId)) return false;
+        toast.error('순환 의존성이 되므로 연결할 수 없습니다.');
+        cancelLinking();
+        return true;
+    }, [dependencySuccessors, linkSourceId, toast, cancelLinking]);
 
     // 작업/기간 클릭. 연결 모드가 아니면 그냥 선택이다.
     const handleTaskClick = useCallback((taskId, rangeId) => {
@@ -52,6 +64,8 @@ export function useDependencyLink({ flatTasks, onUpdateTask, onSelectTask, toast
             return;
         }
 
+        if (blocksCycle(rangeId || taskId)) return;
+
         if (targetRange) {
             onUpdateTask(taskId, {
                 timeRanges: targetTask.timeRanges.map(r =>
@@ -62,7 +76,7 @@ export function useDependencyLink({ flatTasks, onUpdateTask, onSelectTask, toast
             onUpdateTask(taskId, { dependencies: [...currentDeps, linkSourceId] });
         }
         cancelLinking();
-    }, [isLinkingMode, linkSourceId, flatTasks, onUpdateTask, onSelectTask, toast, cancelLinking]);
+    }, [isLinkingMode, linkSourceId, flatTasks, onUpdateTask, onSelectTask, toast, cancelLinking, blocksCycle]);
 
     // 마일스톤 클릭 — 연결 모드일 때만 의미가 있다 (선택 개념이 없다)
     const handleMilestoneClick = useCallback((e, milestone) => {
@@ -84,13 +98,15 @@ export function useDependencyLink({ flatTasks, onUpdateTask, onSelectTask, toast
             return;
         }
 
+        if (blocksCycle(milestone.id)) return;
+
         onUpdateTask(parentTask.id, {
             milestones: parentTask.milestones.map(m =>
                 m.id === milestone.id ? { ...m, dependencies: [...currentDeps, linkSourceId] } : m
             ),
         });
         cancelLinking();
-    }, [isLinkingMode, linkSourceId, flatTasks, onUpdateTask, toast, cancelLinking]);
+    }, [isLinkingMode, linkSourceId, flatTasks, onUpdateTask, toast, cancelLinking, blocksCycle]);
 
     // 연결 끊기는 여기 없다 — 인스펙터가 taskTree.js 의 planDependencyRemoval 을 쓴다.
     // (v3 전에는 이 훅에도 마일스톤/작업만 다루는 removeDependency 가 따로 있었다.

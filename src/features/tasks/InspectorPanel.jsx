@@ -17,15 +17,33 @@
 import { useEffect, useRef, useState } from 'react';
 import {
     PanelRightClose, Flag, CornerDownRight, CornerUpRight, Layers,
-    Plus, Trash2, X, Link2,
+    Plus, Trash2, X, Link2, AlertTriangle, Unlink,
 } from 'lucide-react';
 import {
     summarizeTask, patchRange, appendRange, removeRange, patchMilestone, removeMilestone,
+    dependencyEdgeKey,
 } from '../../utils/taskTree';
 import { STATUS_STYLES } from '../../themes/index.js';
 import { formatDate } from '../../utils/dataModel';
 import ColorPicker from '../../shared/ui/ColorPicker';
 import './InspectorPanel.css';
+
+// 간선 문제 배지. 색만으로 구분하지 않도록 아이콘 + 텍스트를 함께 낸다
+// (타임라인 화살표와 같은 판정 결과다 — findDependencyIssues).
+const ISSUE_BADGES = {
+    cycle: { label: '순환', title: '순환 의존성 — 이 연결이 고리를 닫는다' },
+    overlap: { label: '일정 위반', title: '후행이 선행 종료보다 먼저 시작한다' },
+};
+
+const IssueBadge = ({ issue }) => {
+    const badge = ISSUE_BADGES[issue];
+    if (!badge) return null;
+    return (
+        <span className={`inspector-issue is-${issue}`} title={badge.title}>
+            <AlertTriangle size={11} aria-hidden="true" /> {badge.label}
+        </span>
+    );
+};
 
 const statusLabel = (status) => STATUS_STYLES.find(s => s.id === status)?.label || '일정 없음';
 const statusColor = (status) => STATUS_STYLES.find(s => s.id === status)?.color || 'var(--color-text-secondary)';
@@ -342,6 +360,7 @@ function InspectorPanel({
     onAddMilestone,
     onStartLinking,
     canLink,
+    dependencyIssues,
     onClose,
 }) {
     const todayStr = formatDate(new Date());
@@ -372,6 +391,17 @@ function InspectorPanel({
     // 다른 작업을 선택한 뒤에도 남아 있으면 엉뚱한 항목이 강조된다.
     const focusedRangeId = summary?.ranges.some(r => r.id === selectedRangeId) ? selectedRangeId : null;
     const focusedMilestoneId = summary?.milestones.some(m => m.id === selectedMilestoneId) ? selectedMilestoneId : null;
+    // 간선 문제 조회. 선행은 **내 쪽**(holderId)이 상대를 들고 있으므로 상대→나,
+    // 후행은 상대가 내 id(depId)를 들고 있으므로 나→상대다. 타임라인 화살표와 같은 키다.
+    const edgeIssues = dependencyIssues?.edgeIssues;
+    const issueOf = (fromId, toId) => edgeIssues?.[dependencyEdgeKey(fromId, toId)];
+
+    // 지워진 상대를 가리키는 참조 중 **이 작업이 들고 있는 것**. deleteFromTree 는
+    // 참조를 정리하지 않아 남는데, 화면 어디에도 안 나오면 영원히 남는다.
+    const ownIds = new Set([task?.id, ...(summary?.ranges || []).map(r => r.id),
+        ...(summary?.milestones || []).map(m => m.id)]);
+    const brokenRefs = (dependencyIssues?.dangling || []).filter(d => ownIds.has(d.holderId));
+
     // "연결 추가"의 주체. 지목한 것이 있으면 그것, 없으면 작업 자체다.
     const linkSourceId = focusedMilestoneId || focusedRangeId || task?.id;
     const linkLabel = focusedMilestoneId ? ' 이 마일스톤에 연결 추가'
@@ -521,7 +551,8 @@ function InspectorPanel({
 
                     <section className="inspector-section">
                         <div className="inspector-label">의존성</div>
-                        {summary.predecessors.length === 0 && summary.successors.length === 0 && (
+                        {summary.predecessors.length === 0 && summary.successors.length === 0
+                            && brokenRefs.length === 0 && (
                             <div className="inspector-none">연결된 작업이 없다.</div>
                         )}
                         {summary.predecessors.length > 0 && (
@@ -537,6 +568,7 @@ function InspectorPanel({
                                             {e.name}
                                         </button>
                                         <span className="inspector-list-meta">선행</span>
+                                        <IssueBadge issue={issueOf(e.id, e.holderId)} />
                                         <button
                                             type="button"
                                             className="inspector-icon-btn is-danger"
@@ -563,6 +595,7 @@ function InspectorPanel({
                                             {e.name}
                                         </button>
                                         <span className="inspector-list-meta">후행</span>
+                                        <IssueBadge issue={issueOf(e.depId, e.id)} />
                                         <button
                                             type="button"
                                             className="inspector-icon-btn is-danger"
@@ -570,6 +603,26 @@ function InspectorPanel({
                                             aria-label="연결 제거"
                                             // 후행은 **상대**가 내 id 를 들고 있다 → holderId 는 상대
                                             onClick={() => onRemoveDependency(e.id, e.depId)}
+                                        >
+                                            <X size={12} aria-hidden="true" />
+                                        </button>
+                                    </li>
+                                ))}
+                            </ul>
+                        )}
+                        {brokenRefs.length > 0 && (
+                            <ul className="inspector-list" data-testid="inspector-broken-refs">
+                                {brokenRefs.map(d => (
+                                    <li key={`${d.holderId}>${d.missingId}`}>
+                                        <Unlink size={12} aria-hidden="true" />
+                                        <span className="inspector-broken">삭제된 항목</span>
+                                        <span className="inspector-list-meta">끊어진 참조</span>
+                                        <button
+                                            type="button"
+                                            className="inspector-icon-btn is-danger"
+                                            title="끊어진 참조 정리"
+                                            aria-label="끊어진 참조 정리"
+                                            onClick={() => onRemoveDependency(d.holderId, d.missingId)}
                                         >
                                             <X size={12} aria-hidden="true" />
                                         </button>

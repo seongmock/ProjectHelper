@@ -7,7 +7,7 @@
 //   - 파일 입출력     → hooks/useImportExport
 import { useEffect, useCallback, useRef, useMemo } from 'react';
 import { getSampleData } from './utils/dataModel';
-import { flattenAll, planDependencyRemoval, expandAncestors } from './utils/taskTree';
+import { flattenAll, planDependencyRemoval, expandAncestors, findDependencyIssues } from './utils/taskTree';
 import { useUndoRedo } from './shared/hooks/useUndoRedo';
 import { useToast } from './shared/hooks/useToast';
 import { useProjectSync } from './features/projects/useProjectSync';
@@ -241,6 +241,10 @@ function App() {
         return filterTasks(tasks);
     }, [tasks, searchQuery]);
 
+    // 의존성 정합성. **검색 필터가 아니라 전체 트리**를 본다 — 상대가 필터에 걸려
+    // 사라지면 멀쩡한 연결이 dangling 으로 보인다(인스펙터가 tasks 를 받는 것과 같은 이유).
+    const dependencyIssues = useMemo(() => findDependencyIssues(tasks), [tasks]);
+
     // 선택 작업 대상 단축키(↑↓ 선택 이동, [ ] 일정 이동). 검색으로 걸러진 뒤의
     // 목록을 넘긴다 — 화면에 없는 작업으로 선택이 튀면 안 된다.
     useTaskKeyboard({
@@ -400,6 +404,7 @@ function App() {
                                 chartTheme={chartTheme}
                                 colorMode={colorMode}
                                 darkMode={darkMode}
+                                dependencyIssues={dependencyIssues}
                             />
                         )}
 
@@ -416,6 +421,7 @@ function App() {
                                 onDeleteTask={actions.deleteTask}
                                 onAddMilestone={handleOpenMilestoneAdd}
                                 onRemoveDependency={handleRemoveDependency}
+                                dependencyIssues={dependencyIssues}
                                 // 연결은 타임라인의 명령형 핸들이 필요하다 — 표 뷰에서는 버튼을 잠근다
                                 canLink={viewMode !== 'table'}
                                 onStartLinking={(entityId) => timelineRef.current?.startLinking(entityId)}

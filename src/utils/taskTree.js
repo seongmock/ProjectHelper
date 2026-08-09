@@ -547,3 +547,131 @@ export const planDependencyRemoval = (flatList, holderId, dependencyId) => {
         },
     };
 };
+
+// ── 의존성 정합성 ──────────────────────────────────────────────────────────
+// 지금까지 의존성은 **그려지기만 했다**. 순환(A→B→A)을 만들 수 있었고, 후행이 선행보다
+// 먼저 시작해도 아무도 말해 주지 않았고, 작업을 지우면 상대의 dependencies 에 존재하지
+// 않는 id 가 남았다(deleteFromTree 는 참조를 정리하지 않는다). 그 세 가지를 여기서 판정한다.
+//
+// 간선의 방향: 보유자 H 의 dependencies 에 P 가 들어 있으면 **P(선행) → H(후행)** 이다.
+// 화면(DependencyLayer)이 그리는 화살표와 같은 방향이다.
+
+export const dependencyEdgeKey = (fromId, toId) => `${fromId}>${toId}`;
+
+// 엔티티가 차지하는 날짜 구간. 마일스톤은 한 점(시작=종료)이다.
+// 날짜가 없으면 **null** — 판정할 근거가 없는 간선은 위반으로 세지 않는다.
+const entityWindow = (entity) => {
+    if (!entity) return null;
+    if (entity.type === 'milestone') {
+        return entity.date ? { start: entity.date, end: entity.date } : null;
+    }
+    // 작업의 실제 날짜는 기간 묶음이다(startDate/endDate 는 그 캐시라 어긋날 수 있다).
+    // 기간이 없는 작업만 레거시 필드를 본다.
+    const bounds = entity.type !== 'range' && (entity.timeRanges || []).length > 0
+        ? recalcTaskBoundsSafe(entity.timeRanges)
+        : { startDate: entity.startDate, endDate: entity.endDate };
+    if (!bounds.startDate) return null;
+    return { start: bounds.startDate, end: bounds.endDate || bounds.startDate };
+};
+
+// startId 에서 goalId 까지 후행 방향으로 내려가는 경로(BFS, 최단). 없으면 null.
+// 반환에는 양끝이 모두 들어간다: [startId, ..., goalId].
+const findDependencyPath = (successors, startId, goalId) => {
+    const queue = [[startId]];
+    const visited = new Set([startId]);
+    while (queue.length > 0) {
+        const path = queue.shift();
+        const tail = path[path.length - 1];
+        for (const next of successors.get(tail) || []) {
+            if (next === goalId) return [...path, next];
+            if (visited.has(next)) continue;
+            visited.add(next);
+            queue.push([...path, next]);
+        }
+    }
+    return null;
+};
+
+// 같은 순환을 어느 간선에서 발견하든 한 번만 보고하기 위한 정규화 —
+// 가장 작은 id 가 앞에 오도록 회전시킨다.
+const cycleKey = (ids) => {
+    let pivot = 0;
+    ids.forEach((id, i) => { if (id < ids[pivot]) pivot = i; });
+    return [...ids.slice(pivot), ...ids.slice(0, pivot)].join('>');
+};
+
+// 트리 전체의 의존성 문제를 한 번에 판정한다.
+// 반환:
+//   successors  Map<선행id, 후행id[]> — wouldCreateDependencyCycle 이 쓰는 인접 목록
+//   edgeIssues  { [dependencyEdgeKey]: 'cycle' | 'overlap' } — 화살표 색을 정할 때
+//   cycles      [{ ids, names }] — 순환 사슬(마지막 → 첫 번째로 닫힌다)
+//   overlaps    [{ fromId, toId, fromName, toName, fromEnd, toStart, days }]
+//   dangling    [{ holderId, holderName, missingId }] — 지워진 상대를 가리키는 참조
+export const findDependencyIssues = (tasks) => {
+    const entities = collectEntities(flattenAll(tasks));
+    const byId = new Map(entities.map(e => [e.id, e]));
+    const nameOf = (id) => byId.get(id)?.name || id;
+
+    const successors = new Map();
+    const edges = [];
+    const dangling = [];
+
+    entities.forEach(holder => {
+        (holder.dependencies || []).forEach(depId => {
+            if (!byId.has(depId)) {
+                dangling.push({ holderId: holder.id, holderName: holder.name, missingId: depId });
+                return;
+            }
+            edges.push({ fromId: depId, toId: holder.id });
+            if (!successors.has(depId)) successors.set(depId, []);
+            successors.get(depId).push(holder.id);
+        });
+    });
+
+    const edgeIssues = {};
+    const cycles = [];
+    const seenCycles = new Set();
+    const overlaps = [];
+
+    edges.forEach(({ fromId, toId }) => {
+        // 후행에서 선행으로 되돌아오는 경로가 이미 있으면 이 간선이 순환을 닫는다.
+        const back = fromId === toId ? [] : findDependencyPath(successors, toId, fromId);
+        if (fromId === toId || back) {
+            edgeIssues[dependencyEdgeKey(fromId, toId)] = 'cycle';
+            // back 은 [toId, ..., fromId] 라 끝의 fromId 를 떼면 사슬이 중복 없이 닫힌다.
+            const ids = fromId === toId ? [fromId] : [fromId, ...back.slice(0, -1)];
+            const key = cycleKey(ids);
+            if (!seenCycles.has(key)) {
+                seenCycles.add(key);
+                cycles.push({ ids, names: ids.map(nameOf) });
+            }
+            return; // 순환은 구조 결함이라 일정 위반보다 앞선다 — 한 간선에 하나만 붙인다
+        }
+
+        const from = entityWindow(byId.get(fromId));
+        const to = entityWindow(byId.get(toId));
+        if (!from || !to) return;
+        // 'YYYY-MM-DD' 는 문자열 비교가 곧 날짜 비교다.
+        // 같은 날 인계(to.start === from.end)는 정상 계획으로 보고 세지 않는다 —
+        // 오탐이 섞이면 경고 자체가 무시된다.
+        if (to.start < from.end) {
+            edgeIssues[dependencyEdgeKey(fromId, toId)] = 'overlap';
+            overlaps.push({
+                fromId, toId,
+                fromName: nameOf(fromId), toName: nameOf(toId),
+                fromEnd: from.end, toStart: to.start,
+                days: diffDays(to.start, from.end),
+            });
+        }
+    });
+
+    return { successors, edgeIssues, cycles, overlaps, dangling };
+};
+
+// sourceId → targetId 연결을 **추가하면** 순환이 되는가.
+// successors 는 findDependencyIssues 가 돌려준 인접 목록이다(연결 전 상태).
+export const wouldCreateDependencyCycle = (successors, sourceId, targetId) => {
+    if (!sourceId || !targetId) return false;
+    if (sourceId === targetId) return true;
+    return findDependencyPath(successors || new Map(), targetId, sourceId) !== null;
+};

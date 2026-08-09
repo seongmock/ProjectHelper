@@ -448,3 +448,80 @@ test.describe('명령 팔레트 (Ctrl+K)', () => {
         await expect(row).toHaveClass(/selected/);
     });
 });
+
+test.describe('의존성 정합성', () => {
+    // 이 세 가지는 그전까지 아무도 말해 주지 않았다: 순환(A→B→A)을 만들 수 있었고,
+    // 후행이 선행 종료보다 먼저 시작해도 화살표는 똑같이 회색이었고, 선행 작업을 지우면
+    // 상대의 dependencies 에 존재하지 않는 id 가 조용히 남았다.
+    // 판정은 taskTree.js 의 findDependencyIssues 하나가 한다(단위테스트가 규칙을 고정한다).
+    //
+    // 샘플 데이터: 설계 문서 작성(~2026-02-15) / 개발(2026-02-10~) → 5일 겹친다.
+    const bar = (page, name) => page.locator(`.timeline-bar[title^="${name} ("]`);
+
+    // 설계 문서 작성 → 개발 을 잇는다(= 위반이 되는 연결)
+    const linkOverlapping = async (page) => {
+        await bar(page, '설계 문서 작성').click({ button: 'right' });
+        await expect(page.locator('.inspector-panel')).toBeVisible();
+        await page.getByTestId('inspector-link').click();
+        await bar(page, '개발').click();
+        await expect(page.locator('.dependency-layer path')).toHaveCount(1);
+    };
+
+    // showInspector 는 전역 설정이라 각 테스트가 끝에서 되돌린다
+    const closeInspector = async (page) => {
+        await page.getByTitle('인스펙터 패널').click();
+        await expect(page.locator('.inspector-panel')).toHaveCount(0);
+    };
+
+    test('후행이 선행 종료보다 먼저 시작하면 화살표와 인스펙터가 위반을 알린다', async ({ page }) => {
+        await linkOverlapping(page);
+        await expect(page.getByTestId('dependency-overlap')).toHaveCount(1);
+        await expect(page.getByTestId('dependency-ok')).toHaveCount(0);
+
+        // 후행 쪽에서 보면 선행 목록에 배지가 붙는다 — 화살표만으로는 무엇이 문제인지 모른다
+        await bar(page, '개발').click({ button: 'right' });
+        await expect(page.locator('.inspector-issue.is-overlap')).toHaveCount(1);
+
+        // 겹침을 없애면(후행 시작을 선행 종료 다음날로) 경고가 사라진다
+        await page.getByTestId('inspector-range-start').first().fill('2026-02-16');
+        await expect(page.getByTestId('dependency-overlap')).toHaveCount(0);
+        await expect(page.getByTestId('dependency-ok')).toHaveCount(1);
+        await expect(page.locator('.inspector-issue')).toHaveCount(0);
+
+        await closeInspector(page);
+    });
+
+    test('순환이 되는 연결은 만들어지기 전에 막는다', async ({ page }) => {
+        await linkOverlapping(page); // 설계 → 개발
+
+        // 반대 방향으로 이으면 고리가 닫힌다
+        await bar(page, '개발').click({ button: 'right' });
+        await page.getByTestId('inspector-link').click();
+        await bar(page, '설계 문서 작성').click();
+
+        await expect(page.locator('.toast--error')).toContainText('순환');
+        // 화살표가 늘지 않았다 = 데이터에 순환이 들어가지 않았다
+        await expect(page.locator('.dependency-layer path')).toHaveCount(1);
+
+        await closeInspector(page);
+    });
+
+    test('선행 작업을 지우면 남는 끊어진 참조를 인스펙터에서 정리한다', async ({ page }) => {
+        await linkOverlapping(page); // 설계 → 개발
+
+        // deleteFromTree 는 상대의 dependencies 를 정리하지 않는다 — 참조만 남는다
+        page.once('dialog', d => d.accept());
+        await bar(page, '설계 문서 작성').click({ button: 'right' });
+        await page.getByTestId('inspector-delete').click();
+        await expect(page.locator('.dependency-layer path')).toHaveCount(0);
+
+        await bar(page, '개발').click({ button: 'right' });
+        const broken = page.getByTestId('inspector-broken-refs');
+        await expect(broken).toBeVisible();
+
+        await broken.getByLabel('끊어진 참조 정리').click();
+        await expect(page.getByTestId('inspector-broken-refs')).toHaveCount(0);
+
+        await closeInspector(page);
+    });
+});
