@@ -25,6 +25,47 @@ test('외부(AI) 작업 추가 → 열린 탭에 10초 폴링으로 자동 반�
     await expect(page.getByText('AI가 추가한 작업').first()).toBeVisible({ timeout: 15_000 });
 });
 
+// 판정 규칙 자체는 server/test/dependency.test.js 가 고정한다. 여기서 보는 것은
+// **HTTP 경계**다: 라우트가 실제로 붙어 있는지, 거부가 400 으로 나가는지.
+test('의존성 정합성 — 순환은 400 으로 거부되고, 위반·끊어진 참조는 조회로 드러난다', async ({ request }) => {
+    const addTask = async (name, startDate, endDate) => {
+        const res = await request.post('/api/tasks', { data: { name, startDate, endDate } });
+        expect(res.status()).toBe(201);
+        return (await res.json()).task;
+    };
+    const setDeps = (task, dependencies) =>
+        request.patch(`/api/tasks/${task.id}/time-ranges/${task.timeRanges[0].id}`, { data: { dependencies } });
+    const issues = async () => (await request.get('/api/dependency-issues')).json();
+
+    const a = await addTask('선행', '2026-08-01', '2026-08-10');
+    const b = await addTask('후행', '2026-08-11', '2026-08-20');
+
+    // 정상 연결: 선행 → 후행
+    expect((await setDeps(b, [a.timeRanges[0].id])).status()).toBe(200);
+    const clean = await issues();
+    expect(clean).toMatchObject({ ok: true, cycles: [], overlaps: [], dangling: [] });
+
+    // 되돌리는 연결은 순환이라 쓰기 자체가 막힌다
+    const cyclic = await setDeps(a, [b.timeRanges[0].id]);
+    expect(cyclic.status()).toBe(400);
+    expect((await issues()).cycles).toEqual([]); // 거부됐으니 트리에 남지 않았다
+
+    // 존재하지 않는 id 도 마찬가지
+    expect((await setDeps(a, ['없는-id'])).status()).toBe(400);
+
+    // 일정 위반은 쓰기 시점에 막히지 않는다 — 조회로 드러난다
+    await request.patch(`/api/tasks/${b.id}/time-ranges/${b.timeRanges[0].id}`, {
+        data: { startDate: '2026-08-05' },
+    });
+    expect((await issues()).overlaps).toHaveLength(1);
+
+    // 선행을 지우면 후행에 끊어진 참조가 남는다
+    await request.delete(`/api/tasks/${a.id}`);
+    const after = await issues();
+    expect(after.overlaps).toEqual([]);
+    expect(after.dangling).toHaveLength(1);
+});
+
 test('편집 충돌(409) → 서버 우선으로 자동 재로드', async ({ page, request }) => {
     await page.waitForTimeout(2500); // 초기 저장 안정화
 

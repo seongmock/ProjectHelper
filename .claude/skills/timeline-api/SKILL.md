@@ -48,6 +48,7 @@ MCP에서는 `get-guide` 도구가 동일 내용 반환.
 | `add-time-range` / `delete-time-range` | 한 작업의 복수 기간(바) 관리 |
 | `add-milestone` / `delete-milestone` | 마일스톤 마커 |
 | `delete-task` | 서브트리 포함 삭제 |
+| `check-dependencies` | 의존성 점검 — 순환/일정 위반/끊어진 참조 (일정 대량 이동 후 확인) |
 | `create-snapshot` | **대량 편집/삭제 전 반드시 백업** |
 
 ## 방법 2: REST API (curl)

@@ -226,6 +226,13 @@ server.tool(
 );
 
 server.tool(
+    'check-dependencies',
+    '의존성 정합성 점검 — 순환(cycles), 일정 위반(overlaps: 후행이 선행 종료보다 먼저 시작), 끊어진 참조(dangling: 삭제된 상대를 가리킴)를 반환. 일정을 대량으로 옮긴 뒤 확인용.',
+    { projectId: PROJECT },
+    run(({ projectId }) => api(`${pp(projectId)}/dependency-issues`))
+);
+
+server.tool(
     'create-snapshot',
     '현재 전체 일정의 이름 지정 백업 생성 — 대량 편집/삭제 전 안전망으로 사용.',
     { name: z.string(), projectId: PROJECT },

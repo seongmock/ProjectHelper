@@ -22,6 +22,10 @@ router.get('/tasks', route((req) =>
 
 router.get('/tasks/:id', route((req) => svc.getTask(req.projectStore, req.params.id)));
 
+// ── 의존성 정합성 ────────────────────────────────────
+// '/tasks/:id' 보다 아래에 둬도 경로가 겹치지 않는다(다른 세그먼트).
+router.get('/dependency-issues', route((req) => svc.getDependencyIssues(req.projectStore)));
+
 // ── 작업 CRUD ────────────────────────────────────────
 router.post('/tasks', route((req) =>
     svc.createTask(req.projectStore, req.body, ifMatch(req)), 201));

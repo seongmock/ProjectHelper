@@ -332,7 +332,12 @@ paths:
                 endDate: { type: string, format: date }
                 label: { type: string }
                 color: { type: string, nullable: true }
-                dependencies: { type: array, items: { type: string } }
+                dependencies:
+                  type: array
+                  items: { type: string }
+                  description: >
+                    선행 엔티티 id (작업/기간/마일스톤). 존재하지 않는 id 이거나
+                    순환을 닫는 연결이면 400. 점검은 GET /dependency-issues.
       responses:
         '201': { description: '{ ok, revision, timeRange }' }
         '400': { $ref: '#/components/responses/BadRequest' }
@@ -409,6 +414,23 @@ paths:
         '200': { description: '{ ok, revision }' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
+
+  /dependency-issues:
+    get:
+      summary: 의존성 정합성 점검 — 순환·일정 위반·끊어진 참조
+      description: >
+        브라우저 화면(타임라인 화살표·인스펙터 배지)이 쓰는 것과 같은 판정이다.
+        순환과 존재하지 않는 id 참조는 기간 쓰기 시점에 400 으로 차단되지만,
+        일정 위반과 (작업 삭제로 생긴) 끊어진 참조는 사후에만 드러나므로 여기서 본다.
+        overlaps 의 days 는 후행 시작이 선행 종료보다 며칠 이른지다.
+        같은 날 인계(후행 시작 = 선행 종료)는 위반으로 세지 않는다.
+      responses:
+        '200':
+          description: >
+            { ok, revision,
+            cycles: [{ids, names}],
+            overlaps: [{fromId, toId, fromName, toName, fromEnd, toStart, days}],
+            dangling: [{holderId, holderName, missingId}] }
 
   /snapshots:
     get:

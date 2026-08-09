@@ -65,14 +65,14 @@ npm run test:server
 # 3) 빌드
 npm run build
 
-# 4) E2E 45건 — playwright.config.js 가 API·dev 서버를 자동 기동한다
+# 4) E2E 46건 — playwright.config.js 가 API·dev 서버를 자동 기동한다
 npx playwright test
 
 # 5) 린트
 npm run lint
 ```
 
-**합격 기준**: lint 0 error · unit 225/225 · server 97/97 · 빌드 성공 · **E2E 45/45(skip 0)**.
+**합격 기준**: lint 0 error · unit 225/225 · server 122/122 · 빌드 성공 · **E2E 46/46(skip 0)**.
 
 > ⚠️ 예전에는 API 서버를 수동으로 띄우지 않으면 `19 passed / 1 failed / 8 skipped`가 났다.
 > 지금은 config 가 자동 기동하지만 원칙은 그대로다 — skip이 1건이라도 있으면 그 테스트는
@@ -177,6 +177,7 @@ Phase 2/3 이후로는 실사 §5.4 의 남은 개선안을 자동 스케줄이 
 | 실사 §5.4-13 키보드 편집 | ✅ 2026-08-06 | `useTaskKeyboard` — ↑↓ 선택 이동, `[`/`]` 일정 이동(Shift 주 단위, Alt 종료일만). 규칙은 `shiftTaskDates()` 순수함수 |
 | 실사 §5.4-13 명령 팔레트(Ctrl+K) | ✅ 2026-08-07 | `features/shell/CommandPalette.jsx` + 순수 모듈 `commandPalette.js`(목록 구성·점수). 명령 검색 + **작업으로 이동**(접힌 조상을 펼친다 — `expandAncestors`). 툴바 우측에 상시 버튼(⌘) |
 | 의존성 정합성 검사 (실사에 없던 항목 — 코드에서 도출) | ✅ 2026-08-09 | 의존성이 **그려지기만 하던 것**을 판정한다: 순환(연결 전 차단) · 일정 위반(후행이 선행 종료보다 먼저 시작) · 끊어진 참조. 판정은 `findDependencyIssues()` 하나, 표시는 타임라인 화살표 + 인스펙터 배지 |
+| 의존성 정합성 — 서버 포팅 (위 항목이 남긴 후속) | ✅ 2026-08-10 | 같은 판정을 `server/lib/taskTree.js` 로 옮겨 **REST/MCP 쓰기도 순환·미지 id 를 400 으로 거부**한다. 사후에만 드러나는 위반·끊어진 참조는 `GET /api/projects/{pid}/dependency-issues` + MCP `check-dependencies` 로 조회 |
 
 > 상태 색상 모드에서 **표(TableView)는 손대지 않았다.** 표는 이미 지연을 아이콘+색 이중으로
 > 인코딩하고 있고(P1-7), 색상 칩은 사용자가 작업 색을 고르는 입력이다. 색상 모드를 표에까지
@@ -535,6 +536,42 @@ v3 로그는 "이 앱에 편집 팝오버는 하나도 남아 있지 않다"고 
 - 검증: lint 0 error · unit **225/225** · server **97/97** · 빌드 OK · E2E **45/45 (skip 0)**.
   E2E 3건 추가(위반 감지→날짜 고치면 해제 / 순환 차단 / 끊어진 참조 정리).
   격리 인스턴스(`PORT=3100 PH_DATA_DIR=.tmp-visual-data`)로 1400px 육안 확인.
+
+### 2026-08-10 — 의존성 정합성 검사 서버 포팅 (앞 세션이 남긴 후속)
+
+직전 세션이 "**서버에는 포팅하지 않았다 — REST/MCP 로 쓰는 AI 는 여전히 순환을 만들 수
+있다. 다음 세션 후보**"라고 남긴 항목이다. 화면은 2026-08-09 부터 순환을 만들기 전에
+막지만, API 로 들어오는 쓰기는 그 검사를 통째로 건너뛰고 있었다 — 같은 데이터에 대해
+화면과 API 가 다른 규칙을 쓰고 있었던 셈이다.
+
+- **판정은 한 벌을 복제한다, 두 벌을 만들지 않는다.** `findDependencyIssues` /
+  `wouldCreateDependencyCycle` 을 `server/lib/taskTree.js` 로 옮기면서 **반환 형태까지
+  그대로** 뒀다(`successors`/`edgeIssues` 포함). `edgeIssues` 는 서버가 안 쓰지만, 모양이
+  갈라지면 다음에 한쪽만 고치는 사고가 난다. 서버 테스트 케이스도 클라이언트 단위테스트의
+  같은 블록과 짝이 되게 썼다(같은 픽스처·같은 기대값).
+- **막을 수 있는 것은 쓰기 시점에 막고, 못 막는 것은 조회로 드러낸다.**
+  - 쓰기 차단(`assertDependenciesWritable`, 400): 존재하지 않는 id 참조 · 순환을 닫는 연결.
+    `withTasks` 의 mutator 안에서 던지므로 **아무것도 쓰이지 않은 채** 빠져나온다.
+    검사에 쓰는 `successors` 는 변경 **전** 트리로 계산한다 — 보유자의 기존 의존성은 전부
+    보유자로 *들어오는* 간선이라, 그것을 교체해도 보유자에서 *나가는* 경로(순환 판정이 보는
+    방향)는 달라지지 않는다. 그래서 사전 계산으로 오탐이 생기지 않는다.
+  - 조회(`GET /api/projects/{pid}/dependency-issues`): 일정 위반과 끊어진 참조.
+    둘은 쓰기 하나만 봐서는 판정할 수 없다 — 위반은 나중에 상대 날짜가 밀려서 생기고,
+    끊어진 참조는 `deleteTask` 가 상대의 `dependencies` 를 정리하지 않아서 생긴다.
+  - 응답에서 `successors`(Map — 직렬화 불가)와 `edgeIssues`(화살표 색 = 화면 전용)는 뺐다.
+- **`POST /api/data`(통짜 교체)는 순환을 이유로 막지 않았다.** 그 경로는 브라우저의 저장
+  경로이기도 하다. 이미 순환이 들어 있는 트리가 있으면(2026-08-09 이전에 만들어질 수
+  있었다) 사용자가 **저장 자체를 못 하게 된다** — 고치려면 저장해야 하는데.
+  통짜 경로는 지금처럼 화면이 표시하고, 조회 엔드포인트가 진단한다.
+- MCP 도구 `check-dependencies` 추가(15 → 16개). `/api/guide`·`openapi.yaml`·
+  `docs/AI_INTEGRATION.md`·`timeline-api` 스킬에 같은 설명을 실었다.
+- 검증: lint 0 error · unit **225/225** · server **122/122**(+25) · 빌드 OK ·
+  E2E **46/46 (skip 0)**. E2E 1건은 **HTTP 경계만** 본다(라우트가 붙어 있는지, 거부가
+  400 인지) — 판정 규칙은 서버 단위테스트가 고정한다.
+- 손대지 않은 것: `htmlExporter` 의 회색 화살표는 그대로다(P3-4 결정 대기 — 중복을 더
+  늘리지 않는다). 서버에는 **정리(cleanup) 엔드포인트를 만들지 않았다** — 끊어진 참조를
+  지우는 경로는 인스펙터에 이미 있고(`planDependencyRemoval`), 서버에 두 번째 제거 경로를
+  만들면 "누가 지웠는가"가 갈라진다.
 
 ---
 

@@ -25,8 +25,8 @@ npm run dev:api      # Express API server (PORT env, default 3000)
 npm run build        # Production build → dist/
 npm run lint         # ESLint 9 (flat config)
 npm run test:unit    # Vitest — 도메인 순수함수 + XSS 회귀 (225건)
-npm run test:server  # node:test — 검증·서비스·저장소 내구성·감사 로그 (97건)
-npm run test:e2e     # Playwright E2E 45건 (API·dev 서버 자동 기동)
+npm run test:server  # node:test — 검증·서비스·저장소 내구성·감사 로그·의존성 정합성 (122건)
+npm run test:e2e     # Playwright E2E 46건 (API·dev 서버 자동 기동)
 npm run verify       # 위 전부 + 빌드 — 변경 후 이것을 돌려라
 ```
 
@@ -44,8 +44,8 @@ npx playwright test -g "프로젝트"                   # by test-title substrin
 npx playwright test --headed --debug                # watch it / step through
 ```
 
-**변경 후에는 `npm run verify`** — 합격 기준은 lint 0 error · unit 225/225 · server 97/97 ·
-빌드 성공 · **E2E 45/45 (skip 0)**.
+**변경 후에는 `npm run verify`** — 합격 기준은 lint 0 error · unit 225/225 · server 122/122 ·
+빌드 성공 · **E2E 46/46 (skip 0)**.
 
 `playwright.config.js` 는 **API 서버와 dev 서버를 모두 자동 기동**하며, API는
 `PH_DATA_DIR=.tmp-e2e-data` 로 격리된다. 예전에는 API 서버를 수동으로 띄우지 않으면 8건이
@@ -143,6 +143,13 @@ overlapping functions must stay behavior-compatible**; note it also owns `create
 on the client lives in `dataModel.js` and takes different args, plus server-only `flattenAll`/
 `findTask`), `lib/validate.js`, `lib/eventLog.js` (append-only 감사 로그), `lib/aiGuide.js`
 (machine-readable guide at `GET /api/guide`).
+**Dependency integrity is enforced server-side too**: `findDependencyIssues`/
+`wouldCreateDependencyCycle` are mirrored in `lib/taskTree.js` (same return shape as the
+client's — keep them in sync), `taskService` rejects unknown-id and cycle-closing
+`dependencies` on time-range writes (400), and `GET /api/projects/:pid/dependency-issues`
+reports what a single write can't judge (schedule violations, dangling refs). The blob
+`POST /api/data` is deliberately *not* gated on cycles — it is also the browser's save path,
+and rejecting it would lock a user out of fixing pre-existing data.
 No database. Auth is Caddy basicauth; the authenticated user is forwarded as `X-Auth-User` and
 recorded (owner/createdBy) but not yet enforced.
 
@@ -154,9 +161,9 @@ let Ctrl+Z restore another project's tree and auto-save it).
 ### AI integration surface
 
 AI agents manipulate timeline data via per-task REST endpoints (`server/openapi.yaml` is the
-spec) or the **MCP server** (`mcp/index.js`, 15 tools, registered via `.mcp.json` —
-`list-tasks`/`add-task`/`reschedule`/etc.; the 12 data tools take an optional `projectId`,
-defaulting to the 'default' project).
+spec) or the **MCP server** (`mcp/index.js`, 16 tools, registered via `.mcp.json` —
+`list-tasks`/`add-task`/`reschedule`/`check-dependencies`/etc.; the 13 data tools take an
+optional `projectId`, defaulting to the 'default' project).
 See `docs/AI_INTEGRATION.md` and the `timeline-api` skill. Prefer per-task endpoints over blob `POST /api/data`.
 
 ### State management (`src/App.jsx`, ~1000 lines — the hub)

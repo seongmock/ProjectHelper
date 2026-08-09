@@ -37,7 +37,7 @@ app.get('/api', (req, res) => {
         endpoints: [
             '/api/guide', '/api/openapi.yaml', '/api/projects',
             '/api/projects/{pid}/tasks', '/api/projects/{pid}/data', '/api/projects/{pid}/revision', '/api/projects/{pid}/snapshots',
-            '/api/projects/{pid}/events',
+            '/api/projects/{pid}/events', '/api/projects/{pid}/dependency-issues',
             '/api/tasks (→ default 프로젝트 별칭)', '/api/revision', '/api/data', '/api/snapshots',
             '/api/events', '/api/health',
         ],

@@ -35,6 +35,25 @@ const mustWrite = (result) => {
     return result;
 };
 
+// 의존성을 쓰기 전에 막는다 — 화면(useDependencyLink)이 하는 것과 같은 판정이다.
+// 만든 뒤 경고로 알리는 것보다 낫다: 순환은 고치는 것 말고 할 일이 없고, 존재하지
+// 않는 id 를 가리키는 참조는 어느 화면에도 안 나와 영원히 남는다.
+// holderId 는 dependencies 를 **들고 있는 쪽**(후행)이다 — 간선은 dep → holder.
+// tasks 는 변경 전 트리다. holder 의 기존 의존성은 전부 holder 로 들어오는 간선이라,
+// 그것을 교체해도 holder 에서 나가는 경로(순환 판정이 보는 방향)는 달라지지 않는다.
+const assertDependenciesWritable = (tasks, holderId, dependencies) => {
+    if (!dependencies || dependencies.length === 0) return;
+    const known = new Set(tree.collectEntities(tree.flattenAll(tasks)).map(e => e.id));
+    const { successors } = tree.findDependencyIssues(tasks);
+
+    for (const depId of dependencies) {
+        if (!known.has(depId)) throw badRequest(`unknown dependency id: ${depId}`);
+        if (tree.wouldCreateDependencyCycle(successors, depId, holderId)) {
+            throw badRequest(`dependency would create a cycle: ${depId} -> ${holderId}`);
+        }
+    }
+};
+
 // ── 조회 ─────────────────────────────────────────────
 const getRevision = (store) => {
     const meta = store.readMeta();
@@ -60,6 +79,15 @@ const getTask = (store, id) => {
         task: found.task,
         parentId: found.parent ? found.parent.id : null,
     };
+};
+
+// 트리 전체의 의존성 문제를 훑는다 — 화면(타임라인 화살표·인스펙터 배지)이 보는 것과
+// 같은 판정이다. 쓰기 전 차단(assertDependenciesWritable)이 막지 못하는 것들을 여기서 본다:
+// 일정 위반, 그리고 상대가 삭제되면서 끊어진 참조(deleteTask 는 참조를 정리하지 않는다).
+// successors 는 Map 이라, edgeIssues 는 화살표 색을 정하는 화면 전용이라 응답에서 뺀다.
+const getDependencyIssues = (store) => {
+    const { cycles, overlaps, dangling } = tree.findDependencyIssues(store.readTasks());
+    return { revision: store.readMeta().revision, cycles, overlaps, dangling };
 };
 
 // ── 작업 CRUD ────────────────────────────────────────
@@ -216,6 +244,7 @@ const addTimeRange = (store, id, body, ifMatch) => {
     const result = mustWrite(store.withTasks((tasks) => {
         const task = tree.findTask(tasks, id);
         if (!task) throw notFound();
+        assertDependenciesWritable(tasks, newRange.id, newRange.dependencies);
         return withRecalcedBounds(tasks, id, [...(task.timeRanges || []), newRange]);
     }));
 
@@ -243,6 +272,7 @@ const updateTimeRange = (store, id, rangeId, body, ifMatch) => {
 
         const merged = { ...target, ...body };
         if (merged.endDate < merged.startDate) throw badRequest('endDate must be >= startDate');
+        if (body.dependencies) assertDependenciesWritable(tasks, rangeId, body.dependencies);
         updatedRange = merged;
 
         return withRecalcedBounds(tasks, id, ranges.map(r => (r.id === rangeId ? merged : r)));
@@ -311,6 +341,7 @@ module.exports = {
     getRevision,
     listTasks,
     getTask,
+    getDependencyIssues,
     createTask,
     updateTask,
     deleteTask,

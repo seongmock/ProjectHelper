@@ -42,7 +42,7 @@ cd mcp && npm install
 
 브라우저 앱을 열어둔 상태라면 **AI의 변경이 10초 안에 화면에 자동 반영**된다 (리비전 폴링).
 
-## MCP 도구 12개
+## MCP 도구 13개
 
 | 도구 | 설명 |
 |---|---|
@@ -57,6 +57,7 @@ cd mcp && npm install
 | `delete-time-range` | 기간 삭제 |
 | `add-milestone` | 마일스톤 (shape: diamond/circle/triangle/square/star/flag) |
 | `delete-milestone` | 마일스톤 삭제 |
+| `check-dependencies` | 의존성 정합성 점검 — 순환/일정 위반/끊어진 참조 |
 | `create-snapshot` | 전체 일정 이름 지정 백업 — **대량 편집 전 권장** |
 
 환경변수: `PH_API_BASE`(기본 `http://localhost:3000/api`), `PH_BASIC_AUTH`(`user:pass`, Caddy HTTPS 경유 시).
@@ -81,12 +82,21 @@ DELETE /api/tasks/:id/milestones/:milestoneId
 GET    /api/data          # 통짜 트리 (읽기는 자유롭게)
 POST   /api/data          # 통짜 교체 — AI는 가급적 금지 (작업 단위 사용)
 GET    /api/events?limit=50   # 감사 로그 — 쓰기 이력 최신순 (읽기 전용)
+GET    /api/dependency-issues # 의존성 점검 — 순환/일정 위반/끊어진 참조 (읽기 전용)
 ```
 
 `/api/events` 는 프로젝트별 append-only 로그(`data/projects/<pid>/events.jsonl`)를 읽는다.
 쓰기 1건당 `{ts, actor, op, revision, nodes, prevNodes}` 한 줄 — "누가 언제 트리를 몇 개에서
 몇 개로 바꿨는가"를 사후에 답하기 위한 것이다. **되돌리기 수단이 아니다**(복구는 스냅샷과
 `data.json.bak.N` 세대 백업). `actor` 는 Caddy basicauth 가 넘긴 `X-Auth-User` 다.
+
+`/api/dependency-issues` 는 브라우저 화면(타임라인 화살표·인스펙터 배지)과 **같은 판정**을
+돌려준다: `cycles`(순환) · `overlaps`(후행이 선행 종료보다 먼저 시작, `days` = 며칠 이른지) ·
+`dangling`(삭제된 상대를 가리키는 참조). 순환과 존재하지 않는 id 참조는 기간 쓰기
+(`POST/PATCH .../time-ranges`) 시점에 **400 으로 거부**된다 — 통짜 `POST /api/data` 는
+그 검사를 하지 않으므로 거기로 들어온 것과 예전 데이터에 남아 있던 것은 여기 나타난다.
+위반·끊어진 참조는 애초에 쓰기 하나만 봐서는 판정할 수 없어 이 조회가 유일한 창구다.
+일정을 대량으로 옮긴 뒤 한 번 호출할 것. 같은 날 인계(후행 시작 = 선행 종료)는 위반이 아니다.
 
 ## 동시성 규약
 
