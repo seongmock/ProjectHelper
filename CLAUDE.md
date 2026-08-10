@@ -24,9 +24,9 @@ npm run dev          # Vite dev server, http://localhost:5173, hot-reload
 npm run dev:api      # Express API server (PORT env, default 3000)
 npm run build        # Production build → dist/
 npm run lint         # ESLint 9 (flat config)
-npm run test:unit    # Vitest — 도메인 순수함수 + XSS 회귀 (238건)
+npm run test:unit    # Vitest — 도메인 순수함수 + XSS 회귀 (243건)
 npm run test:server  # node:test — 검증·서비스·저장소 내구성·감사 로그·의존성 정합성 (128건)
-npm run test:e2e     # Playwright E2E 48건 (API·dev 서버 자동 기동)
+npm run test:e2e     # Playwright E2E 51건 (API·dev 서버 자동 기동)
 npm run verify       # 위 전부 + 빌드 — 변경 후 이것을 돌려라
 ```
 
@@ -44,8 +44,8 @@ npx playwright test -g "프로젝트"                   # by test-title substrin
 npx playwright test --headed --debug                # watch it / step through
 ```
 
-**변경 후에는 `npm run verify`** — 합격 기준은 lint 0 error · unit 238/238 · server 128/128 ·
-빌드 성공 · **E2E 48/48 (skip 0)**.
+**변경 후에는 `npm run verify`** — 합격 기준은 lint 0 error · unit 243/243 · server 128/128 ·
+빌드 성공 · **E2E 51/51 (skip 0)**.
 
 `playwright.config.js` 는 **API 서버와 dev 서버를 모두 자동 기동**하며, API는
 `PH_DATA_DIR=.tmp-e2e-data` 로 격리된다. 예전에는 API 서버를 수동으로 띄우지 않으면 8건이
@@ -220,6 +220,13 @@ Dependencies now live at the range level.
   `dateUtils`, `storage`. There is no `src/components/` or top-level `src/hooks/` anymore.
 - Each component is a `Foo.jsx` + `Foo.css` pair. **Vanilla CSS only** — no CSS-in-JS, no
   utility framework.
+- **Every overlay goes through `shared/ui/Modal`** — it owns Escape, overlay click, the
+  `.modal-overlay` class that `useTaskKeyboard`'s `hasOverlay()` checks, *and focus*
+  (entry / Tab trap / restore to the opener, via the pure `shared/ui/focusTrap.js`). Rolling
+  your own shell means those five things diverge per modal — they used to. A child that wants
+  focus can just grab it in its own effect (the palette input does); Modal only steps in if
+  focus is still outside the dialog. A child that wants `Tab` for itself calls
+  `preventDefault()` and the trap stands down.
 - Dark mode is done purely with the `[data-theme="dark"]` CSS selector — no JS theming for it.
   Chart color themes are separate, in `src/themes/`.
 - Timeline drag-and-drop uses **@dnd-kit** (`TimelineView.jsx` / `TimelineBar.jsx`).

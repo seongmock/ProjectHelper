@@ -20,7 +20,7 @@ npm run test:e2e  # Playwright E2E (API·dev 서버 자동 기동, 28 테스트)
 npm run preview   # 빌드 결과물 로컬 미리보기
 ```
 
-> **코드 변경 후 `npm run verify` 필수** (lint + 단위 173 + 서버 97 + 빌드 + E2E 37건).
+> **코드 변경 후 `npm run verify` 필수** (lint + 단위 243 + 서버 128 + 빌드 + E2E 51건).
 > E2E는 playwright.config.js가 API 서버까지 자동 기동하므로 skip이 발생하지 않는다.
 > skip이 1건이라도 있으면 그 테스트는 아무것도 검증하지 않은 것이다 — 불합격으로 본다.
 

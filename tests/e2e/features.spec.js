@@ -547,3 +547,58 @@ test.describe('의존성 정합성', () => {
         await closeInspector(page);
     });
 });
+
+test.describe('모달 포커스 관리 (접근성)', () => {
+    // 실사 §5.3. 판정 규칙은 focusTrap 단위테스트가 고정하고, 여기서는 실제 DOM 에서
+    // 세 가지가 성립하는지만 본다: 안으로 들어간다 · 안에서 돈다 · 원래 자리로 돌아온다.
+    // 검사 대상은 공용 Modal 껍데기다(모달 5종이 전부 이것을 쓴다).
+    const trigger = (page) => page.getByTitle('스냅샷 관리');
+
+    test('열면 포커스가 안으로 들어가고 닫으면 열었던 버튼으로 돌아온다', async ({ page }) => {
+        await trigger(page).click();
+        await expect(page.locator('.modal-content')).toBeVisible();
+        // 첫 후보는 헤더의 닫기 버튼이다
+        await expect(page.locator('.modal-close')).toBeFocused();
+
+        await page.keyboard.press('Escape');
+        await expect(page.locator('.modal-content')).toHaveCount(0);
+        // 돌려주지 않으면 포커스가 <body> 로 떨어져 다음 Tab 이 페이지 맨 위에서 시작한다
+        await expect(trigger(page)).toBeFocused();
+    });
+
+    test('Tab 이 모달 안에서 돌고 배경으로 새지 않는다', async ({ page }) => {
+        await trigger(page).click();
+        await expect(page.locator('.modal-close')).toBeFocused();
+
+        // 첫 후보에서 뒤로 → 마지막 후보(푸터의 닫기). 그 사이 후보 수는 스냅샷 개수에
+        // 따라 달라지므로 개수를 단정하지 않고 양 끝만 본다.
+        await page.keyboard.press('Shift+Tab');
+        await expect(page.locator('.modal-footer button')).toBeFocused();
+        await page.keyboard.press('Tab');
+        await expect(page.locator('.modal-close')).toBeFocused();
+
+        for (let i = 0; i < 12; i++) await page.keyboard.press('Tab');
+        const stillInside = await page.evaluate(
+            () => !!document.activeElement?.closest('.modal-overlay')
+        );
+        expect(stillInside).toBe(true);
+
+        await page.keyboard.press('Escape');
+        await expect(page.locator('.modal-content')).toHaveCount(0);
+    });
+
+    test('자식이 Tab 을 쓰는 모달에서는 가두기가 비켜 준다 (명령 팔레트)', async ({ page }) => {
+        // 팔레트는 Tab 을 목록 이동으로 쓴다(preventDefault). 가두기가 이것을 가로채면
+        // 포커스가 검색창을 떠나 첫 후보로 튀고 타이핑이 끊긴다.
+        await page.keyboard.press('Control+k');
+        const items = page.getByTestId('command-item');
+        await expect(items.first()).toHaveClass(/active/);
+
+        await page.keyboard.press('Tab');
+        await expect(items.nth(1)).toHaveClass(/active/);
+        await expect(page.getByTestId('command-palette-input')).toBeFocused();
+
+        await page.keyboard.press('Escape');
+        await expect(page.getByTestId('command-palette-input')).toHaveCount(0);
+    });
+});
