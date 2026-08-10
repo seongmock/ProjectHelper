@@ -15,6 +15,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { storage } from '../../utils/storage';
 import { migrateTaskData } from '../../utils/dataModel';
+import {
+    initialSyncState, nextSyncState, hasUnsavedEdits, retryDelay, SYNC_ERROR,
+} from './syncStatus';
 
 const ACTIVE_PROJECT_KEY = 'project-timeline-active-project';
 const AUTOSAVE_DEBOUNCE_MS = 1500; // 키 입력/드래그마다 서버 요청을 보내지 않기 위함
@@ -47,9 +50,26 @@ export function useProjectSync({ tasks, setTasks, setTasksSilent, resetTasks, ap
     const [activeProjectId, setActiveProjectId] = useState(readActiveProjectId);
 
     const isSwitchingRef = useRef(false); // 전환 중 재진입 방지
-    const dirtyRef = useRef(false);       // 디바운스 예약됐지만 아직 flush 안 된 편집 존재
     const saveTimerRef = useRef(null);    // 예약된 디바운스 타이머 (전환 시 동기 취소용)
     const skipNextSaveRef = useRef(false); // 외부 변경 재로드 직후 저장 에코 방지
+    const savingRef = useRef(false);      // 요청 진행 중 — 디바운스와 재시도 타이머의 중복 발사 방지
+
+    // ── 저장 상태 (표시 + 미저장 판정) ───────────────
+    // 판정 규칙은 syncStatus.js 에 있다. ref 와 state 를 함께 들고 다니는 이유:
+    // 폴링·프로젝트 전환·beforeunload 는 렌더를 기다릴 수 없어 **동기적으로** 미저장
+    // 여부를 읽어야 하고, 인디케이터는 렌더 값이 필요하다. 갱신 지점은 emitSync 하나다.
+    const [syncState, setSyncState] = useState(initialSyncState);
+    const syncRef = useRef(syncState);
+    const emitSync = useCallback((event) => {
+        const next = nextSyncState(syncRef.current, event);
+        if (next === syncRef.current) return; // 변화 없으면 리렌더도, effect 재실행도 없다
+        syncRef.current = next;
+        setSyncState(next);
+    }, []);
+
+    // 재시도는 편집이 없어도 돌아야 하므로 최신 트리를 ref 로 읽는다
+    const tasksRef = useRef(tasks);
+    tasksRef.current = tasks;
 
     // 서버 데이터를 undo 히스토리 오염 없이 반영 (외부 변경 수신용)
     const reloadFromServer = useCallback(async () => {
@@ -58,6 +78,29 @@ export function useProjectSync({ tasks, setTasks, setTasksSilent, resetTasks, ap
         skipNextSaveRef.current = true;
         setTasksSilent(() => migrateTaskData(data));
     }, [setTasksSilent]);
+
+    // 저장 시도 — 자동저장 디바운스·실패 재시도·수동 재시도가 모두 이 함수를 쓴다.
+    // 반환은 storage.saveData 의 결과({ok} | {ok:false,conflict} | {ok:false}) 그대로.
+    const attemptSave = useCallback(async () => {
+        // 같은 트리를 두 번 보내면 늦은 쪽이 낡은 If-Match 로 409 를 받아 "외부에서
+        // 변경되었습니다" 라는 거짓 안내가 뜬다.
+        if (savingRef.current) return null;
+        savingRef.current = true;
+        emitSync('saving');
+        try {
+            const result = await storage.saveData(tasksRef.current);
+            if (result?.conflict) {
+                emitSync('conflict');
+                toast.info('외부에서 데이터가 변경되어 최신 상태를 불러왔습니다.');
+                await reloadFromServer();
+            } else {
+                emitSync(result?.ok ? 'saved' : 'failed');
+            }
+            return result;
+        } finally {
+            savingRef.current = false;
+        }
+    }, [emitSync, reloadFromServer, toast]);
 
     // ── 초기 로드 ────────────────────────────────────
     useEffect(() => {
@@ -104,17 +147,34 @@ export function useProjectSync({ tasks, setTasks, setTasksSilent, resetTasks, ap
             skipNextSaveRef.current = false;
             return;
         }
-        dirtyRef.current = true;
-        saveTimerRef.current = setTimeout(async () => {
-            const result = await storage.saveData(tasks);
-            if (result?.ok) dirtyRef.current = false;
-            if (result?.conflict) {
-                toast.info('외부에서 데이터가 변경되어 최신 상태를 불러왔습니다.');
-                await reloadFromServer();
-            }
-        }, AUTOSAVE_DEBOUNCE_MS);
+        emitSync('edit');
+        saveTimerRef.current = setTimeout(attemptSave, AUTOSAVE_DEBOUNCE_MS);
         return () => clearTimeout(saveTimerRef.current);
-    }, [tasks, isLoading, reloadFromServer, toast]);
+    }, [tasks, isLoading, attemptSave, emitSync]);
+
+    // ── 실패 재시도 (지수 백오프) ────────────────────
+    // 재시도가 없으면 사용자가 다시 편집할 때까지 서버는 낡은 상태로 남는다 — 그리고
+    // 그 사실을 아무도 모른 채 다음 로드가 서버 우선으로 로컬 캐시까지 덮어쓴다.
+    // 상태가 그대로면 emitSync 가 같은 객체를 유지하므로(예: 실패 중 편집) 백오프가
+    // 리셋되지 않는다.
+    useEffect(() => {
+        if (isLoading || syncState.phase !== SYNC_ERROR) return;
+        const id = setTimeout(attemptSave, retryDelay(syncState.failures));
+        return () => clearTimeout(id);
+    }, [syncState, isLoading, attemptSave]);
+
+    // ── 미저장 편집을 안고 떠나는 것을 경고 ──────────
+    // 디바운스 1.5초 안에 탭을 닫거나, 저장이 실패한 상태에서 떠나면 그 편집은
+    // 이 브라우저의 localStorage 에만 남는다(다른 기기·캐시 삭제 시 소실).
+    useEffect(() => {
+        const handleBeforeUnload = (e) => {
+            if (!hasUnsavedEdits(syncRef.current)) return;
+            e.preventDefault();
+            e.returnValue = ''; // 구형 브라우저는 이 대입이 있어야 확인창을 띄운다
+        };
+        window.addEventListener('beforeunload', handleBeforeUnload);
+        return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+    }, []);
 
     // ── 리비전 폴링 ──────────────────────────────────
     // 외부(AI API)가 데이터를 변경하면 10초 내 자동 반영.
@@ -123,6 +183,11 @@ export function useProjectSync({ tasks, setTasks, setTasksSilent, resetTasks, ap
         if (isLoading) return;
         const id = setInterval(async () => {
             if (document.hidden) return; // 백그라운드 탭은 폴링 생략
+            // 미저장 편집이 있으면 재로드를 미룬다. 여기서 덮어쓰면 그 편집이 조용히
+            // 사라지고(재로드는 skipNextSave 를 세워 저장 에코까지 막는다) 사용자는
+            // 무엇을 잃었는지도 알 수 없다. 곧 자동저장이 돌고, 정말 충돌이면 409 가
+            // 같은 재로드를 하되 토스트로 알린다.
+            if (hasUnsavedEdits(syncRef.current)) return;
             const rev = await storage.fetchRevision();
             const known = storage.getKnownRevision();
             if (rev != null && known != null && rev !== known) await reloadFromServer();
@@ -144,10 +209,22 @@ export function useProjectSync({ tasks, setTasks, setTasksSilent, resetTasks, ap
         clearTimeout(saveTimerRef.current);
         setIsLoading(true);
         try {
-            if (dirtyRef.current) {
+            if (hasUnsavedEdits(syncRef.current)) {
+                // attemptSave 를 쓰지 않는다 — 그쪽은 409 면 **떠나려는 프로젝트**를
+                // 다시 로드한다. 여기서는 곧 새 프로젝트로 갈아탈 트리다.
+                emitSync('saving');
                 const r = await storage.saveData(tasks);
-                if (r?.conflict) toast.info('이전 프로젝트에 외부 변경이 있어 서버 상태가 유지됩니다.');
-                dirtyRef.current = false;
+                if (r?.conflict) {
+                    emitSync('conflict');
+                    toast.info('이전 프로젝트에 외부 변경이 있어 서버 상태가 유지됩니다.');
+                } else if (r?.ok) {
+                    emitSync('saved');
+                } else {
+                    // 실패를 삼키면 사용자는 이전 프로젝트의 편집분이 서버에 없다는 것을
+                    // 알 수 없다. 전환 후에는 그 상태를 화면에서 볼 방법도 없어진다.
+                    emitSync('failed');
+                    toast.error('이전 프로젝트의 변경분을 서버에 저장하지 못했습니다. 이 브라우저에만 남아 있습니다.');
+                }
             }
             storage.setProject(nextPid);
             setActiveProjectId(nextPid);
@@ -156,6 +233,10 @@ export function useProjectSync({ tasks, setTasks, setTasksSilent, resetTasks, ap
             const data = toTaskArray(await storage.loadData());
             skipNextSaveRef.current = true;
             resetTasks(migrateTaskData(data ?? []));
+            // 저장 상태는 프로젝트마다 다르다 — 이전 프로젝트의 실패를 끌고 오면
+            // 새 프로젝트에서 경고가 계속 뜨고, 재시도가 새 트리를 엉뚱하게 다시 쓴다.
+            syncRef.current = initialSyncState;
+            setSyncState(initialSyncState);
             onProjectSwitched?.();
         } finally {
             setIsLoading(false);
@@ -208,10 +289,19 @@ export function useProjectSync({ tasks, setTasks, setTasksSilent, resetTasks, ap
         }
     }, [projects, activeProjectId, switchProject, toast]);
 
+    // 인디케이터 클릭 = 즉시 재시도. 백오프가 60초까지 벌어지면 서버가 돌아온 것을
+    // 사용자가 먼저 아는 경우가 있다 — 그때 기다리게 할 이유가 없다.
+    const retrySave = useCallback(() => {
+        clearTimeout(saveTimerRef.current);
+        attemptSave();
+    }, [attemptSave]);
+
     return {
         isLoading,
         projects,
         activeProjectId,
+        syncState,
+        retrySave,
         switchProject,
         createProject,
         renameProject,

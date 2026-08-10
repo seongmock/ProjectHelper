@@ -1,0 +1,56 @@
+/* 저장 상태 인디케이터 — 헤더의 프로젝트 이름 옆 */
+
+.sync-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    padding: 2px var(--spacing-sm);
+    border-radius: 12px;
+    font-size: var(--font-size-xs);
+    line-height: 1.6;
+    white-space: nowrap;
+    /* 상태 전환마다 폭이 흔들리면 옆의 프로젝트 이름이 밀린다 */
+    min-width: 74px;
+    justify-content: center;
+}
+
+/* 정상 상태 — 자리는 지키되 시선을 끌지 않는다 */
+.sync-indicator.sync-quiet {
+    color: var(--color-text-tertiary);
+    background: transparent;
+    border: 1px solid transparent;
+}
+
+.sync-indicator.sync-busy {
+    color: var(--color-text-secondary);
+    background: var(--color-bg-tertiary);
+    border: 1px solid transparent;
+}
+
+/* 실패는 버튼이다 — 클릭하면 즉시 재시도 */
+button.sync-indicator.sync-error {
+    color: #fff;
+    background: var(--color-danger);
+    border: 1px solid var(--color-danger);
+    cursor: pointer;
+    font-weight: 600;
+}
+
+button.sync-indicator.sync-error:hover {
+    filter: brightness(1.1);
+}
+
+.sync-spin {
+    animation: sync-spin 1.2s linear infinite;
+}
+
+@keyframes sync-spin {
+    to { transform: rotate(360deg); }
+}
+
+/* 회전 애니메이션은 장식이다 — 동작 축소를 요청한 사용자에게는 멈춘다 */
+@media (prefers-reduced-motion: reduce) {
+    .sync-spin {
+        animation: none;
+    }
+}

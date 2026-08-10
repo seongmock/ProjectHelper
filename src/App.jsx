@@ -106,6 +106,8 @@ function App() {
         isLoading,
         projects,
         activeProjectId,
+        syncState,
+        retrySave,
         switchProject,
         createProject,
         renameProject,
@@ -310,6 +312,8 @@ function App() {
                 onRenameProject={renameProject}
                 onDeleteProject={deleteProject}
                 onOpenProjectList={refreshProjects}
+                syncState={syncState}
+                onRetrySave={retrySave}
             />
 
             <Toolbar

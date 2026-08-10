@@ -79,3 +79,55 @@ test('편집 충돌(409) → 서버 우선으로 자동 재로드', async ({ pag
     // 3. 브라우저 저장 → 409 → 서버 상태 재로드 (외부 작업이 보여야 함)
     await expect(page.getByText('외부 우선 작업').first()).toBeVisible({ timeout: 15_000 });
 });
+
+// 저장 실패는 2026-08-11 까지 console.warn 하나로 끝났다 — 화면에 표시도, 재시도도
+// 없었다. 사용자는 저장됐다고 믿고 편집을 멈추고, 다음 로드는 서버 우선이라 낡은
+// 데이터가 localStorage 캐시까지 덮는다. 판정 규칙은 syncStatus 단위테스트가 고정하고,
+// 여기서는 실제 DOM 에서 드러나는지·복구되는지만 본다.
+const indicator = (page) => page.getByTestId('sync-indicator');
+const breakSaving = (page) =>
+    page.route('**/api/projects/*/data', route =>
+        route.request().method() === 'POST' ? route.abort('failed') : route.continue());
+
+test('서버 저장 실패가 화면에 드러나고, 재시도로 복구된다', async ({ page }) => {
+    await page.waitForTimeout(2500); // 초기 자동저장 안정화
+    await expect(indicator(page)).toHaveAttribute('data-sync-state', 'saved');
+
+    // 저장(POST)만 끊는다 — 읽기·리비전 폴링은 살려 둔다
+    await breakSaving(page);
+    await page.getByTitle('새 작업 추가 (Ctrl+N)').click();
+
+    // 디바운스(1.5s) 뒤 실패가 드러나야 한다. 실패 상태는 버튼이다(즉시 재시도).
+    const failed = page.locator('button[data-testid="sync-indicator"][data-sync-state="error"]');
+    await expect(failed).toBeVisible({ timeout: 10_000 });
+    await expect(failed).toContainText('저장 실패');
+
+    // 서버가 돌아오면 눌러서 즉시 재시도 — 백오프를 기다리지 않는다
+    await page.unroute('**/api/projects/*/data');
+    await failed.click();
+    await expect(indicator(page)).toHaveAttribute('data-sync-state', 'saved', { timeout: 10_000 });
+});
+
+test('저장이 실패한 동안 폴링은 미저장 편집을 덮어쓰지 않는다', async ({ page, request }) => {
+    // 예전에는 폴링이 dirty 여부를 보지 않고 재로드했다 — 저장이 실패한 상태에서
+    // 외부 변경이 오면 내 편집이 조용히 사라졌다(재로드가 저장 에코까지 막는다).
+    await page.waitForTimeout(2500);
+    await breakSaving(page);
+
+    await page.getByTitle('새 작업 추가 (Ctrl+N)').click();
+    await expect(page.locator('button[data-testid="sync-indicator"][data-sync-state="error"]'))
+        .toBeVisible({ timeout: 10_000 });
+
+    // 외부(AI)가 서버 리비전을 올린다 → 폴링이 재로드하려는 조건이 성립
+    expect((await request.post('/api/tasks', { data: { name: '폴링이 가져올 작업' } })).status()).toBe(201);
+
+    // 폴링 주기(10s)를 넉넉히 넘겨도 재로드하지 않는다 — 내 편집이 살아 있어야 한다
+    await page.waitForTimeout(14_000);
+    await expect(page.getByText('폴링이 가져올 작업')).toHaveCount(0);
+    await expect(page.locator('.task-name-item', { hasText: '새 작업' })).toBeVisible();
+
+    // 저장 경로가 살아나면 409 로 흘러 서버 우선 재로드가 일어난다(그때는 토스트로 알린다)
+    await page.unroute('**/api/projects/*/data');
+    await page.locator('button[data-testid="sync-indicator"]').click();
+    await expect(page.getByText('폴링이 가져올 작업').first()).toBeVisible({ timeout: 15_000 });
+});

@@ -24,9 +24,9 @@ npm run dev          # Vite dev server, http://localhost:5173, hot-reload
 npm run dev:api      # Express API server (PORT env, default 3000)
 npm run build        # Production build → dist/
 npm run lint         # ESLint 9 (flat config)
-npm run test:unit    # Vitest — 도메인 순수함수 + XSS 회귀 (243건)
+npm run test:unit    # Vitest — 도메인 순수함수 + XSS 회귀 (258건)
 npm run test:server  # node:test — 검증·서비스·저장소 내구성·감사 로그·의존성 정합성 (128건)
-npm run test:e2e     # Playwright E2E 51건 (API·dev 서버 자동 기동)
+npm run test:e2e     # Playwright E2E 53건 (API·dev 서버 자동 기동)
 npm run verify       # 위 전부 + 빌드 — 변경 후 이것을 돌려라
 ```
 
@@ -44,8 +44,8 @@ npx playwright test -g "프로젝트"                   # by test-title substrin
 npx playwright test --headed --debug                # watch it / step through
 ```
 
-**변경 후에는 `npm run verify`** — 합격 기준은 lint 0 error · unit 243/243 · server 128/128 ·
-빌드 성공 · **E2E 51/51 (skip 0)**.
+**변경 후에는 `npm run verify`** — 합격 기준은 lint 0 error · unit 258/258 · server 128/128 ·
+빌드 성공 · **E2E 53/53 (skip 0)**.
 
 `playwright.config.js` 는 **API 서버와 dev 서버를 모두 자동 기동**하며, API는
 `PH_DATA_DIR=.tmp-e2e-data` 로 격리된다. 예전에는 API 서버를 수동으로 띄우지 않으면 8건이
@@ -116,9 +116,20 @@ localStorage-only:
   refresh the localStorage cache on success, and **fall back to localStorage** on any network
   error. So the app keeps working offline.
 - **Writes** (`saveData`/`saveSettings`): write localStorage **immediately (synchronously)**,
-  then send to the server; a failed server write is logged but never blocks the UI.
+  then send to the server; a failed server write never blocks the UI.
 - `App.jsx` **debounces `saveData` by 1.5s** (auto-save `useEffect`) to avoid a server
   request per keystroke/drag. Settings changes call `storage.saveSettings` directly.
+- **A failed `saveData` is surfaced and retried — it is not just logged.**
+  `features/projects/syncStatus.js` owns the whole judgement (pure): the phase machine
+  (`nextSyncState`: saved/pending/saving/error), the backoff (`retryDelay`, 2s→60s), and the
+  display wording (`describeSyncState`). `useProjectSync` wires it and `SyncIndicator` (header,
+  next to the project name) draws it — colour **plus** icon **plus** text, and the error state
+  is a button that retries immediately. Three consequences hang off `hasUnsavedEdits()`:
+  the revision poll **skips reloading** while edits are unsaved (reloading there would silently
+  discard them — the reload also sets `skipNextSave`), `beforeunload` warns, and a failed
+  project-switch flush keeps the dirty state and toasts. Sync state resets per project on
+  switch. `savingRef` prevents the debounce and retry timers from double-sending (the late one
+  would get a stale `If-Match` → 409 → a bogus "changed externally" toast).
 - **Revision-based sync with external (AI) writers**: every server mutation bumps a revision
   counter (`server/data/meta.json`). The browser sends `If-Match: <revision>` on save — a 409
   means an external writer (AI) changed data first, and the app reloads server state

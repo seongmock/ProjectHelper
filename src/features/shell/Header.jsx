@@ -1,11 +1,13 @@
 import { Bot, Save, Undo2, Redo2, Upload, Download, Sun, Moon, ChartNoAxesGantt } from 'lucide-react';
 import ProjectSwitcher from '../projects/ProjectSwitcher';
+import SyncIndicator from '../projects/SyncIndicator';
 import './Header.css';
 
 function Header({
     darkMode, onToggleDarkMode, onExport, onImport, canUndo, canRedo, onUndo, onRedo,
     onOpenPromptGuide, onOpenSnapshots, snapEnabled, onToggleSnap,
     projects, activeProjectId, onSwitchProject, onCreateProject, onRenameProject, onDeleteProject, onOpenProjectList,
+    syncState, onRetrySave,
 }) {
     return (
         <header className="header">
@@ -24,6 +26,8 @@ function Header({
                         onDelete={onDeleteProject}
                         onOpen={onOpenProjectList}
                     />
+                    {/* 저장 상태는 "어느 프로젝트의" 상태다 — 프로젝트 이름 옆이 읽는 순서에 맞다 */}
+                    {syncState && <SyncIndicator state={syncState} onRetry={onRetrySave} />}
                 </div>
 
                 <div className="header-right flex items-center gap-sm">
