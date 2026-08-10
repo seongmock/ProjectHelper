@@ -32,6 +32,7 @@ import {
     milestonesInDateOrder,
     planDependencyRemoval,
     expandAncestors,
+    filterTasksByQuery,
     findDependencyIssues,
     wouldCreateDependencyCycle,
     dependencyEdgeKey,
@@ -1043,6 +1044,71 @@ describe('expandAncestors', () => {
         const next = expandAncestors(tree, 'a1x');
         expect(tree).toEqual(before);
         expect(next[1]).toBe(tree[1]);
+    });
+});
+
+describe('filterTasksByQuery', () => {
+    // 접힌 부모 아래에 일치가 숨어 있는 트리 — 이 함수가 생긴 이유다.
+    const tree = () => [
+        node('설계', {
+            expanded: false,
+            children: [
+                node('요구사항 분석', { description: '고객 인터뷰' }),
+                node('와이어프레임'),
+            ],
+        }),
+        node('개발', { expanded: true, children: [node('API 구현')] }),
+    ];
+
+    it('질의가 비면 원본 배열을 그대로 돌려준다 (참조 동일)', () => {
+        const t = tree();
+        expect(filterTasksByQuery(t, '')).toBe(t);
+        expect(filterTasksByQuery(t, '   ')).toBe(t);
+        expect(filterTasksByQuery(t, undefined)).toBe(t);
+    });
+
+    it('이름이 일치하는 작업과 그 조상만 남긴다', () => {
+        const next = filterTasksByQuery(tree(), '요구사항');
+        expect(next.map(t => t.id)).toEqual(['설계']);
+        expect(next[0].children.map(t => t.id)).toEqual(['요구사항 분석']);
+    });
+
+    it('설명도 본다', () => {
+        const next = filterTasksByQuery(tree(), '인터뷰');
+        expect(next[0].children.map(t => t.id)).toEqual(['요구사항 분석']);
+    });
+
+    it('대소문자를 구분하지 않는다', () => {
+        expect(filterTasksByQuery(tree(), 'api')[0].children.map(t => t.id)).toEqual(['API 구현']);
+    });
+
+    it('일치가 없으면 빈 배열', () => {
+        expect(filterTasksByQuery(tree(), '없는말')).toEqual([]);
+    });
+
+    // 이게 이 함수의 핵심이다: 접힌 조상을 결과 트리에서 펼치지 않으면
+    // flattenTasks 가 자식을 건너뛰어, 필터를 통과한 일치가 화면에 그려지지 않는다.
+    it('일치를 가리고 있던 접힌 조상을 결과 트리에서 펼친다', () => {
+        const next = filterTasksByQuery(tree(), '요구사항');
+        expect(next[0].expanded).toBe(true);
+    });
+
+    it('자식이 남지 않은 노드의 expanded 는 손대지 않는다', () => {
+        const next = filterTasksByQuery(tree(), '설계');
+        expect(next[0].children).toEqual([]);
+        expect(next[0].expanded).toBe(false);
+    });
+
+    it('실제 트리의 expanded 를 바꾸지 않는다 (검색은 문서를 더럽히지 않는다)', () => {
+        const t = tree();
+        const before = structuredClone(t);
+        filterTasksByQuery(t, '요구사항');
+        expect(t).toEqual(before);
+    });
+
+    it('children 이 없는 노드도 처리한다', () => {
+        const raw = [{ id: 'x', name: '이름만' }];
+        expect(filterTasksByQuery(raw, '이름')[0].children).toEqual([]);
     });
 });
 

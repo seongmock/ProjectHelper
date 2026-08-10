@@ -136,6 +136,7 @@ const TimelineView = forwardRef(({
     chartTheme = 'default',
     colorMode = 'task',
     dependencyIssues,
+    isSearching = false,
 }, ref) => {
     const containerRef = useRef(null);
     const captureRef = useRef(null);
@@ -259,7 +260,7 @@ const TimelineView = forwardRef(({
                         <div className="task-names-header" onClick={() => onSelectTask(null)}>작업명</div>
                         <div className="task-names-list" ref={taskNamesScrollRef}>
                             {tasks.length === 0 ? (
-                                <div className="empty-names">작업 없음</div>
+                                <div className="empty-names">{isSearching ? '검색 결과 없음' : '작업 없음'}</div>
                             ) : (
                                 <DndContext
                                     sensors={sensors}
@@ -382,7 +383,7 @@ const TimelineView = forwardRef(({
 
                         {tasks.length === 0 ? (
                             <div className="empty-timeline">
-                                <p>작업을 추가하여 타임라인을 시작하세요</p>
+                                <p>{isSearching ? '검색 결과가 없습니다.' : '작업을 추가하여 타임라인을 시작하세요'}</p>
                             </div>
                         ) : (
                             flatTasks.map((task) => (

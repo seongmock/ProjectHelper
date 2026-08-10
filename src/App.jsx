@@ -7,7 +7,7 @@
 //   - 파일 입출력     → hooks/useImportExport
 import { useEffect, useCallback, useRef, useMemo } from 'react';
 import { getSampleData } from './utils/dataModel';
-import { flattenAll, planDependencyRemoval, expandAncestors, findDependencyIssues } from './utils/taskTree';
+import { flattenAll, planDependencyRemoval, expandAncestors, findDependencyIssues, filterTasksByQuery } from './utils/taskTree';
 import { useUndoRedo } from './shared/hooks/useUndoRedo';
 import { useToast } from './shared/hooks/useToast';
 import { useProjectSync } from './features/projects/useProjectSync';
@@ -226,22 +226,8 @@ function App() {
     }, [undo, redo, io, actions]);
 
     // 검색어 필터 — split 모드에서 중복 계산 방지
-    const filteredTasks = useMemo(() => {
-        if (!searchQuery.trim()) return tasks;
-
-        const query = searchQuery.toLowerCase();
-        const filterTasks = (items) =>
-            items
-                .filter(item => {
-                    const matchesName = item.name.toLowerCase().includes(query);
-                    const matchesDesc = item.description && item.description.toLowerCase().includes(query);
-                    const hasMatchingChildren = item.children && item.children.length > 0 && filterTasks(item.children).length > 0;
-                    return matchesName || matchesDesc || hasMatchingChildren;
-                })
-                .map(item => ({ ...item, children: filterTasks(item.children || []) }));
-
-        return filterTasks(tasks);
-    }, [tasks, searchQuery]);
+    const isSearching = searchQuery.trim().length > 0;
+    const filteredTasks = useMemo(() => filterTasksByQuery(tasks, searchQuery), [tasks, searchQuery]);
 
     // 의존성 정합성. **검색 필터가 아니라 전체 트리**를 본다 — 상대가 필터에 걸려
     // 사라지면 멀쩡한 연결이 dangling 으로 보인다(인스펙터가 tasks 를 받는 것과 같은 이유).
@@ -375,6 +361,7 @@ function App() {
                                 onContextMenu={handleContextMenu}
                                 onOpenMilestones={handleOpenMilestones}
                                 viewMode={viewMode}
+                                isSearching={isSearching}
                             />
                         )}
 
@@ -409,6 +396,7 @@ function App() {
                                 colorMode={colorMode}
                                 darkMode={darkMode}
                                 dependencyIssues={dependencyIssues}
+                                isSearching={isSearching}
                             />
                         )}
 

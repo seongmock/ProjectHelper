@@ -69,7 +69,8 @@ function TableView({
     onMoveTask,
     onContextMenu, // Add prop
     onOpenMilestones,
-    viewMode
+    viewMode,
+    isSearching
 }) {
     // 트리 구조를 평탄화하여 DnD에 사용
     const flatTasks = useMemo(() => flattenTasks(tasks), [tasks]);
@@ -154,11 +155,20 @@ function TableView({
                 {/* 테이블 본문 */}
                 <div className="table-body">
                     {tasks.length === 0 ? (
+                        // 검색 중이면 "작업이 없습니다"가 거짓말이 된다 — 작업은 있고
+                        // 질의에 걸리지 않았을 뿐이다. 여기서 작업을 추가하면 필터 밖에
+                        // 만들어져 화면에 나타나지도 않으므로 버튼도 내린다.
                         <div className="empty-state">
-                            <p>작업이 없습니다.</p>
-                            <button className="primary" onClick={() => onAddTask()}>
-                                <Plus size={15} aria-hidden="true" /> 첫 작업 추가하기
-                            </button>
+                            {isSearching ? (
+                                <p>검색 결과가 없습니다.</p>
+                            ) : (
+                                <>
+                                    <p>작업이 없습니다.</p>
+                                    <button className="primary" onClick={() => onAddTask()}>
+                                        <Plus size={15} aria-hidden="true" /> 첫 작업 추가하기
+                                    </button>
+                                </>
+                            )}
                         </div>
                     ) : (
                         <DndContext

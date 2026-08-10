@@ -384,6 +384,38 @@ export const expandAncestors = (items, taskId) => {
     return changed ? next : null;
 };
 
+// 검색 필터 — 이름·설명이 질의를 포함하는 작업과 **그 조상 사슬**을 남긴다.
+//
+// 남은 노드 중 자식이 있는 것은 결과 트리에서 **펼친 상태로** 돌려준다. 화면이 쓰는
+// `flattenTasks` 가 `expanded` 를 보기 때문에, 이게 없으면 접힌 부모 아래의 일치는
+// 필터를 통과하고도 그려지지 않는다 — 검색해도 안 나오고, 대신 이름이 일치하지도 않는
+// 부모 행만 남아 왜 걸렸는지 읽을 수 없었다.
+//
+// **실제 트리는 건드리지 않는다**(`expandAncestors` 와 다른 점). 검색은 조회일 뿐인데
+// 저장 데이터의 `expanded` 를 바꾸면 타이핑만으로 문서가 dirty 가 되고 서버에 저장된다.
+// 그 대가로 검색 중에는 접기 토글이 화면에 반영되지 않는다 — 접으면 그 노드가 검색
+// 결과에 있는 유일한 이유(자손)가 사라지므로, 여기서는 안 접히는 편이 맞다.
+//
+// 질의가 비면 원본 배열을 **그대로** 돌려준다(참조 동일 — 불필요한 재렌더를 만들지 않는다).
+export const filterTasksByQuery = (tasks, query) => {
+    const q = (query || '').trim().toLowerCase();
+    if (!q) return tasks;
+
+    const walk = (items) => (items || []).reduce((acc, item) => {
+        const children = walk(item.children);
+        const matches =
+            (item.name || '').toLowerCase().includes(q) ||
+            (item.description || '').toLowerCase().includes(q);
+        if (!matches && children.length === 0) return acc;
+        acc.push(children.length > 0
+            ? { ...item, children, expanded: true }
+            : { ...item, children });
+        return acc;
+    }, []);
+
+    return walk(tasks);
+};
+
 // 의존성이 걸릴 수 있는 모든 엔티티(작업 + 마일스톤 + 기간)를 한 배열로 모은다.
 // 작업은 원본 그대로, 마일스톤·기간은 표시용 name 과 소유 작업 parentId 를 얹는다.
 export const collectEntities = (flatList) => {

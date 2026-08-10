@@ -101,6 +101,26 @@ test.describe('검색', () => {
         await expect(page.locator('.task-row', { hasText: '요구사항 분석' })).toBeVisible();
         await expect(page.locator('.task-row', { hasText: '설계 문서 작성' })).toHaveCount(0);
     });
+
+    // 회귀: 예전에는 접힌 부모 아래의 일치가 필터를 통과하고도 그려지지 않았다.
+    // 화면에는 이름이 일치하지도 않는 부모 행만 남아, 왜 걸렸는지 읽을 수 없었다.
+    test('접힌 부모 아래에 숨은 일치도 보여 준다', async ({ page }) => {
+        await openTableView(page);
+        const parent = page.locator('.task-row', { hasText: '프로젝트 기획' }).first();
+        await parent.locator('.expand-toggle').click();
+        await expect(page.locator('.task-row', { hasText: '요구사항 분석' })).toHaveCount(0);
+
+        await page.getByPlaceholder('작업 검색...').fill('요구사항');
+        await expect(page.locator('.task-row', { hasText: '요구사항 분석' })).toBeVisible();
+    });
+
+    test('일치가 없으면 "작업이 없습니다"가 아니라 "검색 결과가 없습니다"', async ({ page }) => {
+        await openTableView(page);
+        await page.getByPlaceholder('작업 검색...').fill('존재하지않는작업명');
+        await expect(page.locator('.empty-state')).toContainText('검색 결과가 없습니다');
+        // 필터 밖에 만들어져 보이지도 않을 작업을 권하지 않는다
+        await expect(page.getByRole('button', { name: '첫 작업 추가하기' })).toHaveCount(0);
+    });
 });
 
 test.describe('다크 모드', () => {
