@@ -192,7 +192,18 @@ describe('outdentTask', () => {
 });
 
 describe('regenerateIds', () => {
-    it('모든 id 를 새로 만들고 의존성을 비운다', () => {
+    // 기간에 의존성을 실은 작업 둘 — 병합 가져오기가 실제로 다루는 모양이다
+    const linkedPair = () => [
+        node('a', {
+            timeRanges: [{ id: 'ra', startDate: '2026-03-01', endDate: '2026-03-05', dependencies: [] }],
+            milestones: [{ id: 'm1', label: 'M', date: '2026-03-05', dependencies: ['ra'] }],
+        }),
+        node('b', {
+            timeRanges: [{ id: 'rb', startDate: '2026-03-06', endDate: '2026-03-10', dependencies: ['ra'] }],
+        }),
+    ];
+
+    it('모든 id 를 새로 만들고 묶음 밖을 가리키는 의존성은 버린다', () => {
         const tree = [
             node('a', {
                 children: [node('a1')],
@@ -211,6 +222,40 @@ describe('regenerateIds', () => {
         const tree = Array.from({ length: 30 }, (_, i) => node(`n${i}`));
         const ids = regenerateIds(tree).map(t => t.id);
         expect(new Set(ids).size).toBe(ids.length);
+    });
+
+    it('기간 id 도 새로 발급한다 — 같은 파일을 두 번 병합해도 겹치지 않는다', () => {
+        const [first, second] = [regenerateIds(linkedPair()), regenerateIds(linkedPair())];
+        const rangeIds = [...first, ...second].flatMap(t => t.timeRanges.map(r => r.id));
+        expect(rangeIds).not.toContain('ra');
+        expect(new Set(rangeIds).size).toBe(rangeIds.length);
+    });
+
+    it('묶음 안에서 완결되는 의존성은 새 id 로 다시 잇는다', () => {
+        const [a, b] = regenerateIds(linkedPair());
+        // 사본 b 의 기간은 **사본 a** 의 기간을 가리킨다 (원본 'ra' 가 아니라)
+        expect(b.timeRanges[0].dependencies).toEqual([a.timeRanges[0].id]);
+        // 마일스톤이 보유한 의존성도 같은 규칙을 따른다
+        expect(a.milestones[0].dependencies).toEqual([a.timeRanges[0].id]);
+    });
+
+    it('dependencies 가 없던 보유자에게 빈 배열을 만들지 않는다', () => {
+        const [a] = regenerateIds([
+            node('a', { timeRanges: [{ id: 'ra', startDate: '2026-03-01', endDate: '2026-03-05' }] }),
+        ]);
+        expect('dependencies' in a.timeRanges[0]).toBe(false);
+    });
+
+    it('원본 트리를 변경하지 않는다 (불변성)', () => {
+        const tree = linkedPair();
+        const snapshot = structuredClone(tree);
+        regenerateIds(tree);
+        expect(tree).toEqual(snapshot);
+    });
+
+    it('같은 id 가 두 번 들어 있어도 서로 다른 id 로 갈라 준다', () => {
+        const next = regenerateIds([node('dup'), node('dup')]);
+        expect(next[0].id).not.toBe(next[1].id);
     });
 });
 

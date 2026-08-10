@@ -139,17 +139,50 @@ export const outdentTask = (items, taskId) => {
     return result;
 };
 
-// 가져오기 병합 시 ID 재생성 (충돌 방지)
-export const regenerateIds = (items) =>
-    items.map(item => ({
-        ...item,
-        id: generateId(),
-        children: item.children ? regenerateIds(item.children) : [],
-        milestones: item.milestones
-            ? item.milestones.map(ms => ({ ...ms, id: generateId() }))
-            : [],
-        dependencies: [],
+// 가져오기 병합 시 ID 재생성 (충돌 방지).
+//
+// 새 id 는 작업뿐 아니라 **기간·마일스톤에도** 발급한다 — 의존성이 사는 곳이 기간·마일스톤
+// 이라(dataModel 참조) 작업 id 만 갈면 같은 파일을 두 번 병합했을 때 기간 id 가 겹치고,
+// 그때 findOwnerOfEntity/patchRange 는 먼저 걸린 쪽을 고른다.
+//
+// 그리고 **가져온 묶음 안에서 완결되는 의존성은 새 id 로 다시 잇는다.** 밖을 가리키던
+// 참조는 버린다 — 이어 줄 상대가 없다. 옛 id 를 그대로 두면 둘 중 하나가 된다:
+// 그 id 가 없으면 끊어진 참조, 있으면(= 원본이 같은 트리에 있으면) **사본의 화살표가
+// 원본에 가서 붙는다.** 사용자가 그리지 않은 연결이다.
+export const regenerateIds = (items) => {
+    // 새 id 는 객체마다 발급한다(맵이 아니라) — 파일 안에 같은 id 가 두 번 있어도 갈라진다.
+    // oldId → newId 맵은 의존성을 다시 잇는 데만 쓰고, 중복은 처음 것을 따른다.
+    const newIdOf = new Map();
+    const byOldId = new Map();
+
+    const assign = (holder) => {
+        const id = generateId();
+        newIdOf.set(holder, id);
+        if (!byOldId.has(holder.id)) byOldId.set(holder.id, id);
+    };
+    const scan = (nodes) => (nodes || []).forEach(task => {
+        assign(task);
+        (task.timeRanges || []).forEach(assign);
+        (task.milestones || []).forEach(assign);
+        scan(task.children);
+    });
+    scan(items);
+
+    // dependencies 가 없던 보유자에게 빈 배열을 새로 만들어 주지 않는다(pruneDependencies 와 같은 규약).
+    const relink = (holder) => holder.dependencies
+        ? { dependencies: holder.dependencies.map(id => byOldId.get(id)).filter(Boolean) }
+        : {};
+
+    const rebuild = (nodes) => (nodes || []).map(task => ({
+        ...task,
+        ...relink(task),
+        id: newIdOf.get(task),
+        timeRanges: (task.timeRanges || []).map(r => ({ ...r, ...relink(r), id: newIdOf.get(r) })),
+        milestones: (task.milestones || []).map(ms => ({ ...ms, ...relink(ms), id: newIdOf.get(ms) })),
+        children: rebuild(task.children),
     }));
+    return rebuild(items);
+};
 
 // timeRanges 배열에서 전체 시작/종료일 재계산
 export const recalcTaskBounds = (timeRanges) => {

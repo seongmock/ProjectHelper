@@ -157,6 +157,59 @@ test.describe('가져오기 / 내보내기', () => {
         // 가져오기가 meta.viewSettings(viewMode='timeline')도 복원하므로 뷰 독립적으로 확인
         await expect(page.getByText('프로젝트 기획').first()).toBeVisible();
     });
+
+    // 병합 가져오기는 충돌을 피하려고 id 를 새로 발급한다. 기간 id 까지 갈고 의존성을
+    // **사본끼리** 다시 잇지 않으면, 사본의 화살표가 옛 id 를 따라 **원본에 가서 붙는다**
+    // — 사용자가 그리지 않은 연결이다. 규칙은 regenerateIds 단위테스트가 고정한다.
+    test('같은 데이터를 병합해도 사본의 연결이 원본에 붙지 않는다', async ({ page }) => {
+        const range = (id, startDate, endDate, dependencies) =>
+            ({ id, startDate, endDate, dependencies });
+        const fixture = JSON.stringify({
+            data: [
+                {
+                    id: 't-p', name: '병합선행', children: [], milestones: [],
+                    timeRanges: [range('r-p', '2026-05-01', '2026-05-05', [])],
+                },
+                {
+                    id: 't-s', name: '병합후행', children: [], milestones: [],
+                    timeRanges: [range('r-s', '2026-05-06', '2026-05-10', ['r-p'])],
+                },
+            ],
+        });
+
+        const pasteImport = async (merge) => {
+            await page.getByTitle('가져오기').click();
+            await page.getByRole('button', { name: 'JSON 붙여넣기' }).click();
+            if (merge) await page.locator('.option-row input[type="checkbox"]').check();
+            await page.locator('textarea').fill(fixture);
+            await page.getByRole('button', { name: '데이터 적용' }).click();
+            // 앞선 토스트가 아직 떠 있을 수 있으므로 문구로 구분한다
+            const done = merge ? '병합되었습니다' : '가져왔습니다';
+            await expect(page.locator('.toast--success', { hasText: done })).toBeVisible();
+        };
+
+        await pasteImport(false); // 교체 — 트리를 이 둘만 남긴다
+        await expect(page.locator('.timeline-bar')).toHaveCount(2);
+        await expect(page.locator('.dependency-layer path')).toHaveCount(1);
+
+        await pasteImport(true); // 병합 — 같은 파일을 한 번 더
+        await expect(page.locator('.timeline-bar')).toHaveCount(4);
+        await expect(page.locator('.dependency-layer path')).toHaveCount(2);
+
+        // 원본 선행과 사본 선행이 후행을 하나씩 나눠 갖는다.
+        // 옛 동작에서는 원본이 둘(자기 것 + 사본 것)을 갖고 사본은 하나도 없었다.
+        const predecessors = page.locator('.timeline-bar[title^="병합선행 ("]');
+        for (const index of [0, 1]) {
+            await predecessors.nth(index).click({ button: 'right' });
+            const panel = page.locator('.inspector-panel');
+            await expect(panel.locator('.inspector-list-meta', { hasText: '후행' })).toHaveCount(1);
+            await expect(panel.getByTestId('inspector-broken-refs')).toHaveCount(0);
+        }
+
+        // showInspector 는 전역 설정이라 되돌린다
+        await page.getByTitle('인스펙터 패널').click();
+        await expect(page.locator('.inspector-panel')).toHaveCount(0);
+    });
 });
 
 test.describe('저장 / 불러오기 모달', () => {
