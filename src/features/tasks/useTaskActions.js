@@ -19,10 +19,13 @@ import {
 } from '../../utils/taskTree';
 
 export function useTaskActions({ setTasks, setTasksSilent, onSelect }) {
+    // 만든 작업을 돌려준다 — 호출자(App)가 "이게 지금 화면에 나타나는가"를 판단해야 한다
+    // (검색 중이면 필터에 걸리지 않아 나타나지 않는다).
     const addTask = useCallback((parentId = null) => {
         const newTask = createNewTask('새 작업', parentId);
         setTasks(prev => (parentId ? addToParent(prev, parentId, newTask) : [...prev, newTask]));
         onSelect(newTask.id);
+        return newTask;
     }, [setTasks, onSelect]);
 
     const updateTask = useCallback((taskId, updates) => {

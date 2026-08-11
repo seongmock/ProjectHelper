@@ -7,7 +7,7 @@
 //   - 파일 입출력     → hooks/useImportExport
 import { useEffect, useCallback, useRef, useMemo } from 'react';
 import { getSampleData } from './utils/dataModel';
-import { flattenAll, planDependencyRemoval, expandAncestors, findDependencyIssues, filterTasksByQuery } from './utils/taskTree';
+import { flattenAll, planDependencyRemoval, expandAncestors, findDependencyIssues, filterTasksByQuery, taskMatchesQuery } from './utils/taskTree';
 import { resolveGlobalShortcut, isTextEditableTarget, hasOverlay } from './shared/keyboard';
 import { useUndoRedo } from './shared/hooks/useUndoRedo';
 import { useToast } from './shared/hooks/useToast';
@@ -188,6 +188,21 @@ function App() {
         if (plan) actions.updateTask(plan.taskId, plan.updates);
     }, [tasks, actions]);
 
+    // 작업 추가의 유일한 관문. **추가는 추가한 것이 보이는 상태로 끝나야 한다.**
+    // 검색 중에는 새 작업('새 작업')이 질의에 걸리지 않아 필터 밖에 만들어졌다 — 화면에는
+    // 아무 일도 일어나지 않은 것으로 보이고, 정작 선택은 그 보이지 않는 작업으로 옮겨가
+    // 인스펙터에서 이름을 고쳐도 행은 나타나지 않았다. 그러면 질의를 지운다(질의에 걸리는
+    // 이름이면 그대로 둔다 — 검색 상태를 이유 없이 버리지 않는다).
+    // 새 작업은 목록 끝에 붙으므로, 필터와 무관하게 화면 안으로 들여놓는다.
+    const handleAddTask = useCallback((parentId = null) => {
+        const created = actions.addTask(parentId);
+        if (!taskMatchesQuery(created, searchQuery)) {
+            setSearchQuery('');
+            toast.info('새 작업을 보여주기 위해 검색을 해제했습니다');
+        }
+        scrollSelectedTaskIntoView();
+    }, [actions, searchQuery, setSearchQuery, toast]);
+
     // 명령 팔레트의 "작업으로 이동". 접힌 부모 아래 숨어 있으면 조상을 펼쳐야 보인다 —
     // 펼치기는 접기/펼치기와 마찬가지로 **히스토리에 남기지 않는다**(시각적 상태).
     const jumpToTask = useCallback((taskId) => {
@@ -208,7 +223,7 @@ function App() {
             undo,
             redo,
             exportFile: io.exportToFile,
-            addTask: () => actions.addTask(),
+            addTask: () => handleAddTask(),
         };
         const handleKeyDown = (e) => {
             const command = resolveGlobalShortcut(e, {
@@ -221,7 +236,7 @@ function App() {
         };
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [undo, redo, io, actions]);
+    }, [undo, redo, io, handleAddTask]);
 
     // 검색어 필터 — split 모드에서 중복 계산 방지
     const isSearching = searchQuery.trim().length > 0;
@@ -253,7 +268,7 @@ function App() {
         projects,
         activeProjectId,
         handlers: {
-            addTask: () => actions.addTask(),
+            addTask: () => handleAddTask(),
             undo,
             redo,
             setViewMode,
@@ -272,7 +287,7 @@ function App() {
     }), [
         viewMode, showInspector, darkMode, timeScale, colorMode, showTaskNames, showBarLabels,
         showBarDates, showToday, isCompact, snapEnabled, zoomLevel, canUndo, canRedo,
-        projects, activeProjectId, actions, undo, redo, setViewMode, setSetting, toggleSetting,
+        projects, activeProjectId, handleAddTask, undo, redo, setViewMode, setSetting, toggleSetting,
         io, switchProject,
     ]);
 
@@ -307,7 +322,7 @@ function App() {
                 onTimeScaleChange={(v) => setSetting({ timeScale: v })}
                 searchQuery={searchQuery}
                 onSearchChange={setSearchQuery}
-                onAddTask={() => actions.addTask()}
+                onAddTask={() => handleAddTask()}
                 // 타임라인 컨트롤
                 zoomLevel={zoomLevel}
                 onZoomIn={() => setSetting({ zoomLevel: zoomLevel + 0.1 })}
@@ -351,7 +366,7 @@ function App() {
                                 onUpdateTaskSilent={actions.updateTaskSilent}
                                 onUpdateTasks={actions.updateTasks}
                                 onDeleteTask={actions.deleteTask}
-                                onAddTask={actions.addTask}
+                                onAddTask={handleAddTask}
                                 onReorderTasks={actions.reorderTasks}
                                 onIndentTask={actions.indent}
                                 onOutdentTask={actions.outdent}
@@ -373,7 +388,7 @@ function App() {
                                 onUpdateTaskSilent={actions.updateTaskSilent}
                                 onUpdateTasks={actions.updateTasks}
                                 onDeleteTask={actions.deleteTask}
-                                onAddTask={actions.addTask}
+                                onAddTask={handleAddTask}
                                 onMoveTask={actions.moveTask}
                                 onIndentTask={actions.indent}
                                 onOutdentTask={actions.outdent}

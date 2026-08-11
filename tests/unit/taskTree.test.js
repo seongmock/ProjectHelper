@@ -34,6 +34,7 @@ import {
     planDependencyRemoval,
     expandAncestors,
     filterTasksByQuery,
+    taskMatchesQuery,
     findDependencyIssues,
     wouldCreateDependencyCycle,
     dependencyEdgeKey,
@@ -1104,6 +1105,41 @@ describe('expandAncestors', () => {
         const next = expandAncestors(tree, 'a1x');
         expect(tree).toEqual(before);
         expect(next[1]).toBe(tree[1]);
+    });
+});
+
+// 필터가 무엇을 남기는지의 판정. 두 곳이 이걸 쓴다 — filterTasksByQuery 와,
+// "방금 추가한 작업이 지금 화면에 나타나는가"를 묻는 App.handleAddTask.
+describe('taskMatchesQuery', () => {
+    it('이름·설명 어느 쪽이든 포함하면 참', () => {
+        expect(taskMatchesQuery(node('요구사항 분석'), '요구사항')).toBe(true);
+        expect(taskMatchesQuery(node('a', { description: '고객 인터뷰' }), '인터뷰')).toBe(true);
+    });
+
+    it('대소문자를 구분하지 않는다', () => {
+        expect(taskMatchesQuery(node('API 구현'), 'api')).toBe(true);
+    });
+
+    it('걸리지 않으면 거짓', () => {
+        expect(taskMatchesQuery(node('설계'), '없는말')).toBe(false);
+    });
+
+    // 질의가 비면 필터가 없는 것이다 — 새 작업은 그대로 보이므로 검색을 해제할 이유가 없다
+    it('질의가 비면 참 (필터 없음)', () => {
+        expect(taskMatchesQuery(node('새 작업'), '')).toBe(true);
+        expect(taskMatchesQuery(node('새 작업'), '   ')).toBe(true);
+        expect(taskMatchesQuery(node('새 작업'), undefined)).toBe(true);
+    });
+
+    it('이름·설명이 없는 작업도 처리한다', () => {
+        expect(taskMatchesQuery({ id: 'x' }, '무엇')).toBe(false);
+        expect(taskMatchesQuery(null, '무엇')).toBe(false);
+    });
+
+    // createNewTask 의 기본 이름이라 질의에 걸릴 수도 있다 — 그때는 검색을 유지한다
+    it('기본 이름 "새 작업"이 질의에 걸리는 경우를 구분한다', () => {
+        expect(taskMatchesQuery(node('새 작업'), '작업')).toBe(true);
+        expect(taskMatchesQuery(node('새 작업'), '설계')).toBe(false);
     });
 });
 

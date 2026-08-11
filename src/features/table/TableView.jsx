@@ -156,8 +156,9 @@ function TableView({
                 <div className="table-body">
                     {tasks.length === 0 ? (
                         // 검색 중이면 "작업이 없습니다"가 거짓말이 된다 — 작업은 있고
-                        // 질의에 걸리지 않았을 뿐이다. 여기서 작업을 추가하면 필터 밖에
-                        // 만들어져 화면에 나타나지도 않으므로 버튼도 내린다.
+                        // 질의에 걸리지 않았을 뿐이다. "첫 작업 추가하기"도 같은 이유로
+                        // 거짓이라 내린다(추가 자체는 툴바·Ctrl+N 으로 여전히 가능하고,
+                        // 그 경로는 새 작업이 보이도록 검색을 해제한다 — App.handleAddTask).
                         <div className="empty-state">
                             {isSearching ? (
                                 <p>검색 결과가 없습니다.</p>

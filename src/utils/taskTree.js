@@ -384,6 +384,16 @@ export const expandAncestors = (items, taskId) => {
     return changed ? next : null;
 };
 
+// 이 작업 하나가 질의에 걸리는가(조상·자손은 보지 않는다). 질의가 비면 필터가 없는
+// 것이므로 참이다. 필터가 무엇을 남기는지 판단하는 곳이 둘이면 갈라진다 —
+// `filterTasksByQuery` 와, "방금 추가한 작업이 지금 화면에 나타나는가"를 묻는 App 이 함께 쓴다.
+export const taskMatchesQuery = (task, query) => {
+    const q = (query || '').trim().toLowerCase();
+    if (!q) return true;
+    return (task?.name || '').toLowerCase().includes(q)
+        || (task?.description || '').toLowerCase().includes(q);
+};
+
 // 검색 필터 — 이름·설명이 질의를 포함하는 작업과 **그 조상 사슬**을 남긴다.
 //
 // 남은 노드 중 자식이 있는 것은 결과 트리에서 **펼친 상태로** 돌려준다. 화면이 쓰는
@@ -403,10 +413,7 @@ export const filterTasksByQuery = (tasks, query) => {
 
     const walk = (items) => (items || []).reduce((acc, item) => {
         const children = walk(item.children);
-        const matches =
-            (item.name || '').toLowerCase().includes(q) ||
-            (item.description || '').toLowerCase().includes(q);
-        if (!matches && children.length === 0) return acc;
+        if (!taskMatchesQuery(item, q) && children.length === 0) return acc;
         acc.push(children.length > 0
             ? { ...item, children, expanded: true }
             : { ...item, children });

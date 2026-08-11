@@ -54,6 +54,23 @@ test.describe('작업 CRUD (표 뷰)', () => {
         await expect(page.locator('.task-row.level-2', { hasText: '새 작업' })).toBeVisible();
     });
 
+    // 새 작업은 목록 **끝**에 붙는다 — 목록이 화면보다 길면 추가해도 시야에는 아무 변화가
+    // 없다. 검색 해제로 트리 전체가 돌아올 때도 같은 자리에 걸린다.
+    test('목록이 길어도 새 작업을 화면 안으로 들여놓는다', async ({ page, request }) => {
+        const many = Array.from({ length: 40 }, (_, i) => ({
+            id: `seed-${i}`, name: `기존 작업 ${i}`, children: [], timeRanges: [], milestones: [],
+        }));
+        // 초기 자동저장(1.5s 디바운스)이 이 쓰기를 덮지 않도록 먼저 가라앉힌다
+        await page.waitForTimeout(2000);
+        expect((await request.post('/api/data', { data: many })).ok()).toBe(true);
+        await page.reload();
+        await openTableView(page);
+        await expect(page.locator('.task-row')).toHaveCount(40);
+
+        await page.getByTitle('새 작업 추가 (Ctrl+N)').click();
+        await expect(page.locator('.task-row', { hasText: '새 작업' })).toBeInViewport();
+    });
+
     test('작업 삭제 → 자식 포함 제거', async ({ page }) => {
         await openTableView(page);
         page.on('dialog', (dialog) => dialog.accept());
@@ -118,8 +135,47 @@ test.describe('검색', () => {
         await openTableView(page);
         await page.getByPlaceholder('작업 검색...').fill('존재하지않는작업명');
         await expect(page.locator('.empty-state')).toContainText('검색 결과가 없습니다');
-        // 필터 밖에 만들어져 보이지도 않을 작업을 권하지 않는다
+        // 작업은 있으므로 "첫 작업 추가하기"는 거짓이다 (추가는 툴바·Ctrl+N 으로 한다)
         await expect(page.getByRole('button', { name: '첫 작업 추가하기' })).toHaveCount(0);
+    });
+
+    // 회귀: 예전에는 검색 중에 작업을 추가하면 새 작업('새 작업')이 질의에 걸리지 않아
+    // **화면에 아무 일도 일어나지 않았다.** 선택만 보이지 않는 작업으로 옮겨갔다.
+    test('검색 중 작업 추가 → 검색이 해제되고 새 작업이 보인다', async ({ page }) => {
+        await openTableView(page);
+        const search = page.getByPlaceholder('작업 검색...');
+        await search.fill('요구사항');
+        await expect(page.locator('.task-row')).toHaveCount(2); // 부모 + 일치
+
+        await page.getByTitle('새 작업 추가 (Ctrl+N)').click();
+        await expect(search).toHaveValue('');
+        await expect(page.locator('.task-row', { hasText: '새 작업' })).toBeVisible();
+        await expect(page.locator('.task-row.selected', { hasText: '새 작업' })).toBeVisible();
+    });
+
+    test('새 작업이 질의에 걸리면 검색을 유지한다', async ({ page }) => {
+        await openTableView(page);
+        const search = page.getByPlaceholder('작업 검색...');
+        await search.fill('작업'); // 샘플 데이터에는 '작업'을 포함하는 이름이 없다
+
+        await page.getByTitle('새 작업 추가 (Ctrl+N)').click();
+        await expect(search).toHaveValue('작업');
+        await expect(page.locator('.task-row', { hasText: '새 작업' })).toBeVisible();
+    });
+
+    test('검색 결과 0건에서 Ctrl+N → 검색이 해제되고 새 작업이 보인다', async ({ page }) => {
+        await openTableView(page);
+        const search = page.getByPlaceholder('작업 검색...');
+        await search.fill('존재하지않는작업명');
+        await expect(page.locator('.empty-state')).toBeVisible();
+
+        // 검색창을 떠난 뒤 누른다 — 입력 중에는 트리를 바꾸는 단축키가 막히는 것이
+        // 의도된 동작이다(shared/keyboard.js). 여기서 보려는 것은 단축키 경로도 같은
+        // 관문(handleAddTask)을 지나는지다.
+        await page.locator('.empty-state').click();
+        await page.keyboard.press('Control+n');
+        await expect(search).toHaveValue('');
+        await expect(page.locator('.task-row', { hasText: '새 작업' })).toBeVisible();
     });
 });
 
