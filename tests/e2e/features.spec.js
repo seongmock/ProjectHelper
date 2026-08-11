@@ -317,7 +317,10 @@ test.describe('인스펙터 패널', () => {
         await nameField.press('Enter');
         await expect(page.locator('.task-row', { hasText: '요구사항 재정의' })).toHaveCount(1);
 
-        // 그래서 되돌리기 한 번이면 이름 편집 전체가 복원된다
+        // 그래서 되돌리기 한 번이면 이름 편집 전체가 복원된다.
+        // **입력칸을 먼저 떠난다** — 텍스트 편집 중의 Ctrl+Z 는 입력칸의 것이고 앱은
+        // 가져가지 않는다(shared/keyboard.js). 그 규약 자체는 아래 '전역 단축키 가드'가 본다.
+        await nameField.blur();
         await page.keyboard.press('Control+z');
         await expect(page.locator('.task-row', { hasText: '요구사항 분석' })).toHaveCount(1);
 
@@ -664,5 +667,94 @@ test.describe('모달 포커스 관리 (접근성)', () => {
 
         await page.keyboard.press('Escape');
         await expect(page.getByTestId('command-palette-input')).toHaveCount(0);
+    });
+});
+
+test.describe('전역 단축키 가드', () => {
+    // 전역 단축키(Ctrl+Z/Y/S/N/K)에는 선택 작업 단축키와 달리 가드가 아예 없었다.
+    // 판정을 shared/keyboard.js 로 모으면서 닫은 구멍들을 여기서 본다.
+    const addTaskButton = (page) => page.getByTitle('새 작업 추가 (Ctrl+N)');
+    const newRows = (page) => page.locator('.task-row', { hasText: '새 작업' });
+
+    test('텍스트 입력칸 안의 Ctrl+Z 는 앱이 가져가지 않는다', async ({ page }) => {
+        await page.getByTitle('표 뷰').click();
+
+        // 되돌릴 것을 하나 만들어 둔다 — 가드가 없으면 Ctrl+Z 가 이것을 지운다
+        await addTaskButton(page).click();
+        await expect(newRows(page)).toHaveCount(1);
+
+        // 인스펙터의 이름칸을 쓴다. 표의 작업명 입력칸은 DnD 때문에 keydown 을
+        // stopPropagation 하고 있어서 애초에 전역 리스너에 닿지 않는다 — 구멍이 실제로
+        // 드러나는 자리는 전파를 막지 않는 입력칸들(인스펙터 · 검색창)이다.
+        await page.getByTitle('인스펙터 패널').click();
+        await page.keyboard.press('ArrowDown');
+        const nameField = page.getByTestId('inspector-name');
+        await expect(nameField).toBeVisible();
+        await nameField.fill('이름 초안');
+
+        // 입력칸 안에서 Ctrl+Z 는 입력칸의 것이다. 앱이 먹으면 방금 추가한 작업이 조용히
+        // 사라지고, 사용자는 방금 친 글자를 되돌릴 방법까지 잃는다(preventDefault).
+        // 네이티브 되돌리기의 결과값까지는 단정하지 않는다 — 여기서 보는 것은
+        // "앱이 가로채지 않는다"는 규약이다.
+        await nameField.press('Control+z');
+        await expect(newRows(page)).toHaveCount(1);
+
+        // 입력칸을 떠나면 같은 키가 정상 동작한다 (정책이지 고장이 아니다)
+        await nameField.blur();
+        await page.keyboard.press('Control+z');
+        await expect(newRows(page)).toHaveCount(0);
+
+        // 설정은 전역이라 되돌리지 않으면 다른 테스트로 샌다
+        await page.getByTitle('인스펙터 패널').click();
+        await expect(page.locator('.inspector-panel')).toHaveCount(0);
+    });
+
+    test('모달 뒤에서는 트리를 바꾸는 단축키가 발화하지 않는다', async ({ page }) => {
+        await page.getByTitle('표 뷰').click();
+        await addTaskButton(page).click();
+        await expect(newRows(page)).toHaveCount(1);
+
+        // 모달이 화면의 주인일 때 뒤에서 트리가 바뀌면, 사용자는 무엇이 바뀌었는지 볼 수
+        // 없는 채로 그 트리를 스냅샷에 덮어쓰게 된다.
+        await page.getByTitle('스냅샷 관리').click();
+        await expect(page.locator('.modal-overlay')).toBeVisible();
+
+        await page.keyboard.press('Control+n'); // 추가되면 안 된다
+        await page.keyboard.press('Control+z'); // 되돌아가면 안 된다
+        await page.keyboard.press('Control+y');
+
+        await page.keyboard.press('Escape');
+        await expect(page.locator('.modal-overlay')).toHaveCount(0);
+        await expect(newRows(page)).toHaveCount(1);
+
+        // 모달이 닫히면 같은 키가 정상 동작한다 (정책이지 고장이 아니다)
+        await page.keyboard.press('Control+z');
+        await expect(newRows(page)).toHaveCount(0);
+    });
+
+    test('대문자로 오는 키도 같은 단축키다 (Ctrl+Shift+Z · CapsLock)', async ({ page }) => {
+        await page.getByTitle('표 뷰').click();
+        await addTaskButton(page).click();
+        await expect(newRows(page)).toHaveCount(1);
+
+        await page.keyboard.press('Control+z');
+        await expect(newRows(page)).toHaveCount(0);
+        await page.keyboard.press('Control+Shift+z');
+        await expect(newRows(page)).toHaveCount(1);
+
+        // 위의 실제 입력은 회귀 가드다 — Playwright 는 Shift 조합에도 `key` 를 소문자로
+        // 주지만 **실제 브라우저는 'Z' 로 준다**. 예전 구현은 `key === 'z'` 를 찾고 있어서
+        // Ctrl+Shift+Z 가 아예 죽어 있었고(Ctrl+Y 만 살아 있었다), CapsLock 이 켜지면
+        // Ctrl+Z 까지 죽었다. 그 두 경우는 실제 브라우저가 보내는 키로 직접 확인한다.
+        const send = (page, init) => page.evaluate(
+            (i) => window.dispatchEvent(new KeyboardEvent('keydown', { ...i, bubbles: true })),
+            init
+        );
+
+        await send(page, { key: 'Z', ctrlKey: true }); // CapsLock 켜진 Ctrl+Z
+        await expect(newRows(page)).toHaveCount(0);
+
+        await send(page, { key: 'Z', ctrlKey: true, shiftKey: true }); // 실제 Ctrl+Shift+Z
+        await expect(newRows(page)).toHaveCount(1);
     });
 });

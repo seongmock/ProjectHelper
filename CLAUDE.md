@@ -24,9 +24,9 @@ npm run dev          # Vite dev server, http://localhost:5173, hot-reload
 npm run dev:api      # Express API server (PORT env, default 3000)
 npm run build        # Production build → dist/
 npm run lint         # ESLint 9 (flat config)
-npm run test:unit    # Vitest — 도메인 순수함수 + XSS 회귀 (277건)
+npm run test:unit    # Vitest — 도메인 순수함수 + XSS 회귀 (292건)
 npm run test:server  # node:test — 검증·서비스·저장소 내구성·감사 로그·의존성 정합성 (128건)
-npm run test:e2e     # Playwright E2E 58건 (API·dev 서버 자동 기동)
+npm run test:e2e     # Playwright E2E 61건 (API·dev 서버 자동 기동)
 npm run verify       # 위 전부 + 빌드 — 변경 후 이것을 돌려라
 ```
 
@@ -44,8 +44,8 @@ npx playwright test -g "프로젝트"                   # by test-title substrin
 npx playwright test --headed --debug                # watch it / step through
 ```
 
-**변경 후에는 `npm run verify`** — 합격 기준은 lint 0 error · unit 277/277 · server 128/128 ·
-빌드 성공 · **E2E 58/58 (skip 0)**.
+**변경 후에는 `npm run verify`** — 합격 기준은 lint 0 error · unit 292/292 · server 128/128 ·
+빌드 성공 · **E2E 61/61 (skip 0)**.
 
 `playwright.config.js` 는 **API 서버와 dev 서버를 모두 자동 기동**하며, API는
 `PH_DATA_DIR=.tmp-e2e-data` 로 격리된다. 예전에는 API 서버를 수동으로 띄우지 않으면 8건이
@@ -234,7 +234,8 @@ Dependencies now live at the range level.
   DisplayOptionsMenu), `table`, `timeline`, `tasks`, `projects`, `io`. A feature folder holds
   its components, its hooks, and any util used *only* by it (e.g. `timelineGeometry.js`,
   `htmlExporter.js`). Cross-feature pieces live in `src/shared/ui/` (Modal, Toast, Tooltip,
-  ColorPicker, ErrorBoundary) and `src/shared/hooks/` (useUndoRedo, useToast).
+  ColorPicker, ErrorBoundary), `src/shared/hooks/` (useUndoRedo, useToast), and
+  `src/shared/keyboard.js` (window-level key policy — see below).
   `src/utils/` keeps only the domain core every layer uses — `dataModel`, `taskTree`,
   `dateUtils`, `storage`. There is no `src/components/` or top-level `src/hooks/` anymore.
 - Each component is a `Foo.jsx` + `Foo.css` pair. **Vanilla CSS only** — no CSS-in-JS, no
@@ -246,6 +247,16 @@ Dependencies now live at the range level.
   focus can just grab it in its own effect (the palette input does); Modal only steps in if
   focus is still outside the dialog. A child that wants `Tab` for itself calls
   `preventDefault()` and the trap stands down.
+- **Window-level keyboard policy lives in `src/shared/keyboard.js`** — both `window` keydown
+  listeners (global shortcuts in `App.jsx`, selected-task keys in `useTaskKeyboard`) get their
+  guards from it, because a guard that exists in two places gets fixed in one. The pure
+  `resolveGlobalShortcut(event, {textEditing, overlay})` owns the whole keymap and answers
+  "which command, if any" — **the caller `preventDefault()`s only when a command comes back**,
+  so a `Ctrl+Z` we decline stays the input's. Two rules it encodes: commands that mutate the
+  tree (undo/redo/addTask) don't fire while a text input has focus or a modal is open; commands
+  that don't (palette/export) always fire. Keys are matched case-insensitively — `Shift` and
+  `CapsLock` deliver `key` as `'Z'`, and the old `key === 'z'` checks silently died under both.
+  Add new global shortcuts to `KEYMAP`, not to a new `if` in a component.
 - Dark mode is done purely with the `[data-theme="dark"]` CSS selector — no JS theming for it.
   Chart color themes are separate, in `src/themes/`.
 - Timeline drag-and-drop uses **@dnd-kit** (`TimelineView.jsx` / `TimelineBar.jsx`).

@@ -8,6 +8,7 @@
 import { useEffect, useCallback, useRef, useMemo } from 'react';
 import { getSampleData } from './utils/dataModel';
 import { flattenAll, planDependencyRemoval, expandAncestors, findDependencyIssues, filterTasksByQuery } from './utils/taskTree';
+import { resolveGlobalShortcut, isTextEditableTarget, hasOverlay } from './shared/keyboard';
 import { useUndoRedo } from './shared/hooks/useUndoRedo';
 import { useToast } from './shared/hooks/useToast';
 import { useProjectSync } from './features/projects/useProjectSync';
@@ -197,29 +198,26 @@ function App() {
         scrollSelectedTaskIntoView();
     }, [setTasksSilent, setSelectedTaskId, setSelectedRangeId, setSelectedMilestoneId]);
 
-    // ── 키보드 단축키 ────────────────────────────────
+    // ── 전역 단축키 ──────────────────────────────────
+    // 판정은 shared/keyboard.js 하나가 한다(선택 작업 단축키도 같은 가드를 쓴다).
+    // 명령이 나올 때에만 preventDefault 한다 — 입력 중의 Ctrl+Z 를 먹으면 사용자는
+    // 방금 친 글자를 되돌릴 방법을 잃는다.
     useEffect(() => {
+        const run = {
+            palette: ui.togglePalette,
+            undo,
+            redo,
+            exportFile: io.exportToFile,
+            addTask: () => actions.addTask(),
+        };
         const handleKeyDown = (e) => {
-            if (e.ctrlKey && e.key === 'k') {
-                e.preventDefault(); // 브라우저 기본(주소창 검색)을 먹는다
-                ui.togglePalette();
-            }
-            if (e.ctrlKey && e.key === 'z' && !e.shiftKey) {
-                e.preventDefault();
-                undo();
-            }
-            if ((e.ctrlKey && e.key === 'y') || (e.ctrlKey && e.shiftKey && e.key === 'z')) {
-                e.preventDefault();
-                redo();
-            }
-            if (e.ctrlKey && e.key === 's') {
-                e.preventDefault();
-                io.exportToFile();
-            }
-            if (e.ctrlKey && e.key === 'n') {
-                e.preventDefault();
-                actions.addTask();
-            }
+            const command = resolveGlobalShortcut(e, {
+                textEditing: isTextEditableTarget(e.target),
+                overlay: hasOverlay(),
+            });
+            if (!command) return;
+            e.preventDefault(); // 브라우저 기본(주소창 검색·페이지 저장 등)을 먹는다
+            run[command]();
         };
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);

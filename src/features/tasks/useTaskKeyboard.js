@@ -10,17 +10,9 @@
 import { useEffect } from 'react';
 import { flattenTasks } from '../../utils/dataModel';
 import { shiftTaskDates } from '../../utils/taskTree';
-
-// 입력 중에는 어떤 키도 가로채지 않는다. 날짜 input 안에서 ↑ 는 값 증가고,
-// 작업명 편집 중의 `[` 는 그냥 글자다.
-const isTyping = (el) =>
-    !!el && (['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName) || el.isContentEditable);
-
-// 모달이 열려 있으면 그쪽이 화면의 주인이다. 뒤에 가려진 선택 작업을
-// 조용히 움직이면 안 된다 (Escape 처리는 각 컴포넌트가 이미 한다).
-// 편집 팝오버는 v2/v3 에서 인스펙터가 전부 흡수해 사라졌다 — 남은 오버레이는 모달뿐이다.
-// **새 오버레이를 만들면 여기 셀렉터에 추가해야 한다.**
-const hasOverlay = () => !!document.querySelector('.modal-overlay');
+// 입력 중 · 모달 뒤 판정은 전역 단축키와 같은 것을 쓴다. 갈라져 있으면 한쪽만 고쳐진다.
+// (편집 팝오버는 v2/v3 에서 인스펙터가 전부 흡수해 사라졌다 — 남은 오버레이는 모달뿐이다.)
+import { isTypingTarget, hasOverlay } from '../../shared/keyboard';
 
 // 선택 행을 화면 안으로. 표 뷰와 타임라인 뷰의 선택 행 클래스가 다르다.
 // 명령 팔레트의 "작업으로 이동"도 같은 것을 해야 해서 밖으로 내놓는다.
@@ -42,7 +34,7 @@ const SHIFT_KEYS = {
 export function useTaskKeyboard({ tasks, selectedTaskId, onSelect, onUpdateTask, toast }) {
     useEffect(() => {
         const handleKeyDown = (e) => {
-            if (e.ctrlKey || e.metaKey || e.defaultPrevented || isTyping(e.target)) return;
+            if (e.ctrlKey || e.metaKey || e.defaultPrevented || isTypingTarget(e.target)) return;
             if (hasOverlay()) return;
 
             const flat = flattenTasks(tasks);
