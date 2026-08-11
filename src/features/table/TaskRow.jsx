@@ -11,6 +11,7 @@ function TaskRow({
     selectedTaskId,
     onSelectTask,
     onUpdateTask,
+    onToggleExpand,
     onDeleteTask,
     onAddTask,
     onIndentTask,
@@ -32,10 +33,11 @@ function TaskRow({
     const extraRangeCount = (task.timeRanges?.length || 0) - 1;
     const overdue = isTaskOverdue(task, formatDate(new Date()));
 
-    // 펼치기/접기
+    // 펼치기/접기 — 어디에 쓸지는 App 의 관문이 정한다(검색 중이면 화면 상태, 아니면 트리).
+    // 여기서 트리에 직접 쓰면 검색 중에는 화면에 반영되지 않는 값을 문서에 남기게 된다.
     const handleToggleExpand = (e) => {
         e.stopPropagation();
-        onUpdateTask(task.id, { expanded: !task.expanded });
+        onToggleExpand(task.id, !task.expanded);
     };
 
     // 작업명 편집

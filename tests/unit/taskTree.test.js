@@ -1206,6 +1206,42 @@ describe('filterTasksByQuery', () => {
         const raw = [{ id: 'x', name: '이름만' }];
         expect(filterTasksByQuery(raw, '이름')[0].children).toEqual([]);
     });
+
+    // 검색 중 접기 — 강제 펼침이 사용자의 접기까지 이기면 토글이 죽은 버튼이 된다.
+    // 저장된 expanded 로는 "검색 전부터 접혀 있던 것"과 구분할 수 없어 따로 받는다.
+    describe('collapsedIds (검색 중에 사용자가 접은 것)', () => {
+        it('집합에 든 노드는 접힌 채로 돌려준다', () => {
+            const next = filterTasksByQuery(tree(), '요구사항', new Set(['설계']));
+            expect(next[0].expanded).toBe(false);
+        });
+
+        it('접어도 그 노드 자체는 결과에 남는다 (다시 펼칠 행이 있어야 한다)', () => {
+            const next = filterTasksByQuery(tree(), '요구사항', new Set(['설계']));
+            expect(next.map(t => t.id)).toEqual(['설계']);
+            expect(next[0].children.map(t => t.id)).toEqual(['요구사항 분석']);
+        });
+
+        it('집합에 없는 노드는 그대로 펼친다', () => {
+            const next = filterTasksByQuery(tree(), '요구사항', new Set(['개발']));
+            expect(next[0].expanded).toBe(true);
+        });
+
+        it('배열로 줘도 된다', () => {
+            expect(filterTasksByQuery(tree(), '요구사항', ['설계'])[0].expanded).toBe(false);
+        });
+
+        it('생략·빈 집합이면 이전과 같다 (전부 펼침)', () => {
+            expect(filterTasksByQuery(tree(), '요구사항', new Set())[0].expanded).toBe(true);
+            expect(filterTasksByQuery(tree(), '요구사항', null)[0].expanded).toBe(true);
+        });
+
+        it('접기도 실제 트리를 바꾸지 않는다', () => {
+            const t = tree();
+            const before = structuredClone(t);
+            filterTasksByQuery(t, '요구사항', new Set(['설계']));
+            expect(t).toEqual(before);
+        });
+    });
 });
 
 describe('collectOwnedIds', () => {

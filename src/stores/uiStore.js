@@ -12,8 +12,23 @@ export const useUiStore = create((set) => ({
     viewMode: 'timeline', // 'table' | 'timeline' | 'split'
     setViewMode: (viewMode) => set({ viewMode }),
 
+    // 검색을 지우면 그동안 접어 둔 것도 함께 버린다 — 그 접기는 검색 결과에서만 의미가 있다.
     searchQuery: '',
-    setSearchQuery: (searchQuery) => set({ searchQuery }),
+    setSearchQuery: (searchQuery) => set(state => (
+        (searchQuery.trim() || state.searchCollapsedIds.size === 0)
+            ? { searchQuery }
+            : { searchQuery, searchCollapsedIds: new Set() }
+    )),
+
+    // 검색 중에 사용자가 접은 작업 id. **저장 데이터가 아니라 화면 상태다** — 검색은
+    // 조회일 뿐이라 트리의 `expanded` 를 건드리면 타이핑만으로 문서가 dirty 가 된다.
+    // filterTasksByQuery 가 이 집합만 접힌 것으로 취급한다.
+    searchCollapsedIds: new Set(),
+    toggleSearchCollapsed: (taskId) => set(state => {
+        const next = new Set(state.searchCollapsedIds);
+        if (!next.delete(taskId)) next.add(taskId);
+        return { searchCollapsedIds: next };
+    }),
 
     selectedTaskId: null,
     setSelectedTaskId: (selectedTaskId) => set({ selectedTaskId }),
@@ -62,6 +77,7 @@ export const useUiStore = create((set) => ({
         selectedRangeId: null,
         selectedMilestoneId: null,
         searchQuery: '',
+        searchCollapsedIds: new Set(),
         milestoneModalInfo: null,
     }),
 }));

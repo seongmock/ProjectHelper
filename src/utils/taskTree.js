@@ -403,19 +403,24 @@ export const taskMatchesQuery = (task, query) => {
 //
 // **실제 트리는 건드리지 않는다**(`expandAncestors` 와 다른 점). 검색은 조회일 뿐인데
 // 저장 데이터의 `expanded` 를 바꾸면 타이핑만으로 문서가 dirty 가 되고 서버에 저장된다.
-// 그 대가로 검색 중에는 접기 토글이 화면에 반영되지 않는다 — 접으면 그 노드가 검색
-// 결과에 있는 유일한 이유(자손)가 사라지므로, 여기서는 안 접히는 편이 맞다.
+//
+// `collapsedIds` 는 **검색 중에 사용자가 직접 접은 노드**다(화면에만 사는 상태 — uiStore).
+// 이게 없으면 접기 토글이 화면에 반영되지 않는다: 위의 강제 펼침이 매번 이겨서 화살표가
+// ▼ 에 머무르고, 눌린 값은 저장 데이터에만 조용히 들어간다. 저장된 `expanded` 로는
+// "검색 전부터 접혀 있던 것"(일치를 가리므로 펼쳐야 한다)과 "지금 사용자가 접은 것"
+// (존중해야 한다)을 구분할 수 없다 — 그래서 후자만 여기 별도로 받는다.
 //
 // 질의가 비면 원본 배열을 **그대로** 돌려준다(참조 동일 — 불필요한 재렌더를 만들지 않는다).
-export const filterTasksByQuery = (tasks, query) => {
+export const filterTasksByQuery = (tasks, query, collapsedIds = null) => {
     const q = (query || '').trim().toLowerCase();
     if (!q) return tasks;
+    const collapsed = collapsedIds instanceof Set ? collapsedIds : new Set(collapsedIds || []);
 
     const walk = (items) => (items || []).reduce((acc, item) => {
         const children = walk(item.children);
         if (!taskMatchesQuery(item, q) && children.length === 0) return acc;
         acc.push(children.length > 0
-            ? { ...item, children, expanded: true }
+            ? { ...item, children, expanded: !collapsed.has(item.id) }
             : { ...item, children });
         return acc;
     }, []);

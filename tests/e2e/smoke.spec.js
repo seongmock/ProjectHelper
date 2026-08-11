@@ -20,6 +20,10 @@ const openTableView = async (page) => {
     await expect(page.locator('.table-view')).toBeVisible();
 };
 
+// 이름이 정확히 일치하는 행 하나. hasText 는 부분 일치라 '개발'이 '프론트엔드 개발'까지 잡는다.
+const rowNamed = (page, name) => page.locator('.task-row')
+    .filter({ has: page.locator('.task-name', { hasText: new RegExp(`^${name}$`) }) });
+
 test.describe('앱 로드', () => {
     test('타임라인 뷰가 기본으로 표시되고 샘플 데이터가 보인다', async ({ page }) => {
         await expect(page.getByText('프로젝트 기획').first()).toBeVisible();
@@ -94,6 +98,21 @@ test.describe('실행 취소 / 다시 실행', () => {
         await page.keyboard.press('Control+y');
         await expect(page.locator('.task-row', { hasText: '새 작업' })).toBeVisible();
     });
+
+    // 접기/펼치기는 시각적 상태다(드래그 중 접기와 같은 판단). 히스토리에 쌓이면
+    // 되돌리기 20칸이 접기로 차서 정작 직전의 편집을 되돌릴 수 없다 —
+    // 예전에는 여기서 Ctrl+Z 가 '개발'을 다시 펼치기만 하고 새 작업은 남아 있었다.
+    test('접기는 되돌리기 대상이 아니다 — Ctrl+Z 는 직전 편집을 되돌린다', async ({ page }) => {
+        await openTableView(page);
+        await page.getByTitle('새 작업 추가 (Ctrl+N)').click();
+        await expect(page.locator('.task-row', { hasText: '새 작업' })).toBeVisible();
+
+        await rowNamed(page, '개발').locator('.expand-toggle').click();
+        await expect(rowNamed(page, '프론트엔드 개발')).toHaveCount(0);
+
+        await page.keyboard.press('Control+z');
+        await expect(page.locator('.task-row', { hasText: '새 작업' })).toHaveCount(0);
+    });
 });
 
 test.describe('뷰 전환', () => {
@@ -161,6 +180,42 @@ test.describe('검색', () => {
         await page.getByTitle('새 작업 추가 (Ctrl+N)').click();
         await expect(search).toHaveValue('작업');
         await expect(page.locator('.task-row', { hasText: '새 작업' })).toBeVisible();
+    });
+
+    // 회귀: 검색 중에는 필터가 조상을 강제로 펼치므로(위 테스트가 그 이유다) 접기 토글이
+    // 눌려도 화면은 그대로였다 — 죽은 버튼처럼 보이고, 눌린 값은 저장 데이터에만 남았다.
+    test('검색 중에도 접기 토글이 화면에 반영된다', async ({ page }) => {
+        await openTableView(page);
+        await page.getByPlaceholder('작업 검색...').fill('개발');
+        // '개발' + 자식 2개('프론트엔드 개발'·'백엔드 개발')
+        await expect(page.locator('.task-row')).toHaveCount(3);
+
+        const parent = rowNamed(page, '개발');
+        await parent.locator('.expand-toggle').click();
+        await expect(page.locator('.task-row')).toHaveCount(1);
+        await expect(parent.locator('.expand-toggle')).toHaveText('▶');
+
+        // 다시 펼칠 수도 있어야 한다 — 접힌 행 자체는 결과에 남아 있다
+        await parent.locator('.expand-toggle').click();
+        await expect(page.locator('.task-row')).toHaveCount(3);
+    });
+
+    // 검색은 조회일 뿐이다. 그때의 접기는 화면에만 살고 저장 데이터에 닿지 않는다 —
+    // 닿으면 검색창에 글자를 치는 것만으로 문서가 dirty 가 되어 서버에 저장된다.
+    test('검색 중 접기는 문서를 바꾸지 않는다 (검색을 지우면 되돌아온다)', async ({ page, request }) => {
+        await openTableView(page);
+        await page.waitForTimeout(2000); // 초기 자동저장(1.5s 디바운스)을 가라앉힌다
+        const search = page.getByPlaceholder('작업 검색...');
+        await search.fill('개발');
+        await rowNamed(page, '개발').locator('.expand-toggle').click();
+        await expect(page.locator('.task-row')).toHaveCount(1);
+
+        await search.fill('');
+        await expect(rowNamed(page, '프론트엔드 개발')).toBeVisible();
+
+        await page.waitForTimeout(2000); // 저장이 있었다면 이 안에 도착한다
+        const saved = await (await request.get('/api/data')).json();
+        expect(saved.data.find(t => t.name === '개발').expanded).toBe(true);
     });
 
     test('검색 결과 0건에서 Ctrl+N → 검색이 해제되고 새 작업이 보인다', async ({ page }) => {

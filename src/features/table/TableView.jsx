@@ -61,6 +61,7 @@ function TableView({
     onSelectTask,
     onUpdateTask,
     onUpdateTaskSilent,
+    onToggleExpand,
     onDeleteTask,
     onAddTask,
     onReorderTasks,
@@ -191,6 +192,7 @@ function TableView({
                                         selectedTaskId={selectedTaskId}
                                         onSelectTask={onSelectTask}
                                         onUpdateTask={onUpdateTask}
+                                        onToggleExpand={onToggleExpand}
                                         onDeleteTask={onDeleteTask}
                                         onAddTask={onAddTask}
                                         onIndentTask={onIndentTask}

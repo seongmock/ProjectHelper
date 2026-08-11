@@ -60,6 +60,8 @@ function App() {
     const setViewMode = useUiStore(s => s.setViewMode);
     const searchQuery = useUiStore(s => s.searchQuery);
     const setSearchQuery = useUiStore(s => s.setSearchQuery);
+    const searchCollapsedIds = useUiStore(s => s.searchCollapsedIds);
+    const toggleSearchCollapsed = useUiStore(s => s.toggleSearchCollapsed);
     const selectedTaskId = useUiStore(s => s.selectedTaskId);
     const setSelectedTaskId = useUiStore(s => s.setSelectedTaskId);
     const selectedRangeId = useUiStore(s => s.selectedRangeId);
@@ -240,7 +242,25 @@ function App() {
 
     // 검색어 필터 — split 모드에서 중복 계산 방지
     const isSearching = searchQuery.trim().length > 0;
-    const filteredTasks = useMemo(() => filterTasksByQuery(tasks, searchQuery), [tasks, searchQuery]);
+    const filteredTasks = useMemo(
+        () => filterTasksByQuery(tasks, searchQuery, searchCollapsedIds),
+        [tasks, searchQuery, searchCollapsedIds]
+    );
+
+    // 접기/펼치기의 유일한 관문. **검색 중과 아닐 때가 다른 곳에 쓴다.**
+    // 검색 중에는 필터가 일치를 드러내려고 조상을 강제로 펼치므로, 저장 데이터에 써 봐야
+    // 화면에는 반영되지 않는다(화살표는 ▼ 그대로고, 값만 조용히 문서에 남아 저장된다).
+    // 그래서 그때의 접기는 화면 상태(uiStore)로 받고 검색을 지울 때 함께 버린다.
+    // 검색 중이 아니면 트리에 쓴다 — 단 **히스토리에는 남기지 않는다**. 접기는 시각적
+    // 상태라(드래그 중 접기와 같은 판단) 되돌리기 20칸을 접기로 채우면 정작 직전의 편집을
+    // 되돌릴 수 없다.
+    const handleToggleExpand = useCallback((taskId, nextExpanded) => {
+        if (isSearching) {
+            toggleSearchCollapsed(taskId);
+            return;
+        }
+        actions.updateTaskSilent(taskId, { expanded: nextExpanded });
+    }, [isSearching, toggleSearchCollapsed, actions]);
 
     // 의존성 정합성. **검색 필터가 아니라 전체 트리**를 본다 — 상대가 필터에 걸려
     // 사라지면 멀쩡한 연결이 dangling 으로 보인다(인스펙터가 tasks 를 받는 것과 같은 이유).
@@ -365,6 +385,7 @@ function App() {
                                 onUpdateTask={actions.updateTask}
                                 onUpdateTaskSilent={actions.updateTaskSilent}
                                 onUpdateTasks={actions.updateTasks}
+                                onToggleExpand={handleToggleExpand}
                                 onDeleteTask={actions.deleteTask}
                                 onAddTask={handleAddTask}
                                 onReorderTasks={actions.reorderTasks}
