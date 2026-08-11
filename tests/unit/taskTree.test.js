@@ -24,6 +24,7 @@ import {
     flattenAll,
     collectEntities,
     summarizeTask,
+    orderRangeDates,
     patchRange,
     appendRange,
     removeRange,
@@ -764,6 +765,53 @@ describe('summarizeTask', () => {
     });
 });
 
+// 역전된 기간(종료 < 시작)은 화면에서 폭 0 이라 **아무것도 보이지 않는다**.
+// 마우스 리사이즈는 경계에서 멈추고 키보드는 종료일을 맞추고 서버는 400 으로 거부하는데,
+// 타이핑(인스펙터·표의 date 입력)만 그대로 통과하고 있었다.
+describe('orderRangeDates', () => {
+    const range = { id: 'r', startDate: '2026-06-10', endDate: '2026-06-20' };
+
+    it('순서가 맞으면 받은 patch 를 그대로 돌려준다 (참조 동일 — 헛 객체를 만들지 않는다)', () => {
+        const patch = { endDate: '2026-06-25' };
+        expect(orderRangeDates(range, patch)).toBe(patch);
+    });
+
+    it('날짜를 건드리지 않는 patch 는 판정 대상이 아니다', () => {
+        const patch = { label: '설계', color: '#fff' };
+        expect(orderRangeDates(range, patch)).toBe(patch);
+    });
+
+    it('종료일만 편집해 역전되면 **종료일만** 시작일로 되돌린다', () => {
+        // 손대지 않은 시작일까지 옮기면 사용자가 요청하지 않은 변경이 된다
+        expect(orderRangeDates(range, { endDate: '2026-06-01' })).toEqual({ endDate: '2026-06-10' });
+    });
+
+    it('시작일만 편집해 역전되면 **시작일만** 종료일로 되돌린다', () => {
+        expect(orderRangeDates(range, { startDate: '2026-06-30' })).toEqual({ startDate: '2026-06-20' });
+    });
+
+    it('양쪽을 함께 준 역전은 편집한 쪽을 가릴 수 없으므로 시작일을 따른다', () => {
+        expect(orderRangeDates(range, { startDate: '2026-07-01', endDate: '2026-06-01' }))
+            .toEqual({ startDate: '2026-07-01', endDate: '2026-07-01' });
+    });
+
+    it('한쪽이 비어 있으면 역전인지 판정할 근거가 없다 — 그대로 둔다', () => {
+        const patch = { endDate: '2026-06-01' };
+        expect(orderRangeDates({ id: 'r' }, patch)).toBe(patch);
+        expect(orderRangeDates(range, { startDate: '' })).toEqual({ startDate: '' });
+    });
+
+    it('같은 날(시작 = 종료)은 역전이 아니다', () => {
+        const patch = { endDate: '2026-06-10' };
+        expect(orderRangeDates(range, patch)).toBe(patch);
+    });
+
+    it('되돌린 결과를 한 번 더 통과시켜도 그대로다 (patchRange 가 두 번 적용해도 안전)', () => {
+        const once = orderRangeDates(range, { endDate: '2026-06-01' });
+        expect(orderRangeDates(range, once)).toBe(once);
+    });
+});
+
 // 인스펙터가 기간을 고치는 유일한 경로 (v2 에서 TimelineBarPopover 를 흡수하며 추출).
 // 팝오버 시절에는 호출부마다 map + bounds 재계산을 손으로 썼고, 라벨·색 변경 경로는
 // 재계산을 아예 빠뜨리고 있었다.
@@ -798,6 +846,18 @@ describe('patchRange / appendRange / removeRange', () => {
         const before = structuredClone(t);
         patchRange(t, 'r1', { label: '설계' });
         expect(t).toEqual(before);
+    });
+
+    it('patchRange 는 종료일을 시작일보다 앞으로 보내면 시작일로 되돌린다', () => {
+        const patch = patchRange(task(), 'r2', { endDate: '2026-06-01' });
+        // 편집한 종료일만 경계로 되돌아가고 시작일은 그대로다
+        expect(patch.timeRanges[1]).toMatchObject({ startDate: '2026-06-10', endDate: '2026-06-10' });
+        expect(patch).toMatchObject({ startDate: '2026-06-01', endDate: '2026-06-10' });
+    });
+
+    it('patchRange 는 시작일을 종료일보다 뒤로 보내면 종료일로 되돌린다', () => {
+        const patch = patchRange(task(), 'r1', { startDate: '2026-06-30' });
+        expect(patch.timeRanges[0]).toMatchObject({ startDate: '2026-06-05', endDate: '2026-06-05' });
     });
 
     it('appendRange 는 하루짜리 기간을 붙이고 bounds 를 넓힌다', () => {

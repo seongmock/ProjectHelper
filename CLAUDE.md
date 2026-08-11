@@ -24,9 +24,9 @@ npm run dev          # Vite dev server, http://localhost:5173, hot-reload
 npm run dev:api      # Express API server (PORT env, default 3000)
 npm run build        # Production build → dist/
 npm run lint         # ESLint 9 (flat config)
-npm run test:unit    # Vitest — 도메인 순수함수 + XSS 회귀 (267건)
+npm run test:unit    # Vitest — 도메인 순수함수 + XSS 회귀 (277건)
 npm run test:server  # node:test — 검증·서비스·저장소 내구성·감사 로그·의존성 정합성 (128건)
-npm run test:e2e     # Playwright E2E 55건 (API·dev 서버 자동 기동)
+npm run test:e2e     # Playwright E2E 58건 (API·dev 서버 자동 기동)
 npm run verify       # 위 전부 + 빌드 — 변경 후 이것을 돌려라
 ```
 
@@ -44,8 +44,8 @@ npx playwright test -g "프로젝트"                   # by test-title substrin
 npx playwright test --headed --debug                # watch it / step through
 ```
 
-**변경 후에는 `npm run verify`** — 합격 기준은 lint 0 error · unit 267/267 · server 128/128 ·
-빌드 성공 · **E2E 55/55 (skip 0)**.
+**변경 후에는 `npm run verify`** — 합격 기준은 lint 0 error · unit 277/277 · server 128/128 ·
+빌드 성공 · **E2E 58/58 (skip 0)**.
 
 `playwright.config.js` 는 **API 서버와 dev 서버를 모두 자동 기동**하며, API는
 `PH_DATA_DIR=.tmp-e2e-data` 로 격리된다. 예전에는 API 서버를 수동으로 띄우지 않으면 8건이
@@ -219,6 +219,14 @@ Dependencies now live at the range level.
 - **Dates are always `YYYY-MM-DD` strings** — never `Date` objects in stored data. Use
   `formatDate()` (dataModel.js) or `dateUtils` (dateUtils.js).
 - **All ids come from `generateId()`** — tasks, time ranges, and milestones alike.
+- **A time range never ends before it starts.** A reversed range is invisible on the chart
+  (`getDuration` returns 0 → a 0px bar), so every write path enforces the order: dragging
+  stops at the boundary (`TimelineBar`), the keyboard clamps (`shiftTaskDates`), the server
+  rejects with 400 (`taskService`), and typed dates go through **`patchRange`**, which applies
+  the pure `orderRangeDates()` — it pulls back **only the endpoint you just edited**, never the
+  one you left alone. Edit range dates through `patchRange`, not an inline `map`. Reversed
+  ranges that arrive by other routes (blob `POST /api/data`, imports, old data) are *not*
+  rewritten; the inspector's range card flags them instead.
 
 ### Component conventions
 

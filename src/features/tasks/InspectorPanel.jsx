@@ -183,10 +183,13 @@ function RangeRow({ range, task, isFocused, onPatch, onRemove }) {
                 </button>
             </div>
 
+            {/* min/max 는 달력이 애초에 역전된 날짜를 고르지 못하게 한다. 그래도 손으로
+                입력할 수 있어서 되돌림은 patchRange(orderRangeDates)가 맡는다 */}
             <div className="inspector-range-dates">
                 <input
                     type="date"
                     value={range.startDate || ''}
+                    max={range.endDate || undefined}
                     aria-label="시작일"
                     data-testid="inspector-range-start"
                     onChange={(e) => onPatch({ startDate: e.target.value })}
@@ -195,11 +198,22 @@ function RangeRow({ range, task, isFocused, onPatch, onRemove }) {
                 <input
                     type="date"
                     value={range.endDate || ''}
+                    min={range.startDate || undefined}
                     aria-label="종료일"
                     data-testid="inspector-range-end"
                     onChange={(e) => onPatch({ endDate: e.target.value })}
                 />
             </div>
+
+            {/* 이미 역전돼 있는 기간 — 이 화면을 거치지 않은 쓰기(blob POST·가져오기·과거
+                데이터)만 만들 수 있다. 타임라인에서는 폭 0 이라 아무것도 보이지 않으므로
+                여기서 말해 주지 않으면 왜 바가 없는지 알 방법이 없다 */}
+            {range.startDate && range.endDate && range.startDate > range.endDate && (
+                <div className="inspector-range-invalid" data-testid="inspector-range-invalid">
+                    <AlertTriangle size={12} aria-hidden="true" />
+                    종료일이 시작일보다 앞섭니다 — 타임라인에 그려지지 않습니다
+                </div>
+            )}
 
             <details className="inspector-range-more">
                 <summary>색상 · 표시 옵션</summary>

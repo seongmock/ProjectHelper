@@ -536,10 +536,34 @@ export const findOwnerOfEntity = (flatList, entityId) => {
 // 라벨·색 변경 경로에서 실제로 재계산을 건너뛰고 있었다.
 // 대상이 없어 바뀔 것이 없으면 **null** 이다(호출부가 빈 undo 항목을 만들지 않게).
 
+// 시작·종료의 역전(종료 < 시작)을 막는다. 되돌리는 것은 **방금 편집한 쪽뿐**이다 —
+// 손대지 않은 날짜까지 함께 옮기면 사용자가 요청하지 않은 변경이 된다.
+// 마우스 리사이즈는 경계에서 멈추고(TimelineBar), 키보드는 종료일을 시작일로 맞추고
+// (shiftTaskDates), 서버는 400 으로 거부하는데(taskService), **타이핑만 그대로 통과했다.**
+// 통과한 결과는 화면에서 보이지 않는다 — getDuration 이 역전 구간을 0 으로 돌려
+// 바의 폭이 0px 이 된다. 방금 입력한 기간이 흔적 없이 사라지는 것처럼 보인다.
+// 반환은 patch 이고, 되돌릴 것이 없으면 **받은 patch 를 그대로**(참조 동일) 돌려준다.
+export const orderRangeDates = (range, patch) => {
+    const touchesStart = 'startDate' in patch;
+    const touchesEnd = 'endDate' in patch;
+    if (!touchesStart && !touchesEnd) return patch;
+
+    const startDate = touchesStart ? patch.startDate : range?.startDate;
+    const endDate = touchesEnd ? patch.endDate : range?.endDate;
+    // 한쪽이 비어 있으면 역전인지 판정할 근거가 없다 — 그대로 둔다
+    if (!startDate || !endDate || startDate <= endDate) return patch;
+
+    // 양쪽을 함께 준 경우(드래그·가져오기)는 편집한 쪽을 가릴 수 없다 → 시작일을 따른다
+    if (touchesStart && touchesEnd) return { ...patch, endDate: startDate };
+    return touchesStart ? { ...patch, startDate: endDate } : { ...patch, endDate: startDate };
+};
+
 export const patchRange = (task, rangeId, patch) => {
     const ranges = task.timeRanges || [];
-    if (!ranges.some(r => r.id === rangeId)) return null;
-    const timeRanges = ranges.map(r => (r.id === rangeId ? { ...r, ...patch } : r));
+    const target = ranges.find(r => r.id === rangeId);
+    if (!target) return null;
+    const ordered = orderRangeDates(target, patch);
+    const timeRanges = ranges.map(r => (r.id === rangeId ? { ...r, ...ordered } : r));
     return { timeRanges, ...recalcTaskBoundsSafe(timeRanges) };
 };
 

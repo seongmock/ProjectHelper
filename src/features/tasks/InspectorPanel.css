@@ -309,6 +309,20 @@
     font-size: 12px;
 }
 
+/* 역전된 기간(종료 < 시작) — 색만으로 구분하지 않도록 아이콘 + 문장을 함께 낸다 */
+.inspector-range-invalid {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 4px;
+    color: #b45309;
+    font-size: 11px;
+}
+
+[data-theme="dark"] .inspector-range-invalid {
+    color: #fbbf24;
+}
+
 .inspector-range-more {
     margin-top: 6px;
 }

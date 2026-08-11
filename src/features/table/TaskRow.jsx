@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { IndentDecrease, IndentIncrease, Plus, Trash2, Flag, TriangleAlert } from 'lucide-react';
 import { generateId, formatDate } from '../../utils/dataModel';
-import { recalcTaskBoundsSafe, isTaskOverdue, milestonesInDateOrder } from '../../utils/taskTree';
+import { recalcTaskBoundsSafe, isTaskOverdue, milestonesInDateOrder, patchRange } from '../../utils/taskTree';
 import ColorPicker from '../../shared/ui/ColorPicker';
 import './TaskRow.css';
 
@@ -74,19 +74,19 @@ function TaskRow({
         }
     };
 
-    // 날짜 변경 — 첫 timeRange를 수정하고 전체 시작/종료 캐시 재계산 (타임라인과 동기화)
+    // 날짜 변경 — 첫 timeRange를 수정하고 전체 시작/종료 캐시 재계산 (타임라인과 동기화).
+    // 인스펙터와 **같은 순수함수**(patchRange)를 거친다: bounds 재계산도, 역전 입력을
+    // 경계로 되돌리는 것도 거기 한 곳에 있다. 여기서 인라인으로 map 하던 시절에는
+    // 종료 < 시작을 그대로 통과시켜 타임라인에서 바가 사라졌다.
     const handleDateChange = (field, value) => {
         if (!value) return; // 입력이 비워진 경우 무시
-        let ranges;
         if (!firstRange) {
             // 기간이 없는 작업: 선택한 날짜로 1일짜리 기간 생성
-            ranges = [{ id: generateId(), startDate: value, endDate: value, dependencies: [], color: null, label: '' }];
-        } else {
-            ranges = task.timeRanges.map(r =>
-                r.id === firstRange.id ? { ...r, [field]: value } : r
-            );
+            const ranges = [{ id: generateId(), startDate: value, endDate: value, dependencies: [], color: null, label: '' }];
+            onUpdateTask(task.id, { timeRanges: ranges, ...recalcTaskBoundsSafe(ranges) });
+            return;
         }
-        onUpdateTask(task.id, { timeRanges: ranges, ...recalcTaskBoundsSafe(ranges) });
+        onUpdateTask(task.id, patchRange(task, firstRange.id, { [field]: value }));
     };
 
     // 색상 변경
@@ -210,11 +210,13 @@ function TaskRow({
                     )}
                 </div>
 
-                {/* 시작일 (첫 번째 기간 기준) */}
+                {/* 시작일 (첫 번째 기간 기준). max/min 은 달력이 역전된 날짜를 아예 못
+                    고르게 한다 — 손으로 입력한 경우는 patchRange 가 경계로 되돌린다 */}
                 <div className="col-dates">
                     <input
                         type="date"
                         value={firstRange?.startDate || ''}
+                        max={firstRange?.endDate || undefined}
                         onChange={(e) => handleDateChange('startDate', e.target.value)}
                         onClick={(e) => e.stopPropagation()}
                     />
@@ -225,6 +227,7 @@ function TaskRow({
                     <input
                         type="date"
                         value={firstRange?.endDate || ''}
+                        min={firstRange?.startDate || undefined}
                         onChange={(e) => handleDateChange('endDate', e.target.value)}
                         onClick={(e) => e.stopPropagation()}
                     />

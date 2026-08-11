@@ -78,6 +78,25 @@ test.describe('표 날짜 편집 ↔ 타임라인 동기화', () => {
         await expect(bar).toHaveAttribute('title', /2026-01-02|2026\.01\.02/);
     });
 
+    // 역전된 기간(종료 < 시작)은 폭 0 이라 타임라인에서 **아무것도 보이지 않는다**.
+    // 마우스 리사이즈는 경계에서 멈추고 키보드는 종료일을 맞추고 서버는 400 으로 거부하는데,
+    // 타이핑만 그대로 통과했다 — 방금 넣은 날짜 때문에 바가 사라지는 것처럼 보였다.
+    test('종료일을 시작일 앞으로 보내면 시작일로 되돌아가고 바가 남는다', async ({ page }) => {
+        await page.getByTitle('표 뷰').click();
+
+        const row = page.locator('.task-row', { hasText: '요구사항 분석' }).first();
+        const endInput = row.locator('input[type="date"]').nth(1);
+        await endInput.fill('2026-01-01'); // 시작일(2026-01-06)보다 앞
+
+        // 되돌리는 것은 방금 편집한 종료일뿐 — 손대지 않은 시작일은 그대로다
+        await expect(endInput).toHaveValue('2026-01-06');
+        await expect(row.locator('input[type="date"]').first()).toHaveValue('2026-01-06');
+
+        await page.getByTitle('타임라인 뷰').click();
+        const bar = page.locator('.timeline-bar[title^="요구사항 분석 ("]');
+        const box = await bar.boundingBox();
+        expect(box.width).toBeGreaterThan(0); // 역전됐다면 0px 였다
+    });
 });
 
 // v4: 표가 갖고 있던 "마일스톤 관리" 모달을 폐기하고 인스펙터로 흡수했다. 표의 칼럼은
@@ -365,6 +384,51 @@ test.describe('인스펙터 패널', () => {
         await expect(panel.getByTestId('inspector-milestone')).toHaveCount(0);
         await page.keyboard.press('Control+z');
         await expect(panel.getByTestId('inspector-milestone')).toHaveCount(1);
+
+        await page.getByTitle('인스펙터 패널').click();
+        await expect(panel).toHaveCount(0);
+    });
+
+    // 표와 같은 규칙이 여기에도 적용된다 — 기간을 고치는 경로가 patchRange 하나이기 때문이다.
+    test('시작일을 종료일 뒤로 보내면 종료일로 되돌아간다', async ({ page }) => {
+        const panel = page.locator('.inspector-panel');
+        await page.locator('.timeline-bar[title^="요구사항 분석 ("]').click({ button: 'right' });
+        await expect(panel).toBeVisible();
+
+        const start = panel.getByTestId('inspector-range-start').first();
+        const end = panel.getByTestId('inspector-range-end').first();
+        await start.fill('2026-02-01'); // 종료일(2026-01-20)보다 뒤
+
+        await expect(start).toHaveValue('2026-01-20');
+        await expect(end).toHaveValue('2026-01-20');
+        await expect(panel.getByTestId('inspector-range-invalid')).toHaveCount(0);
+
+        await page.getByTitle('인스펙터 패널').click();
+        await expect(panel).toHaveCount(0);
+    });
+
+    // 이 화면을 거치지 않은 쓰기(blob POST·가져오기·과거 데이터)는 여전히 역전된 기간을
+    // 남길 수 있다. 타임라인에서는 폭 0 이라 아무것도 안 보이므로 여기서 말해 주지 않으면
+    // 왜 바가 없는지 알 방법이 없다.
+    test('이 화면을 거치지 않은 쓰기가 남긴 역전된 기간을 알려 준다', async ({ page, request }) => {
+        await page.waitForTimeout(2500); // 초기 저장 안정화
+        const { data } = await (await request.get('/api/data')).json();
+        const target = data.find(t => (t.timeRanges || []).length > 0);
+        target.timeRanges[0].endDate = '2020-01-01';
+        expect((await request.post('/api/data', { data })).ok()).toBe(true);
+
+        await page.reload();
+        await expect(page.getByText('데이터 불러오는 중')).toHaveCount(0);
+
+        const panel = page.locator('.inspector-panel');
+        await page.locator('.task-name-item', { hasText: target.name }).first().click();
+        await page.getByTitle('인스펙터 패널').click();
+        await expect(panel).toBeVisible();
+        await expect(panel.getByTestId('inspector-range-invalid')).toHaveCount(1);
+
+        // 어느 한쪽만 고쳐도 역전이 풀린다
+        await panel.getByTestId('inspector-range-end').first().fill('2026-03-01');
+        await expect(panel.getByTestId('inspector-range-invalid')).toHaveCount(0);
 
         await page.getByTitle('인스펙터 패널').click();
         await expect(panel).toHaveCount(0);
