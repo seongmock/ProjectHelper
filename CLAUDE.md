@@ -24,9 +24,9 @@ npm run dev          # Vite dev server, http://localhost:5173, hot-reload
 npm run dev:api      # Express API server (PORT env, default 3000)
 npm run build        # Production build → dist/
 npm run lint         # ESLint 9 (flat config)
-npm run test:unit    # Vitest — 도메인 순수함수 + XSS 회귀 (324건)
+npm run test:unit    # Vitest — 도메인 순수함수 + XSS 회귀 (337건)
 npm run test:server  # node:test — 검증·서비스·저장소 내구성·감사 로그·의존성 정합성 (128건)
-npm run test:e2e     # Playwright E2E 71건 (API·dev 서버 자동 기동)
+npm run test:e2e     # Playwright E2E 73건 (API·dev 서버 자동 기동)
 npm run verify       # 위 전부 + 빌드 — 변경 후 이것을 돌려라
 ```
 
@@ -44,8 +44,8 @@ npx playwright test -g "프로젝트"                   # by test-title substrin
 npx playwright test --headed --debug                # watch it / step through
 ```
 
-**변경 후에는 `npm run verify`** — 합격 기준은 lint 0 error · unit 324/324 · server 128/128 ·
-빌드 성공 · **E2E 71/71 (skip 0)**.
+**변경 후에는 `npm run verify`** — 합격 기준은 lint 0 error · unit 337/337 · server 128/128 ·
+빌드 성공 · **E2E 73/73 (skip 0)**.
 
 `playwright.config.js` 는 **API 서버와 dev 서버를 모두 자동 기동**하며, API는
 `PH_DATA_DIR=.tmp-e2e-data` 로 격리된다. 예전에는 API 서버를 수동으로 띄우지 않으면 8건이
@@ -195,7 +195,19 @@ See `docs/AI_INTEGRATION.md` and the `timeline-api` skill. Prefer per-task endpo
 - **`useUndoRedo(tasks)`** (`src/shared/hooks/useUndoRedo.js`) holds the entire task tree with history
   (max 20 entries). Use `setState(fn)` for user actions that should be undoable; use
   **`setStateSilent(fn)`** for transient states like mid-drag updates that must NOT pollute
-  history.
+  history. The whole judgement (push vs overwrite, the 20-entry cap, gesture coalescing) is
+  the pure `shared/hooks/undoHistory.js`; the hook only resolves function updaters.
+- **A continuous control must name its gesture, or it eats the whole history.** History is 20
+  entries, so one progress-slider drag (`step=5` → up to 21 events), one drag inside the native
+  colour dialog, or one held `]` key (browser auto-repeat, tens of events per second) used to
+  push every event as its own entry — the user's previous 20 edits were gone and undo just
+  crawled back 5%/one day at a time. Text inputs dodge this by committing on blur/Enter
+  (`DraftField`); dragged controls have no such moment, so they pass a **gesture key** as the
+  last argument (`actions.updateTask(id, updates, 'progress:<id>')`, `ColorPicker`'s
+  `gestureKey` prop, `e.repeat ? 'shift:<id>' : null` in `useTaskKeyboard`) and consecutive
+  writes under the same key within `COALESCE_WINDOW_MS` (600ms) overwrite one entry instead of
+  adding one. Undo then lands **before** the gesture. Discrete actions pass nothing — clicking
+  two colour chips is two edits, and undo/redo/silent writes end any gesture in progress.
 - **`useToast()`** (`src/shared/hooks/useToast.js`) — always use `toast.success/error/warn/info`
   instead of `alert()`.
 - **Collapsing a branch goes through one gate — `App.handleToggleExpand`.** Two things differ

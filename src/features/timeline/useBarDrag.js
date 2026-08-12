@@ -23,7 +23,7 @@ export function useBarDrag({ flatTasks, onUpdateTask, onUpdateTasks }) {
     const applyUpdates = useCallback((updates) => {
         if (updates.length === 0) return;
         if (onUpdateTasks) onUpdateTasks(updates);
-        else updates.forEach(u => onUpdateTask(u.taskId, u.updates, true));
+        else updates.forEach(u => onUpdateTask(u.taskId, u.updates));
     }, [onUpdateTask, onUpdateTasks]);
 
     const handleGuideMove = useCallback((offset) => setGuideLineX(offset), []);

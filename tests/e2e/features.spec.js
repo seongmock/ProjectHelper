@@ -758,3 +758,85 @@ test.describe('전역 단축키 가드', () => {
         await expect(newRows(page)).toHaveCount(1);
     });
 });
+
+test.describe('연속 입력과 되돌리기 히스토리', () => {
+    // 히스토리는 20칸이다. 한 번의 조작이 이벤트마다 한 칸씩 쌓으면 앞선 편집이 전부
+    // 밀려나가고, 되돌리기(잘못된 편집의 유일한 복구 수단)가 그 조작 안에서만 맴돈다.
+    const addTaskButton = (page) => page.getByTitle('새 작업 추가 (Ctrl+N)');
+    const newRows = (page) => page.locator('.task-row', { hasText: '새 작업' });
+
+    test('진행률 슬라이더를 끝까지 끌어도 앞선 편집이 히스토리에 남는다', async ({ page }) => {
+        await page.getByTitle('표 뷰').click();
+        await addTaskButton(page).click(); // 살아남아야 하는 앞선 편집
+        await expect(newRows(page)).toHaveCount(1);
+
+        // showInspector 는 전역 설정이라 앞선 테스트가 켜 둔 채로 넘어올 수 있다 —
+        // 토글을 무조건 누르면 그때 닫힌다. 열려 있지 않을 때만 누른다.
+        const panel = page.locator('.inspector-panel');
+        if (await panel.count() === 0) await page.getByTitle('인스펙터 패널').click();
+        const slider = page.getByTestId('inspector-progress'); // 추가한 작업이 선택돼 있다
+        await expect(slider).toBeVisible();
+
+        // 손가락으로 끌 때처럼 트랙을 가로지른다. step=5 라 값이 바뀌는 지점마다
+        // onChange 가 오고, 그것이 칸마다 히스토리를 만들면 20칸이 이 드래그 하나로 찬다.
+        const box = await slider.boundingBox();
+        await page.mouse.move(box.x + 2, box.y + box.height / 2);
+        await page.mouse.down();
+        for (let i = 1; i <= 24; i++) {
+            await page.mouse.move(box.x + (box.width * i) / 24, box.y + box.height / 2);
+        }
+        await page.mouse.up();
+        await expect(page.locator('.progress-badge').first()).toHaveText('100%');
+
+        // 한 번의 드래그는 한 번에 되돌아간다 (5% 씩 스무 번이 아니다)
+        await page.keyboard.press('Control+z');
+        await expect(page.locator('.progress-badge')).toHaveCount(0);
+
+        // 그리고 그 앞의 편집이 아직 거기 있다 — 히스토리가 소진되지 않았다는 증거
+        await page.keyboard.press('Control+z');
+        await expect(newRows(page)).toHaveCount(0);
+
+        await page.getByTitle('인스펙터 패널').click(); // 전역 설정이라 되돌린다
+        await expect(panel).toHaveCount(0);
+    });
+
+    test('] 를 누른 채로 두어도 앞선 편집이 히스토리에 남는다', async ({ page }) => {
+        await page.getByTitle('표 뷰').click();
+        await addTaskButton(page).click(); // 살아남아야 하는 앞선 편집
+        await expect(newRows(page)).toHaveCount(1);
+
+        // 일정이 있는 작업을 골라야 한다 — 새 작업에는 기간이 없어 [ ] 가 아무것도 안 한다
+        // (exact: 인스펙터의 "타임라인 뷰에서만 연결할 수 있다" 버튼과 겹친다)
+        await page.getByTitle('타임라인 뷰', { exact: true }).click();
+        await page.locator('.timeline-bar').first().click({ button: 'right' });
+        const start = page.getByTestId('inspector-range-start');
+        await expect(start).toBeVisible();
+        const original = await start.inputValue();
+
+        // 키를 누른 채로 두면 브라우저가 repeat:true 로 초당 수십 건을 보낸다.
+        // Playwright 의 press 는 repeat 를 만들지 않으므로 실제 이벤트를 직접 보낸다
+        // (대문자 키 테스트와 같은 방식).
+        const send = (init) => page.evaluate(
+            (i) => window.dispatchEvent(new KeyboardEvent('keydown', { ...i, bubbles: true })),
+            init
+        );
+        await send({ key: ']' });
+        for (let i = 0; i < 24; i++) await send({ key: ']', repeat: true });
+
+        const shifted = await start.inputValue();
+        expect(shifted).not.toBe(original);
+
+        // 오토리핏 구간 전체가 한 칸이다 → 첫 타(하루)로, 그 다음 원래 날짜로 돌아온다
+        await page.keyboard.press('Control+z');
+        await page.keyboard.press('Control+z');
+        await expect(start).toHaveValue(original);
+
+        // 그리고 그 앞의 편집이 아직 거기 있다
+        await page.keyboard.press('Control+z');
+        await page.getByTitle('표 뷰', { exact: true }).click();
+        await expect(newRows(page)).toHaveCount(0);
+
+        await page.getByTitle('인스펙터 패널').click(); // 우클릭이 켠 전역 설정을 되돌린다
+        await expect(page.locator('.inspector-panel')).toHaveCount(0);
+    });
+});

@@ -28,8 +28,11 @@ export function useTaskActions({ setTasks, setTasksSilent, onSelect }) {
         return newTask;
     }, [setTasks, onSelect]);
 
-    const updateTask = useCallback((taskId, updates) => {
-        setTasks(prev => updateTaskInTree(prev, taskId, updates));
+    // gestureKey: 슬라이더 드래그·키 오토리핏처럼 이벤트가 연달아 오는 조작의 이름.
+    // 같은 이름의 연속은 히스토리 한 칸으로 합쳐진다(undoHistory.js) — 없으면 한 번의
+    // 드래그가 20칸을 다 써서 그 앞의 편집을 되돌릴 수 없게 된다.
+    const updateTask = useCallback((taskId, updates, gestureKey = null) => {
+        setTasks(prev => updateTaskInTree(prev, taskId, updates), gestureKey);
     }, [setTasks]);
 
     // 히스토리에 남기지 않는 갱신 (드래그 중 접기/펼치기 등 시각적 임시 상태)

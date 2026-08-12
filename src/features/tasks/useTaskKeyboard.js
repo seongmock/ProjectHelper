@@ -67,7 +67,11 @@ export function useTaskKeyboard({ tasks, selectedTaskId, onSelect, onUpdateTask,
                 toast.warn('일정이 없는 작업입니다 — 먼저 기간을 추가하세요');
                 return;
             }
-            onUpdateTask(task.id, patch);
+            // 키를 누른 채로 두면 브라우저가 초당 수십 건을 보낸다(e.repeat). 그것을
+            // 칸마다 쌓으면 1초 만에 히스토리 20칸이 다 차서 앞선 편집이 사라진다 —
+            // 오토리핏 구간은 한 칸으로 묶는다. 한 번 누른 것(repeat=false)은 그대로
+            // 자기 칸을 갖는다: 또박또박 누른 횟수만큼 되돌릴 수 있어야 한다.
+            onUpdateTask(task.id, patch, e.repeat ? `shift:${task.id}` : null);
         };
 
         window.addEventListener('keydown', handleKeyDown);

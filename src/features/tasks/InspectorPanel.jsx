@@ -219,7 +219,8 @@ function RangeRow({ range, task, isFocused, onPatch, onRemove }) {
                 <summary>색상 · 표시 옵션</summary>
                 <ColorPicker
                     color={range.color || task.color}
-                    onChange={(color) => onPatch({ color })}
+                    gestureKey={`range-color:${range.id}`}
+                    onChange={(color, gestureKey) => onPatch({ color }, gestureKey)}
                 />
                 <label className="inspector-check">
                     <input
@@ -299,7 +300,8 @@ function MilestoneRow({ milestone, isFocused, onPatch, onRemove }) {
                 />
                 <ColorPicker
                     color={milestone.color}
-                    onChange={(color) => onPatch({ color })}
+                    gestureKey={`milestone-color:${milestone.id}`}
+                    onChange={(color, gestureKey) => onPatch({ color }, gestureKey)}
                 />
                 <Segmented
                     label="레이블"
@@ -314,7 +316,9 @@ function MilestoneRow({ milestone, isFocused, onPatch, onRemove }) {
 
 function DividerSection({ task, onUpdateTask }) {
     const divider = task.divider || {};
-    const patch = (updates) => onUpdateTask(task.id, { divider: { ...divider, ...updates } });
+    const patch = (updates, gestureKey = null) => onUpdateTask(
+        task.id, { divider: { ...divider, ...updates } }, gestureKey
+    );
 
     return (
         <section className="inspector-section">
@@ -345,7 +349,11 @@ function DividerSection({ task, onUpdateTask }) {
                     {/* 색 팔레트는 한 줄을 다 쓴다 — 라벨과 같은 줄에 두면 라벨이 줄바꿈된다 */}
                     <label className="is-stacked">
                         <span>색상</span>
-                        <ColorPicker color={divider.color || '#000000'} onChange={(color) => patch({ color })} />
+                        <ColorPicker
+                            color={divider.color || '#000000'}
+                            gestureKey={`divider-color:${task.id}`}
+                            onChange={(color, gestureKey) => patch({ color }, gestureKey)}
+                        />
                     </label>
                     <label>
                         <span>두께</span>
@@ -385,18 +393,19 @@ function InspectorPanel({
     const task = summary?.task;
 
     // 기간 patch/삭제는 순수함수가 bounds 까지 계산한다. null = 대상이 없어 바뀔 것이 없음.
-    const applyRangePatch = (rangeId, patch) => {
+    // gestureKey 는 연속 입력(색 대화상자를 끄는 동안 등)을 히스토리 한 칸으로 묶는 이름이다.
+    const applyRangePatch = (rangeId, patch, gestureKey = null) => {
         const updates = patchRange(task, rangeId, patch);
-        if (updates) onUpdateTask(task.id, updates);
+        if (updates) onUpdateTask(task.id, updates, gestureKey);
     };
     // 삭제는 트리 전체를 건드린다(지운 기간을 가리키던 참조도 함께 걷어낸다) — patch 로는
     // 표현할 수 없어서 onUpdateTask 가 아니라 전용 핸들러다.
     const dropRange = (rangeId) => onDeleteRange(task.id, rangeId);
 
     // 마일스톤도 같은 규약. 다만 bounds 는 건드리지 않는다(마일스톤은 기간이 아니다).
-    const applyMilestonePatch = (milestoneId, patch) => {
+    const applyMilestonePatch = (milestoneId, patch, gestureKey = null) => {
         const updates = patchMilestone(task, milestoneId, patch);
-        if (updates) onUpdateTask(task.id, updates);
+        if (updates) onUpdateTask(task.id, updates, gestureKey);
     };
     const dropMilestone = (milestoneId) => onDeleteMilestone(task.id, milestoneId);
 
@@ -489,7 +498,11 @@ function InspectorPanel({
                             step="5"
                             data-testid="inspector-progress"
                             value={task.progress ?? 0}
-                            onChange={(e) => onUpdateTask(task.id, { progress: Number(e.target.value) })}
+                            /* 드래그 한 번은 되돌리기 한 번이다 — 슬라이더는 커밋 시점이
+                               없어서(텍스트는 blur/Enter) 제스처 이름으로 묶는다 */
+                            onChange={(e) => onUpdateTask(
+                                task.id, { progress: Number(e.target.value) }, `progress:${task.id}`
+                            )}
                         />
                         {summary.rollupProgress !== null && (
                             <div className="inspector-rollup">
@@ -503,7 +516,8 @@ function InspectorPanel({
                         <div className="inspector-label">색상</div>
                         <ColorPicker
                             color={task.color}
-                            onChange={(color) => onUpdateTask(task.id, { color })}
+                            gestureKey={`task-color:${task.id}`}
+                            onChange={(color, gestureKey) => onUpdateTask(task.id, { color }, gestureKey)}
                         />
                     </section>
 
@@ -528,7 +542,7 @@ function InspectorPanel({
                                 range={range}
                                 task={task}
                                 isFocused={range.id === focusedRangeId}
-                                onPatch={(patch) => applyRangePatch(range.id, patch)}
+                                onPatch={(patch, gestureKey) => applyRangePatch(range.id, patch, gestureKey)}
                                 onRemove={() => dropRange(range.id)}
                             />
                         ))}
@@ -549,7 +563,7 @@ function InspectorPanel({
                                 key={m.id}
                                 milestone={m}
                                 isFocused={m.id === focusedMilestoneId}
-                                onPatch={(patch) => applyMilestonePatch(m.id, patch)}
+                                onPatch={(patch, gestureKey) => applyMilestonePatch(m.id, patch, gestureKey)}
                                 onRemove={() => dropMilestone(m.id)}
                             />
                         ))}

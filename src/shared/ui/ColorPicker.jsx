@@ -12,7 +12,10 @@ const DEFAULT_COLORS = [
     '#34495e', // Dark Blue
 ];
 
-function ColorPicker({ color, onChange, colors = DEFAULT_COLORS }) {
+// gestureKey: 사용자 지정 색상 입력은 색 대화상자를 끄는 동안 값이 연달아 온다.
+// 그 연속을 되돌리기 히스토리 한 칸으로 묶고 싶은 호출부가 이름을 준다(undoHistory.js).
+// 팔레트 칩 클릭은 한 번의 이산적 조작이라 그대로 자기 칸을 갖는다.
+function ColorPicker({ color, onChange, colors = DEFAULT_COLORS, gestureKey = null }) {
     return (
         <div className="color-picker-container">
             <div className="color-grid">
@@ -29,7 +32,7 @@ function ColorPicker({ color, onChange, colors = DEFAULT_COLORS }) {
                     <input
                         type="color"
                         value={color}
-                        onChange={(e) => onChange(e.target.value)}
+                        onChange={(e) => onChange(e.target.value, gestureKey)}
                     />
                     <span className="plus-icon">+</span>
                 </label>

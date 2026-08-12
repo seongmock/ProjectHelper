@@ -1,65 +1,36 @@
 // 실행 취소/다시 실행 기능 훅
+//
+// 판정(칸을 늘릴지 덮을지·20칸 상한·제스처 병합)은 전부 undoHistory.js 의 순수 함수가
+// 한다. 여기서는 함수형 업데이터를 현재 상태로 풀어 주는 일만 한다.
 
 import { useState, useCallback } from 'react';
+import { initHistory, pushState, replacePresent, undoState, redoState } from './undoHistory';
 
 export const useUndoRedo = (initialState) => {
-    const [hookState, setHookState] = useState({
-        history: [initialState],
-        index: 0
-    });
-
+    const [hookState, setHookState] = useState(() => initHistory(initialState));
 
     const currentState = hookState.history[hookState.index];
 
-    // 새 상태 추가 (실행 취소 히스토리 업데이트)
-    const setState = useCallback((newState) => {
+    // 새 상태 추가 (실행 취소 히스토리 업데이트).
+    // gestureKey: 연속 입력을 한 칸으로 묶고 싶을 때 그 제스처의 이름. 슬라이더 드래그처럼
+    // "끝났다"는 시점이 없는 컨트롤이 쓴다 — 자세한 근거는 undoHistory.js 머리말.
+    const setState = useCallback((newState, gestureKey = null) => {
         setHookState((prev) => {
-            const { history, index } = prev;
-            const currentState = history[index];
-            const resolvedState = typeof newState === 'function' ? newState(currentState) : newState;
-
-            // 현재 인덱스 이후의 히스토리 제거 후 새 상태 추가
-            const newHistory = [...history.slice(0, index + 1), resolvedState];
-
-            // 최대 20개 히스토리 유지
-            const slicedHistory = newHistory.slice(-20);
-
-            // 새 인덱스는 마지막 항목 (length - 1)
-            const newIndex = slicedHistory.length - 1;
-
-            return {
-                history: slicedHistory,
-                index: newIndex
-            };
+            const resolved = typeof newState === 'function'
+                ? newState(prev.history[prev.index])
+                : newState;
+            return pushState(prev, resolved, gestureKey);
         });
     }, []);
 
     // 실행 취소
-    const undo = useCallback(() => {
-        setHookState((prev) => {
-            if (prev.index > 0) {
-                const newIndex = prev.index - 1;
-                return { ...prev, index: newIndex };
-            }
-            return prev;
-        });
-    }, []);
+    const undo = useCallback(() => setHookState(undoState), []);
 
     // 다시 실행
-    const redo = useCallback(() => {
-        setHookState((prev) => {
-            if (prev.index < prev.history.length - 1) {
-                const newIndex = prev.index + 1;
-                return { ...prev, index: newIndex };
-            }
-            return prev;
-        });
-    }, []);
+    const redo = useCallback(() => setHookState(redoState), []);
 
     // 히스토리 전체 교체 — 프로젝트 전환 시 이전 프로젝트 상태로의 undo를 차단
-    const reset = useCallback((newState) => {
-        setHookState({ history: [newState], index: 0 });
-    }, []);
+    const reset = useCallback((newState) => setHookState(initHistory(newState)), []);
 
     const canUndo = hookState.index > 0;
     const canRedo = hookState.index < hookState.history.length - 1;
@@ -67,18 +38,10 @@ export const useUndoRedo = (initialState) => {
     // 히스토리에 추가하지 않고 현재 상태만 업데이트 (드래그 중간 상태용)
     const setStateSilent = useCallback((newState) => {
         setHookState((prev) => {
-            const { history, index } = prev;
-            const currentState = history[index];
-            const resolvedState = typeof newState === 'function' ? newState(currentState) : newState;
-
-            // 현재 인덱스의 상태만 업데이트 (히스토리 추가 없음)
-            const newHistory = [...history];
-            newHistory[index] = resolvedState;
-
-            return {
-                history: newHistory,
-                index: index
-            };
+            const resolved = typeof newState === 'function'
+                ? newState(prev.history[prev.index])
+                : newState;
+            return replacePresent(prev, resolved);
         });
     }, []);
 
