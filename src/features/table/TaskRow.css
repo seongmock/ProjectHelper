@@ -1,6 +1,6 @@
 .task-row {
     display: grid;
-    grid-template-columns: 1fr 140px 140px 120px 80px 200px;
+    grid-template-columns: 1fr 140px 140px 120px 90px 80px 200px;
     gap: var(--spacing-sm);
     padding: var(--spacing-sm) var(--spacing-lg);
     border-bottom: 1px solid var(--color-border);
@@ -151,7 +151,7 @@
 
 @media (max-width: 768px) {
     .task-row {
-        grid-template-columns: 1fr 100px 100px 100px 60px 150px;
+        grid-template-columns: 1fr 100px 100px 100px 80px 60px 150px;
         padding: var(--spacing-xs) var(--spacing-md);
         font-size: var(--font-size-sm);
     }
@@ -215,4 +215,61 @@
     display: inline-flex;
     align-items: center;
     gap: 4px;
+}
+
+/* 의존성 배지 — 표는 연결의 존재와 방향만 말한다(편집은 인스펙터).
+   문제 색은 인스펙터 배지·타임라인 화살표와 같다: 빨강=순환, 주황=일정 위반.
+   색 단독으로 구분하지 않도록 아이콘을 함께 낸다 */
+.dependency-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 8px;
+    font-size: var(--font-size-sm);
+    font-variant-numeric: tabular-nums;
+    border-radius: var(--border-radius);
+    background-color: var(--color-bg-tertiary);
+    border: 1px solid var(--color-border);
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.dependency-button:hover {
+    background-color: var(--color-bg-secondary);
+    border-color: var(--color-primary);
+    transform: translateY(-1px);
+}
+
+.dependency-count {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+}
+
+.dependency-button.has-cycle {
+    color: #dc2626;
+    border-color: rgb(220 38 38 / 45%);
+    background: rgb(220 38 38 / 12%);
+}
+
+.dependency-button.has-overlap {
+    color: #b45309;
+    border-color: rgb(245 158 11 / 50%);
+    background: rgb(245 158 11 / 16%);
+}
+
+[data-theme="dark"] .dependency-button.has-overlap {
+    color: #fbbf24;
+}
+
+.dependency-button.has-broken {
+    color: var(--color-text-muted, #667);
+    border-style: dashed;
+}
+
+/* 연결이 없는 행 — 빈칸으로 두면 "표에 이 정보가 없다"로 읽힌다 */
+.dependency-none {
+    color: var(--color-text-muted, #99a);
+    font-size: var(--font-size-sm);
 }

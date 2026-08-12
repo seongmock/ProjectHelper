@@ -24,9 +24,9 @@ npm run dev          # Vite dev server, http://localhost:5173, hot-reload
 npm run dev:api      # Express API server (PORT env, default 3000)
 npm run build        # Production build → dist/
 npm run lint         # ESLint 9 (flat config)
-npm run test:unit    # Vitest — 도메인 순수함수 + XSS 회귀 (349건)
+npm run test:unit    # Vitest — 도메인 순수함수 + XSS 회귀 (364건)
 npm run test:server  # node:test — 검증·서비스·저장소 내구성·감사 로그·의존성 정합성 (128건)
-npm run test:e2e     # Playwright E2E 75건 (API·dev 서버 자동 기동)
+npm run test:e2e     # Playwright E2E 77건 (API·dev 서버 자동 기동)
 npm run verify       # 위 전부 + 빌드 — 변경 후 이것을 돌려라
 ```
 
@@ -44,8 +44,8 @@ npx playwright test -g "프로젝트"                   # by test-title substrin
 npx playwright test --headed --debug                # watch it / step through
 ```
 
-**변경 후에는 `npm run verify`** — 합격 기준은 lint 0 error · unit 349/349 · server 128/128 ·
-빌드 성공 · **E2E 75/75 (skip 0)**.
+**변경 후에는 `npm run verify`** — 합격 기준은 lint 0 error · unit 364/364 · server 128/128 ·
+빌드 성공 · **E2E 77/77 (skip 0)**.
 
 `playwright.config.js` 는 **API 서버와 dev 서버를 모두 자동 기동**하며, API는
 `PH_DATA_DIR=.tmp-e2e-data` 로 격리된다. 예전에는 API 서버를 수동으로 띄우지 않으면 8건이
@@ -307,6 +307,20 @@ Dependencies now live at the range level.
   row aren't drawn (unreadable, and expanding reveals them), and a dangling ref never becomes a
   "hidden" marker — `findDependencyIssues` owns that diagnosis. The set of edges collected is
   unchanged (range- and milestone-held `dependencies` only; task-level ones stay legacy).
+- **The table says a connection exists; the inspector is still the only place to edit one.**
+  Dependencies used to live only on the timeline (arrows) and in the inspector, so a table-only
+  user could not tell a linked task from an unlinked one. `features/table/dependencyBadges.js`
+  (pure) folds the whole tree's edges onto the *rendered rows* — `summarizeRowDependencies(
+  allTasks, visibleIds, dependencyIssues)` → `Map<rowId, {predecessors, successors, broken,
+  issue}>`, and `TaskRow` draws the counts (`←n →n`) plus the worst issue (cycle > overlap >
+  broken, icon **and** colour). Same rules as the arrows, for the same reason: edges held by a
+  hidden descendant roll up to the nearest visible ancestor row (carrying that descendant's name
+  as `via`, so the tooltip can say whose connection it is), edges whose ends land on the same
+  row aren't counted, and the edge list comes from `findDependencyIssues` rather than being
+  re-derived — two derivations would let the table and the inspector disagree. Clicking a badge
+  goes through `App.handleOpenDependencies` → `focusInInspector(taskId)`, the same gate the
+  milestone column uses; it clears the range/milestone focus because a task-level badge does not
+  name one. A row with no edges renders `—`, not an empty cell.
 - `htmlExporter.js` generates a **self-contained interactive HTML** export of the timeline.
 
 ### Tree-update invariants (critical for correctness)

@@ -676,6 +676,74 @@ test.describe('화면 밖으로 나간 의존성', () => {
     });
 });
 
+test.describe('표의 의존성 배지', () => {
+    // 표에는 연결 표현이 **하나도 없었다**. 화살표는 타임라인에만, 상대 목록은 인스펙터에만
+    // 있어서 표만 쓰는 사용자는 연결이 존재한다는 사실 자체를 알 수 없었다 — 일정을 옮기다
+    // 선행/후행을 깨뜨려도 화면이 아무 말을 하지 않았다. 판정은 dependencyBadges 단위테스트가
+    // 고정하고, 여기서는 실제 화면에서 읽히는지와 인스펙터로 이어지는지만 본다.
+    const bar = (page, name) => page.locator(`.timeline-bar[title^="${name} ("]`);
+    const row = (page, name) => page.locator('.task-row')
+        .filter({ has: page.locator('.task-name', { hasText: new RegExp(`^${name}$`) }) });
+
+    // '설계 문서 작성'(프로젝트 기획의 자식) → '개발'. 샘플 데이터에서 이 둘은 5일 겹치므로
+    // 일정 위반이기도 하다 — 배지가 문제까지 말하는지 같은 연결로 확인할 수 있다.
+    const linkChildToSibling = async (page) => {
+        await bar(page, '설계 문서 작성').click({ button: 'right' });
+        await expect(page.locator('.inspector-panel')).toBeVisible();
+        await page.getByTestId('inspector-link').click();
+        await bar(page, '개발').click();
+        await expect(page.locator('.dependency-layer path')).toHaveCount(1);
+    };
+
+    // showInspector 는 전역 설정이라 각 테스트가 끝에서 되돌린다
+    const closeInspector = async (page) => {
+        await page.getByTitle('인스펙터 패널').click();
+        await expect(page.locator('.inspector-panel')).toHaveCount(0);
+    };
+
+    test('연결의 존재·방향·문제가 표에 보이고, 배지가 인스펙터로 데려간다', async ({ page }) => {
+        await linkChildToSibling(page);
+        await closeInspector(page); // 배지가 인스펙터를 여는 것까지 보려면 닫고 시작한다
+
+        await page.getByTitle('표 뷰').click();
+        await expect(row(page, '설계 문서 작성').getByTestId('row-dependencies'))
+            .toHaveAttribute('title', /후행: 개발/);
+
+        const badge = row(page, '개발').getByTestId('row-dependencies');
+        await expect(badge).toHaveAttribute('title', /선행: 설계 문서 작성/);
+        // 겹치는 연결이므로 문제까지 말한다(색 단독이 아니라 아이콘도 함께 뜬다)
+        await expect(badge).toHaveClass(/has-overlap/);
+        await expect(badge.getByLabel('일정 위반')).toBeVisible();
+        // 연결이 없는 행은 빈칸이 아니라 "—" 다 — 빈칸은 "표에 이 정보가 없다"로 읽힌다
+        await expect(row(page, '요구사항 분석').locator('.dependency-none')).toHaveCount(1);
+
+        await badge.click();
+        await expect(page.locator('.inspector-panel')).toBeVisible();
+        await expect(page.getByTestId('inspector-name')).toHaveValue('개발');
+        await closeInspector(page);
+    });
+
+    test('부모를 접어도 배지가 사라지지 않는다 — 대표 행으로 끌어올린다', async ({ page }) => {
+        await linkChildToSibling(page);
+        await closeInspector(page);
+        await page.getByTitle('표 뷰').click();
+
+        const parent = row(page, '프로젝트 기획');
+        await expect(parent.getByTestId('row-dependencies')).toHaveCount(0); // 자기 것은 없다
+
+        await parent.locator('.expand-toggle').click();
+        await expect(row(page, '설계 문서 작성')).toHaveCount(0);
+
+        // 접는 것만으로 연결이 없어진 것처럼 보이면 안 된다. 어느 자손의 것인지도 말한다.
+        const badge = parent.getByTestId('row-dependencies');
+        await expect(badge).toHaveCount(1);
+        await expect(badge).toHaveAttribute('title', /하위 설계 문서 작성/);
+
+        await parent.locator('.expand-toggle').click(); // 접기 상태를 되돌린다
+        await expect(row(page, '설계 문서 작성')).toHaveCount(1);
+    });
+});
+
 test.describe('모달 포커스 관리 (접근성)', () => {
     // 실사 §5.3. 판정 규칙은 focusTrap 단위테스트가 고정하고, 여기서는 실제 DOM 에서
     // 세 가지가 성립하는지만 본다: 안으로 들어간다 · 안에서 돈다 · 원래 자리로 돌아온다.

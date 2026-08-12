@@ -172,6 +172,13 @@ function App() {
         focusInInspector(taskId, { milestoneId });
     }, [focusInInspector]);
 
+    // 표의 의존성 배지도 같은 경로다 — 표는 연결의 **존재**만 말하고, 상대 목록과 제거는
+    // 인스펙터가 갖는다. 기간·마일스톤 포커스는 지우고 연다(배지는 작업 단위 요약이라
+    // 어느 기간의 연결인지 지목하지 않는다 — 지목한 척하면 "연결 추가"의 주체가 흔들린다).
+    const handleOpenDependencies = useCallback((taskId) => {
+        focusInInspector(taskId);
+    }, [focusInInspector]);
+
     // 인스펙터의 "마일스톤 추가" → 기존 MilestoneQuickAdd 모달 재사용.
     // 로컬 자정으로 파싱한다 — new Date('2026-06-20') 는 UTC 자정이라 음수 오프셋 지역에서
     // 모달이 하루 이른 날짜를 보여 준다.
@@ -407,6 +414,11 @@ function App() {
                                 onMoveTask={handleMoveTask}
                                 onContextMenu={handleContextMenu}
                                 onOpenMilestones={handleOpenMilestones}
+                                onOpenDependencies={handleOpenDependencies}
+                                // 그리는 것은 filteredTasks 지만 연결은 전체 트리를 봐야
+                                // 한다 — 타임라인 화살표·인스펙터와 같은 이유다.
+                                allTasks={tasks}
+                                dependencyIssues={dependencyIssues}
                                 viewMode={viewMode}
                                 isSearching={isSearching}
                             />

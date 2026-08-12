@@ -1,7 +1,11 @@
 import { useState } from 'react';
-import { IndentDecrease, IndentIncrease, Plus, Trash2, Flag, TriangleAlert } from 'lucide-react';
+import {
+    IndentDecrease, IndentIncrease, Plus, Trash2, Flag, TriangleAlert,
+    CornerUpRight, CornerDownRight, Unlink,
+} from 'lucide-react';
 import { generateId, formatDate } from '../../utils/dataModel';
 import { recalcTaskBoundsSafe, isTaskOverdue, milestonesInDateOrder, patchRange } from '../../utils/taskTree';
+import { describeRowDependencies } from './dependencyBadges';
 import ColorPicker from '../../shared/ui/ColorPicker';
 import './TaskRow.css';
 
@@ -17,6 +21,8 @@ function TaskRow({
     onIndentTask,
     onOutdentTask,
     onOpenMilestones,
+    dependencyRows = null,
+    onOpenDependencies,
     renderChildren = true
 }) {
     const [isEditing, setIsEditing] = useState(false);
@@ -32,6 +38,8 @@ function TaskRow({
         : null;
     const extraRangeCount = (task.timeRanges?.length || 0) - 1;
     const overdue = isTaskOverdue(task, formatDate(new Date()));
+    // 이 행이 대표하는 연결. 접힌 가지의 것까지 끌어올려 담겨 있다(summarizeRowDependencies).
+    const dependencies = dependencyRows?.get(task.id) || null;
 
     // 펼치기/접기 — 어디에 쓸지는 App 의 관문이 정한다(검색 중이면 화면 상태, 아니면 트리).
     // 여기서 트리에 직접 쓰면 검색 중에는 화면에 반영되지 않는 값을 문서에 남기게 된다.
@@ -268,6 +276,42 @@ function TaskRow({
                     </button>
                 </div>
 
+                {/* 의존성 — 표에는 연결 표현이 아예 없었다. 여기서는 존재와 방향만 말하고
+                    편집은 인스펙터 하나다(마일스톤 칼럼과 같은 규약). 연결이 없으면 버튼이
+                    아니라 "—" 다: 표 뷰에서는 연결 추가가 잠겨 있어 열어도 할 것이 없다 */}
+                <div className="col-deps">
+                    {dependencies ? (
+                        <button
+                            className={`dependency-button ${dependencies.issue ? `has-${dependencies.issue}` : ''}`}
+                            data-testid="row-dependencies"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onOpenDependencies(task.id);
+                            }}
+                            title={describeRowDependencies(dependencies)}
+                        >
+                            {dependencies.predecessors.length > 0 && (
+                                <span className="dependency-count" aria-label={`선행 ${dependencies.predecessors.length}`}>
+                                    <CornerUpRight size={12} aria-hidden="true" />{dependencies.predecessors.length}
+                                </span>
+                            )}
+                            {dependencies.successors.length > 0 && (
+                                <span className="dependency-count" aria-label={`후행 ${dependencies.successors.length}`}>
+                                    <CornerDownRight size={12} aria-hidden="true" />{dependencies.successors.length}
+                                </span>
+                            )}
+                            {/* 문제는 색만으로 말하지 않는다 — 아이콘을 함께 쓴다(§5.3) */}
+                            {dependencies.issue === 'broken' ? (
+                                <Unlink size={12} aria-label="끊어진 참조" />
+                            ) : dependencies.issue ? (
+                                <TriangleAlert size={12} aria-label={dependencies.issue === 'cycle' ? '순환 의존성' : '일정 위반'} />
+                            ) : null}
+                        </button>
+                    ) : (
+                        <span className="dependency-none" aria-label="연결 없음">—</span>
+                    )}
+                </div>
+
                 {/* 색상 */}
                 <div className="col-color">
                     <div className="color-picker-wrapper">
@@ -350,6 +394,8 @@ function TaskRow({
                             onIndentTask={onIndentTask}
                             onOutdentTask={onOutdentTask}
                             onOpenMilestones={onOpenMilestones}
+                            dependencyRows={dependencyRows}
+                            onOpenDependencies={onOpenDependencies}
                         />
                     ))}
                 </>

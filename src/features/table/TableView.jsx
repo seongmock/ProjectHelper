@@ -18,6 +18,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import TaskRow from './TaskRow';
+import { summarizeRowDependencies } from './dependencyBadges';
 import { flattenTasks } from '../../utils/dataModel';
 import './TableView.css';
 
@@ -70,12 +71,22 @@ function TableView({
     onMoveTask,
     onContextMenu, // Add prop
     onOpenMilestones,
+    onOpenDependencies,
+    allTasks,
+    dependencyIssues,
     viewMode,
     isSearching
 }) {
     // 트리 구조를 평탄화하여 DnD에 사용
     const flatTasks = useMemo(() => flattenTasks(tasks), [tasks]);
     const items = useMemo(() => flatTasks.map(t => t.id), [flatTasks]);
+
+    // 행마다 어떤 연결을 대표하는가. **전체 트리**를 보고 지금 그리는 행들에 얹는다 —
+    // 접힌 가지·필터 밖의 연결이 조용히 사라지지 않게(타임라인 화살표와 같은 규칙).
+    const dependencyRows = useMemo(
+        () => summarizeRowDependencies(allTasks || tasks, new Set(items), dependencyIssues),
+        [allTasks, tasks, items, dependencyIssues],
+    );
 
     const sensors = useSensors(
         useSensor(PointerSensor, {
@@ -157,6 +168,7 @@ function TableView({
                     <div className="col-dates">시작일</div>
                     <div className="col-dates">종료일</div>
                     <div className="col-milestones">마일스톤</div>
+                    <div className="col-deps">의존성</div>
                     <div className="col-color">색상</div>
                     <div className="col-actions">작업</div>
                 </div>
@@ -207,6 +219,8 @@ function TableView({
                                         onOutdentTask={onOutdentTask}
                                         onContextMenu={onContextMenu} // Pass prop
                                         onOpenMilestones={onOpenMilestones}
+                                        dependencyRows={dependencyRows}
+                                        onOpenDependencies={onOpenDependencies}
                                         renderChildren={false} // 평탄화된 리스트이므로 자식 렌더링 방지
                                     />
                                 ))}
