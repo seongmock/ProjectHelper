@@ -64,46 +64,58 @@ export const computeTodayPosition = (dateRange, contentWidth, showToday, today =
     return (dateUtils.getDaysBetween(dateRange.start, today) / totalDays) * contentWidth;
 };
 
+// 작업 하나가 의존성 앵커로 기여하는 항목 전부 — 작업 자체 / 개별 기간 / 마일스톤.
+// `index` 는 **그 항목이 앉는 화면 행**이고 항목 자신의 위치가 아니다: 접힌 가지 안의
+// 항목을 조상 행으로 끌어올릴 때 같은 계산을 그대로 다시 쓴다(dependencyLinks.js).
+// 반환은 Map 에 그대로 넣을 수 있는 [id, item] 쌍이다.
+export const taskItemEntries = (task, index) => {
+    const entries = [];
+
+    let minStart = task.startDate;
+    let maxEnd = task.endDate;
+    if (task.timeRanges && task.timeRanges.length > 0) {
+        minStart = new Date(Math.min(...task.timeRanges.map(r => new Date(r.startDate).getTime())));
+        maxEnd = new Date(Math.max(...task.timeRanges.map(r => new Date(r.endDate).getTime())));
+    }
+
+    // 작업 자체 (레거시 의존성 · 그룹핑용) — 전체 범위
+    entries.push([task.id, { type: 'task', data: task, index, startDate: minStart, endDate: maxEnd, name: task.name }]);
+
+    // 개별 기간 — 의존성은 이제 기간 단위가 기본이다
+    (task.timeRanges || []).forEach(range => {
+        if (!range.id) return;
+        entries.push([range.id, {
+            type: 'range',
+            data: range,
+            parentId: task.id,
+            index,
+            startDate: new Date(range.startDate).getTime(),
+            endDate: new Date(range.endDate).getTime(),
+            name: task.name,
+            color: range.color || task.color,
+        }]);
+    });
+
+    // 마일스톤 — 부모 작업의 행에 놓인다
+    (task.milestones || []).forEach(ms => {
+        entries.push([ms.id, {
+            type: 'milestone',
+            data: ms,
+            parentIndex: index,
+            date: ms.date,
+            name: ms.label || '마일스톤',
+        }]);
+    });
+
+    return entries;
+};
+
 // 의존성 선을 그리려면 "id → 그 항목이 몇 번째 행의 어느 날짜에 있나"가 필요하다.
-// 작업 / 개별 기간 / 마일스톤을 한 Map 에 모은다.
+// 작업 / 개별 기간 / 마일스톤을 한 Map 에 모은다. **화면에 행이 있는 것만** 들어간다.
 export const buildItemMap = (flatTasks) => {
     const map = new Map();
     flatTasks.forEach((task, index) => {
-        let minStart = task.startDate;
-        let maxEnd = task.endDate;
-        if (task.timeRanges && task.timeRanges.length > 0) {
-            minStart = new Date(Math.min(...task.timeRanges.map(r => new Date(r.startDate).getTime())));
-            maxEnd = new Date(Math.max(...task.timeRanges.map(r => new Date(r.endDate).getTime())));
-        }
-
-        // 작업 자체 (레거시 의존성 · 그룹핑용) — 전체 범위
-        map.set(task.id, { type: 'task', data: task, index, startDate: minStart, endDate: maxEnd, name: task.name });
-
-        // 개별 기간 — 의존성은 이제 기간 단위가 기본이다
-        (task.timeRanges || []).forEach(range => {
-            if (!range.id) return;
-            map.set(range.id, {
-                type: 'range',
-                data: range,
-                parentId: task.id,
-                index,
-                startDate: new Date(range.startDate).getTime(),
-                endDate: new Date(range.endDate).getTime(),
-                name: task.name,
-                color: range.color || task.color,
-            });
-        });
-
-        // 마일스톤 — 부모 작업의 행에 놓인다
-        (task.milestones || []).forEach(ms => {
-            map.set(ms.id, {
-                type: 'milestone',
-                data: ms,
-                parentIndex: index,
-                date: ms.date,
-                name: ms.label || '마일스톤',
-            });
-        });
+        taskItemEntries(task, index).forEach(([id, item]) => map.set(id, item));
     });
     return map;
 };

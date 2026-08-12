@@ -30,6 +30,7 @@ import TimelineLegend from './TimelineLegend';
 import DependencyLayer from './DependencyLayer';
 import { flattenTasks } from '../../utils/dataModel';
 import { buildItemMap } from './timelineGeometry';
+import { resolveDependencyLinks } from './dependencyLinks';
 import { useTimelineScale } from './useTimelineScale';
 import { useBarDrag } from './useBarDrag';
 import { useDependencyLink } from './useDependencyLink';
@@ -110,6 +111,9 @@ function SortableTaskNameItem({ task, selectedTaskId, editingTaskId, editingName
 
 const TimelineView = forwardRef(({
     tasks = [],
+    // 검색 필터를 거치지 않은 전체 트리. 그리는 것은 tasks 로 하고, **의존성 간선의 해석만**
+    // 이것을 본다 — 상대가 필터 밖에 있어도 그 연결은 여전히 존재한다.
+    allTasks = null,
     selectedTaskId,
     onSelectTask,
     onUpdateTask,
@@ -148,6 +152,14 @@ const TimelineView = forwardRef(({
     const items = useMemo(() => flatTasks.map(t => t.id), [flatTasks]);
     const itemMap = useMemo(() => buildItemMap(flatTasks), [flatTasks]);
     const rowHeight = isCompact ? 28 : 40;
+
+    // 의존성 간선의 해석은 **전체 트리**를 봐야 한다. itemMap 에는 화면에 행이 있는 것만
+    // 들어 있어서, 접힌 가지나 검색 밖의 끝은 여기 없다 — 예전에는 그런 간선이 조용히
+    // 사라졌다(연결을 지운 것과 구별되지 않았다).
+    const { links, hiddenEdges } = useMemo(
+        () => resolveDependencyLinks(itemMap, allTasks || tasks),
+        [itemMap, allTasks, tasks],
+    );
 
     const { timelineScrollRef, taskNamesScrollRef, dateRange, contentWidth, todayPosition } =
         useTimelineScale({ tasks, timeScale, showToday, zoomLevel, showTaskNames });
@@ -379,8 +391,9 @@ const TimelineView = forwardRef(({
                         )}
 
                         <DependencyLayer
-                            flatTasks={flatTasks}
-                            itemMap={itemMap}
+                            links={links}
+                            hiddenEdges={hiddenEdges}
+                            rowCount={flatTasks.length}
                             dateRange={dateRange}
                             contentWidth={contentWidth}
                             rowHeight={rowHeight}

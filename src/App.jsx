@@ -443,6 +443,10 @@ function App() {
                                 colorMode={colorMode}
                                 darkMode={darkMode}
                                 dependencyIssues={dependencyIssues}
+                                // 그리는 것은 filteredTasks 지만, 의존성 간선은 전체 트리를
+                                // 봐야 한다 — 상대가 필터 밖이라고 연결이 없어지지 않는다
+                                // (dependencyIssues 를 tasks 로 내는 것과 같은 이유).
+                                allTasks={tasks}
                                 isSearching={isSearching}
                             />
                         )}

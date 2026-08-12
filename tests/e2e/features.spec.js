@@ -615,6 +615,67 @@ test.describe('의존성 정합성', () => {
     });
 });
 
+test.describe('화면 밖으로 나간 의존성', () => {
+    // 화살표의 양 끝은 화면의 **행**에 앉는다. 한쪽 끝이 화면에서 사라지면(가지를 접거나
+    // 검색을 걸면) 예전에는 그 간선을 조용히 버렸다 — **연결을 지운 것과 가린 것이 똑같아
+    // 보였고**, 사용자가 그 차이를 알 방법이 없었다(인스펙터 배지는 선택한 작업만 말한다).
+    // 판정은 dependencyLinks.resolveDependencyLinks 가 하고(단위테스트가 규칙을 고정한다),
+    // 여기서는 실제 화면에서 선과 표식이 실제로 남는지만 본다.
+    const bar = (page, name) => page.locator(`.timeline-bar[title^="${name} ("]`);
+
+    // '설계 문서 작성'(프로젝트 기획의 자식) → '개발' 을 잇는다
+    const linkChildToSibling = async (page) => {
+        await bar(page, '설계 문서 작성').click({ button: 'right' });
+        await expect(page.locator('.inspector-panel')).toBeVisible();
+        await page.getByTestId('inspector-link').click();
+        await bar(page, '개발').click();
+        await expect(page.locator('.dependency-layer path')).toHaveCount(1);
+    };
+
+    const closeInspector = async (page) => {
+        await page.getByTitle('인스펙터 패널').click();
+        await expect(page.locator('.inspector-panel')).toHaveCount(0);
+    };
+
+    test('부모를 접어도 화살표가 사라지지 않는다 — 대표 행으로 끌어올려 그린다', async ({ page }) => {
+        await linkChildToSibling(page);
+
+        // 접기 토글은 표에만 있다 → 분할 뷰에서 접고 같은 화면의 타임라인을 본다
+        await page.getByTitle('분할 뷰').click();
+        const parent = page.locator('.task-row', { hasText: '프로젝트 기획' }).first();
+        await parent.locator('.expand-toggle').click();
+        await expect(page.locator('.task-row', { hasText: '설계 문서 작성' })).toHaveCount(0);
+
+        // 고치기 전에는 여기서 0 이었다 — 접는 것만으로 연결이 없어진 것처럼 보였다
+        const arrow = page.locator('.dependency-layer path[data-rolled-up="true"]');
+        await expect(arrow).toHaveCount(1);
+        // 어느 자손의 선인지는 이름으로만 읽을 수 있다
+        await expect(arrow.locator('title')).toContainText('설계 문서 작성');
+
+        await closeInspector(page);
+    });
+
+    test('검색으로 상대가 걸러지면 보이는 쪽 끝에 표식이 남는다', async ({ page }) => {
+        await linkChildToSibling(page);
+
+        // '개발' 만 남긴다 — 선행인 '설계 문서 작성' 은 조상까지 전부 필터 밖이라
+        // 끌어올릴 행이 없다. 그리지 않는 대신 남아 있는 끝에 표식을 붙인다.
+        await page.getByPlaceholder('작업 검색...').fill('개발');
+        await expect(page.locator('.dependency-layer path')).toHaveCount(0);
+
+        const mark = page.getByTestId('dependency-hidden');
+        await expect(mark).toHaveCount(1);
+        await expect(mark.locator('title')).toContainText('설계 문서 작성');
+
+        // 검색을 지우면 표식이 사라지고 원래 화살표가 돌아온다
+        await page.getByPlaceholder('작업 검색...').fill('');
+        await expect(page.getByTestId('dependency-hidden')).toHaveCount(0);
+        await expect(page.locator('.dependency-layer path')).toHaveCount(1);
+
+        await closeInspector(page);
+    });
+});
+
 test.describe('모달 포커스 관리 (접근성)', () => {
     // 실사 §5.3. 판정 규칙은 focusTrap 단위테스트가 고정하고, 여기서는 실제 DOM 에서
     // 세 가지가 성립하는지만 본다: 안으로 들어간다 · 안에서 돈다 · 원래 자리로 돌아온다.
