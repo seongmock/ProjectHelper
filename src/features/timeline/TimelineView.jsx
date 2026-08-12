@@ -193,6 +193,12 @@ const TimelineView = forwardRef(({
 
     const handleDragStart = (event) => {
         const task = flatTasks.find(t => t.id === event.active.id);
+        // 검색 중에는 접지 않는다 — 화면에는 효과가 없고(필터가 강제로 펼친다) 저장
+        // 데이터의 expanded 만 뒤집힌다. TableView 와 같은 판단이다.
+        if (isSearching) {
+            setDraggedTaskExpanded(false);
+            return;
+        }
         if (task && task.children && task.children.length > 0 && task.expanded) {
             setDraggedTaskExpanded(true);
             silentUpdate(task.id, { expanded: false });

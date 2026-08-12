@@ -98,6 +98,14 @@ function TableView({
         const { active } = event;
         const task = flatTasks.find(t => t.id === active.id);
 
+        // 검색 중에는 접지 않는다. 필터가 조상을 강제로 펼치므로 화면에는 아무 효과가 없고,
+        // 정작 저장 데이터에는 남는다 — 트리에서 접혀 있던 가지를 필터가 펼쳐 놓은 상태라
+        // 드롭 후 복구가 그 가지를 `expanded: true` 로 뒤집어 놓는다.
+        if (isSearching) {
+            setDraggedTaskExpanded(false);
+            return;
+        }
+
         if (task && task.children && task.children.length > 0 && task.expanded) {
             setDraggedTaskExpanded(true);
             silentUpdate(task.id, { expanded: false });

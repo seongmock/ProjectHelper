@@ -64,32 +64,52 @@ export const isDescendant = (parent, targetId) => {
     return false;
 };
 
-// 들여쓰기: 작업을 바로 위 형제의 자식으로 이동
-export const indentTask = (items, taskId) => {
-    for (let i = 0; i < items.length; i++) {
-        if (items[i].id === taskId) {
-            if (i === 0) return items; // 첫 번째 항목은 들여쓰기 불가
+// 바로 위 형제의 id. 없으면(목록의 첫 항목이거나 찾지 못하면) null.
+export const findPrevSiblingId = (tasks, taskId) => {
+    const found = findTaskAndParent(tasks, taskId);
+    if (!found || found.index <= 0) return null;
+    return found.list[found.index - 1].id;
+};
 
-            const prevSibling = items[i - 1];
-            const taskToMove = items[i];
+// 들여쓰기: 작업을 바로 위 형제의 자식으로 이동.
+//
+// **누가 "바로 위 형제"인지는 화면이 정한다.** 검색 중에는 질의에 걸리지 않는 형제가
+// 걸러져 있어서, 저장된 트리의 이전 형제와 사용자가 보고 있는 이전 형제가 다르다 —
+// 트리 기준으로 넣으면 **보이지도 않던 작업의 자식**이 되고, 그 부모가 조상으로
+// 딸려 나오면서 화면에 없던 행이 나타난다. 그래서 대상은 `viewTasks`(= 화면에 그려진
+// 목록) 에서 고르고, 이동 자체는 실제 트리에 한다. 검색 중이 아니면 둘은 같은 트리다.
+export const indentTask = (items, taskId, viewTasks = items) => {
+    const targetId = findPrevSiblingId(viewTasks, taskId);
+    if (!targetId) return items; // 화면에서 첫 항목이면 들여쓰기 불가
+    return indentUnder(items, taskId, targetId);
+};
 
-            const newItems = [...items];
-            newItems.splice(i, 1); // 현재 위치에서 제거
+// 들여쓰기 실행부: taskId 를 같은 목록 안의 targetId 자식(마지막)으로 옮긴다.
+const indentUnder = (items, taskId, targetId) => {
+    const i = items.findIndex(t => t.id === taskId);
+    if (i >= 0) {
+        // 화면에서 고른 형제가 실제 트리에서도 같은 부모 아래여야 한다
+        if (!items.some(t => t.id === targetId)) return items;
 
-            // 이전 형제의 자식으로 추가
-            newItems[i - 1] = {
-                ...prevSibling,
-                children: [...(prevSibling.children || []), taskToMove],
-                expanded: true, // 부모가 되면 자동 확장
-            };
-            return newItems;
-        }
+        const taskToMove = items[i];
+        const newItems = [...items];
+        newItems.splice(i, 1);
 
-        if (items[i].children && items[i].children.length > 0) {
-            const updatedChildren = indentTask(items[i].children, taskId);
-            if (updatedChildren !== items[i].children) {
+        const targetIndex = newItems.findIndex(t => t.id === targetId);
+        newItems[targetIndex] = {
+            ...newItems[targetIndex],
+            children: [...(newItems[targetIndex].children || []), taskToMove],
+            expanded: true, // 부모가 되면 자동 확장
+        };
+        return newItems;
+    }
+
+    for (let k = 0; k < items.length; k++) {
+        if (items[k].children && items[k].children.length > 0) {
+            const updatedChildren = indentUnder(items[k].children, taskId, targetId);
+            if (updatedChildren !== items[k].children) {
                 return items.map((item, index) =>
-                    index === i ? { ...item, children: updatedChildren } : item
+                    index === k ? { ...item, children: updatedChildren } : item
                 );
             }
         }
@@ -270,9 +290,16 @@ export const shiftTaskDates = (task, days, mode = 'move') => {
 //      첫 번째 자식으로 넣는다. 빈 작업은 Leaf 로 취급해 순서 변경만 한다 —
 //      빈 작업 안에 넣으려면 들여쓰기 제스처를 쓴다.
 //
+// 두 규칙 다 "무엇이 어디에 어떤 순서로 보이는가"에 대한 판단이므로 **화면에 그려진
+// 목록**(`viewTasks`) 을 본다. 검색 중에는 이것이 저장된 트리와 다르다: 필터가 일치를
+// 드러내려고 조상을 강제로 펼치므로, 트리에서는 접혀 있어 `flattenTasks` 에 나오지도
+// 않는 작업이 화면에서는 멀쩡히 드래그된다 — 트리 기준으로 판정하면 그 드래그는
+// **조용히 아무것도 하지 않는다**(끌어다 놓았는데 제자리). 이동 자체는 실제 트리에 한다.
+// 검색 중이 아니면 둘은 같은 트리다.
+//
 // App.jsx 안에 인라인으로 있던 것을 옮겨 왔다. 앱에서 가장 버그가 잦은 로직인데
 // 컴포넌트 안에 있어 테스트가 불가능했다.
-export const moveTaskInTree = (tasks, activeId, overId) => {
+export const moveTaskInTree = (tasks, activeId, overId, viewTasks = tasks) => {
     if (activeId === overId) return tasks;
     if (!findTaskAndParent(tasks, activeId) || !findTaskAndParent(tasks, overId)) return tasks;
 
@@ -286,7 +313,7 @@ export const moveTaskInTree = (tasks, activeId, overId) => {
     if (isDescendant(activeNode.task, overId)) return tasks;
 
     // 이동 방향은 평탄화된(= 화면에 보이는) 순서 기준으로 판별한다
-    const flatList = flattenTasks(tasks);
+    const flatList = flattenTasks(viewTasks);
     const activeFlatItem = flatList.find(t => t.id === activeId);
     const overFlatItem = flatList.find(t => t.id === overId);
     if (!activeFlatItem || !overFlatItem) return tasks;
@@ -322,10 +349,11 @@ export const moveTaskInTree = (tasks, activeId, overId) => {
     let targetIndex = targetList.findIndex(t => t.id === effectiveOverId);
 
     // (B) 펼쳐진 그룹 제목 위로 아래 방향 드래그 → 그 그룹의 첫 자식으로
+    // 펼쳐졌는지·자식이 있는지는 **화면 기준**이다(검색 중에는 트리의 expanded 와 다르다).
     const isDroppingOnExpandedParent =
         isMovingDown &&
-        overNode.task.expanded &&
-        overNode.task.children && overNode.task.children.length > 0 &&
+        overFlatItem.expanded &&
+        overFlatItem.children && overFlatItem.children.length > 0 &&
         overNode.task.id === effectiveOverId;
 
     if (isDroppingOnExpandedParent) {

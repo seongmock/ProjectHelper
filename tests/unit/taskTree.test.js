@@ -20,6 +20,7 @@ import {
     getTaskStatus,
     shiftTaskDates,
     findOwnerOfEntity,
+    findPrevSiblingId,
     moveTaskInTree,
     flattenAll,
     collectEntities,
@@ -166,6 +167,65 @@ describe('indentTask', () => {
             items.reduce((n, t) => n + 1 + count(t.children || []), 0);
         const before = count(sampleTree());
         expect(count(indentTask(sampleTree(), 'b'))).toBe(before);
+    });
+
+    // 검색 중에는 "바로 위 형제"가 트리와 화면에서 다르다 — 화면이 정한다.
+    describe('viewTasks — 화면에 보이는 이전 형제 아래로 들어간다', () => {
+        // 트리: x(일치) · y(불일치) · z(일치) → 검색하면 화면에는 x, z 만 남는다
+        const tree = () => [
+            node('x', { name: '대상 X' }),
+            node('y', { name: '무관' }),
+            node('z', { name: '대상 Z' }),
+        ];
+
+        it('필터에 걸러진 형제를 건너뛰고 화면에서 위에 있는 형제의 자식이 된다', () => {
+            const tasks = tree();
+            const view = filterTasksByQuery(tasks, '대상');
+            const next = indentTask(tasks, 'z', view);
+            expect(next.map(t => t.id)).toEqual(['x', 'y']);
+            expect(next[0].children.map(t => t.id)).toEqual(['z']);
+        });
+
+        it('viewTasks 없이 부르면 트리의 이전 형제 — 화면에 없던 작업의 자식이 된다', () => {
+            const next = indentTask(tree(), 'z');
+            expect(next[1].children.map(t => t.id)).toEqual(['z']); // y 밑으로 (수정 전 동작)
+        });
+
+        it('화면에서 첫 항목이면 들여쓸 수 없다 (트리에는 앞 형제가 있어도)', () => {
+            const tasks = [node('y', { name: '무관' }), node('z', { name: '대상 Z' })];
+            const view = filterTasksByQuery(tasks, '대상');
+            expect(indentTask(tasks, 'z', view)).toBe(tasks);
+        });
+
+        it('접힌 가지 안(= 검색이 펼쳐 보여 준 곳)에서도 동작한다', () => {
+            const tasks = [
+                node('p', {
+                    name: '부모',
+                    expanded: false,
+                    children: [node('c1', { name: '대상 하나' }), node('c2', { name: '무관' }), node('c3', { name: '대상 셋' })],
+                }),
+            ];
+            const view = filterTasksByQuery(tasks, '대상');
+            const next = indentTask(tasks, 'c3', view);
+            expect(next[0].children.map(t => t.id)).toEqual(['c1', 'c2']);
+            expect(next[0].children[0].children.map(t => t.id)).toEqual(['c3']);
+        });
+    });
+});
+
+describe('findPrevSiblingId', () => {
+    it('바로 위 형제의 id', () => {
+        expect(findPrevSiblingId(sampleTree(), 'c')).toBe('b');
+        expect(findPrevSiblingId(sampleTree(), 'a2')).toBe('a1');
+    });
+
+    it('목록의 첫 항목이면 null', () => {
+        expect(findPrevSiblingId(sampleTree(), 'a')).toBeNull();
+        expect(findPrevSiblingId(sampleTree(), 'a1')).toBeNull();
+    });
+
+    it('없는 작업이면 null', () => {
+        expect(findPrevSiblingId(sampleTree(), 'ghost')).toBeNull();
     });
 });
 
@@ -609,6 +669,88 @@ describe('moveTaskInTree', () => {
             const moved = result[1].children.find(c => c.id === 'a1');
             expect(moved.children.map(c => c.id)).toEqual(['deep']);
             expect(allIds(result)).toEqual(allIds(t));
+        });
+    });
+
+    // 검색 중에는 화면에 그려진 목록이 트리와 다르다(필터가 조상을 강제로 펼친다).
+    // 배치 판정은 사용자가 보고 있는 쪽을 따라야 한다.
+    describe('viewTasks — 검색 중의 배치는 화면 순서로 판정한다', () => {
+        // 트리에서 p 는 접혀 있다 → flattenTasks(트리) 에는 p1 이 없다.
+        // 그런데 검색하면 필터가 p 를 펼쳐 p1 을 보여 주므로 사용자는 p1 을 끌 수 있다.
+        const tree = () => [
+            node('p', { name: '부모', expanded: false, children: [node('p1', { name: '대상 하나' })] }),
+            node('b', { name: '대상 둘' }),
+        ];
+
+        it('트리에서 접혀 있어도 화면에 보이면 이동한다 (수정 전에는 제자리였다)', () => {
+            const tasks = tree();
+            const view = filterTasksByQuery(tasks, '대상');
+            const result = moveTaskInTree(tasks, 'p1', 'b', view);
+            expect(result).not.toBe(tasks);
+            expect(ordered(result)).toEqual(['p', 'b', 'p1']); // 아래 방향이므로 b 뒤
+            expect(result[0].children).toEqual([]);
+            expect(allIds(result)).toEqual(allIds(tasks));
+        });
+
+        it('viewTasks 를 주지 않으면 같은 드래그가 아무것도 하지 않는다 (회귀 대비)', () => {
+            const tasks = tree();
+            expect(moveTaskInTree(tasks, 'p1', 'b')).toBe(tasks);
+        });
+
+        it('이동 방향(위/아래)도 화면 순서로 판정한다', () => {
+            // 접힌 부모 안의 형제끼리 — 방향 판정을 트리로 하면 둘 다 목록에 없어 제자리다
+            const tasks = [
+                node('p', {
+                    name: '부모',
+                    expanded: false,
+                    children: [node('c1', { name: '대상 하나' }), node('c2', { name: '대상 둘' }), node('c3', { name: '대상 셋' })],
+                }),
+            ];
+            const view = filterTasksByQuery(tasks, '대상');
+            // 위 방향: c3 을 c1 위로 → 앞에 놓인다
+            expect(moveTaskInTree(tasks, 'c3', 'c1', view)[0].children.map(t => t.id))
+                .toEqual(['c3', 'c1', 'c2']);
+            // 아래 방향: c1 을 c3 위로 → 뒤에 놓인다
+            expect(moveTaskInTree(tasks, 'c1', 'c3', view)[0].children.map(t => t.id))
+                .toEqual(['c2', 'c3', 'c1']);
+        });
+
+        it('(A) 최상위 → 하위 매핑도 화면의 level 로 판정한다', () => {
+            const tasks = tree();
+            const view = filterTasksByQuery(tasks, '대상');
+            // 화면 순서는 p, p1, b — 최상위 b 를 하위 p1 위로 끌면 p1 의 최상위 조상 p 로 매핑,
+            // 위 방향이므로 p 앞 형제가 된다(최상위 항목이 남의 자식이 되어 사라지지 않는다)
+            const result = moveTaskInTree(tasks, 'b', 'p1', view);
+            expect(ordered(result)).toEqual(['b', 'p']);
+            expect(result[1].children.map(t => t.id)).toEqual(['p1']);
+        });
+
+        it('(B) 그룹 첫 자식 규칙도 화면 기준이다 — 트리에서 접혀 있어도 자식으로 들어간다', () => {
+            const tasks = [
+                node('x', { name: '대상 X' }),
+                node('g', { name: '대상 그룹', expanded: false, children: [node('g1', { name: '대상 하나' })] }),
+            ];
+            const view = filterTasksByQuery(tasks, '대상');
+            const result = moveTaskInTree(tasks, 'x', 'g', view);
+            expect(ordered(result)).toEqual(['g']);
+            expect(result[0].children.map(t => t.id)).toEqual(['x', 'g1']);
+        });
+
+        it('(B) 자식이 전부 걸러져 화면에서 Leaf 로 보이면 자식으로 넣지 않는다', () => {
+            const tasks = [
+                node('x', { name: '대상 X' }),
+                node('g', { name: '대상 그룹', expanded: true, children: [node('g1', { name: '무관' })] }),
+            ];
+            const view = filterTasksByQuery(tasks, '대상');
+            const result = moveTaskInTree(tasks, 'x', 'g', view);
+            expect(ordered(result)).toEqual(['g', 'x']);
+            expect(result[0].children.map(t => t.id)).toEqual(['g1']);
+        });
+
+        it('검색 중이 아니면(뷰 = 트리) 동작이 같다', () => {
+            const tasks = flatTree();
+            expect(ordered(moveTaskInTree(tasks, 'a', 'c', tasks)))
+                .toEqual(ordered(moveTaskInTree(tasks, 'a', 'c')));
         });
     });
 });

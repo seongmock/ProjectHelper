@@ -234,6 +234,105 @@ test.describe('검색', () => {
     });
 });
 
+// 검색 중에는 화면에 그려진 목록이 저장된 트리와 다르다 — 필터가 일치를 드러내려고
+// 조상을 강제로 펼치기 때문이다. 드래그의 배치 판정이 트리를 보면 사용자가 보고 있는
+// 것과 어긋난다: 접힌 가지의 작업은 `flattenTasks(트리)` 에 아예 없어서 **끌어다 놓아도
+// 제자리**였고, 들여쓰기는 화면에 없던 형제 밑으로 들어갔다.
+test.describe('검색 중 드래그', () => {
+    const leaf = (id, name) => ({ id, name, children: [], timeRanges: [], milestones: [] });
+    const branch = (id, name, children) => ({ ...leaf(id, name), expanded: false, children });
+
+    // 초기 자동저장(1.5s 디바운스)이 이 쓰기를 덮지 않도록 먼저 가라앉힌다
+    const seedTasks = async (page, request, data) => {
+        await page.waitForTimeout(2000);
+        expect((await request.post('/api/data', { data })).ok()).toBe(true);
+        await page.reload();
+        await expect(page.getByText('데이터 불러오는 중')).toHaveCount(0);
+        await openTableView(page);
+    };
+
+    const dragRowOnto = async (page, source, target) => {
+        const sBox = await source.boundingBox();
+        const tBox = await target.boundingBox();
+        await page.mouse.move(sBox.x + 40, sBox.y + sBox.height / 2);
+        await page.mouse.down();
+        await page.mouse.move(sBox.x + 40, sBox.y + sBox.height / 2 + 10, { steps: 3 });
+        await page.mouse.move(tBox.x + 40, tBox.y + tBox.height / 2 + 10, { steps: 8 });
+        await page.mouse.up();
+    };
+
+    // 가로로 끌면 계층 변경(들여쓰기) — 임계값 40px
+    const dragRowRight = async (page, source) => {
+        const box = await source.boundingBox();
+        const y = box.y + box.height / 2;
+        await page.mouse.move(box.x + 40, y);
+        await page.mouse.down();
+        await page.mouse.move(box.x + 60, y, { steps: 3 });
+        await page.mouse.move(box.x + 140, y, { steps: 8 });
+        await page.mouse.up();
+    };
+
+    test('트리에서 접힌 가지의 작업을 끌어도 실제로 움직인다', async ({ page, request }) => {
+        await seedTasks(page, request, [
+            branch('p', '상위 묶음', [leaf('c1', '대상 하나')]),
+            leaf('b', '대상 둘'),
+        ]);
+        await page.getByPlaceholder('작업 검색...').fill('대상');
+        await expect(page.locator('.task-row')).toHaveCount(3); // 조상 + 일치 2건
+
+        const moved = rowNamed(page, '대상 하나');
+        await expect(moved).toHaveClass(/level-1/);
+
+        await dragRowOnto(page, moved, rowNamed(page, '대상 둘'));
+
+        // 아래 방향이므로 '대상 둘' 뒤 형제(최상위)가 된다.
+        // '상위 묶음'은 일치하는 자손을 잃어 결과에서 빠진다(조상이라서 보였을 뿐이다)
+        await expect(rowNamed(page, '대상 하나')).toHaveClass(/level-0/);
+        await expect(page.locator('.task-row .task-name')).toHaveText(['대상 둘', '대상 하나']);
+
+        await page.getByPlaceholder('작업 검색...').fill('');
+        await expect(page.locator('.task-row .task-name')).toHaveText(['상위 묶음', '대상 둘', '대상 하나']);
+    });
+
+    test('들여쓰기는 화면에서 위에 있는 형제 아래로 들어간다', async ({ page, request }) => {
+        await seedTasks(page, request, [
+            leaf('x', '대상 X'), leaf('y', '무관'), leaf('z', '대상 Z'),
+        ]);
+        const search = page.getByPlaceholder('작업 검색...');
+        await search.fill('대상');
+        await expect(page.locator('.task-row')).toHaveCount(2);
+
+        await dragRowRight(page, rowNamed(page, '대상 Z'));
+
+        await expect(rowNamed(page, '대상 Z')).toHaveClass(/level-1/);
+        // 트리의 이전 형제('무관') 밑으로 들어갔다면 그 부모가 조상으로 딸려 나온다
+        await expect(rowNamed(page, '무관')).toHaveCount(0);
+
+        await search.fill('');
+        await expect(page.locator('.task-row .task-name')).toHaveText(['대상 X', '대상 Z', '무관']);
+    });
+
+    // 드래그 시작 시의 자동 접기는 화면을 정리하려는 시각적 상태다. 검색 중에는 필터가
+    // 다시 펼쳐 버려 화면에 효과가 없는데, 드롭 후 복구가 저장된 expanded 를 뒤집었다.
+    test('저장된 접힘 상태를 뒤집지 않는다', async ({ page, request }) => {
+        await seedTasks(page, request, [
+            branch('p', '상위 묶음', [leaf('c1', '대상 하나')]),
+            leaf('b', '대상 둘'),
+        ]);
+        await page.getByPlaceholder('작업 검색...').fill('대상');
+
+        await dragRowOnto(page, rowNamed(page, '상위 묶음'), rowNamed(page, '대상 둘'));
+        await expect(page.locator('.task-row .task-name'))
+            .toHaveText(['대상 둘', '상위 묶음', '대상 하나']);
+
+        await page.waitForTimeout(2000); // 자동저장(1.5s 디바운스)이 도착할 시간
+        const saved = await (await request.get('/api/data')).json();
+        const p = saved.data.find(t => t.id === 'p');
+        expect(p.expanded).toBe(false);
+        expect(p.children.map(c => c.id)).toEqual(['c1']);
+    });
+});
+
 test.describe('다크 모드', () => {
     test('토글 시 data-theme 속성 전환', async ({ page }) => {
         const html = page.locator('html');

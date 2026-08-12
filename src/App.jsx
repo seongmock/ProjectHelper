@@ -262,6 +262,19 @@ function App() {
         actions.updateTaskSilent(taskId, { expanded: nextExpanded });
     }, [isSearching, toggleSearchCollapsed, actions]);
 
+    // 드래그 재배치의 유일한 관문. **어디에 놓였는지는 화면이 정한다.**
+    // 검색 중에는 필터가 조상을 강제로 펼치므로 트리에서는 접혀 있는 작업도 화면에서는
+    // 드래그된다 — 트리 기준으로 판정하면 그 드래그는 아무것도 하지 않고(제자리),
+    // 들여쓰기는 화면에 없던 형제 밑으로 들어간다. 그래서 판정 기준으로 filteredTasks 를
+    // 함께 넘긴다(검색 중이 아니면 tasks 와 같은 참조다 — 분기가 필요 없다).
+    const handleMoveTask = useCallback((activeId, overId) => {
+        actions.moveTask(activeId, overId, filteredTasks);
+    }, [actions, filteredTasks]);
+
+    const handleIndentTask = useCallback((taskId) => {
+        actions.indent(taskId, filteredTasks);
+    }, [actions, filteredTasks]);
+
     // 의존성 정합성. **검색 필터가 아니라 전체 트리**를 본다 — 상대가 필터에 걸려
     // 사라지면 멀쩡한 연결이 dangling 으로 보인다(인스펙터가 tasks 를 받는 것과 같은 이유).
     const dependencyIssues = useMemo(() => findDependencyIssues(tasks), [tasks]);
@@ -389,9 +402,9 @@ function App() {
                                 onDeleteTask={actions.deleteTask}
                                 onAddTask={handleAddTask}
                                 onReorderTasks={actions.reorderTasks}
-                                onIndentTask={actions.indent}
+                                onIndentTask={handleIndentTask}
                                 onOutdentTask={actions.outdent}
-                                onMoveTask={actions.moveTask}
+                                onMoveTask={handleMoveTask}
                                 onContextMenu={handleContextMenu}
                                 onOpenMilestones={handleOpenMilestones}
                                 viewMode={viewMode}
@@ -410,8 +423,8 @@ function App() {
                                 onUpdateTasks={actions.updateTasks}
                                 onDeleteTask={actions.deleteTask}
                                 onAddTask={handleAddTask}
-                                onMoveTask={actions.moveTask}
-                                onIndentTask={actions.indent}
+                                onMoveTask={handleMoveTask}
+                                onIndentTask={handleIndentTask}
                                 onOutdentTask={actions.outdent}
                                 onContextMenu={handleContextMenu}
                                 onMilestoneContextMenu={handleMilestoneContextMenu}

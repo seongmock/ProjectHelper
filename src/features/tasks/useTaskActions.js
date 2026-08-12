@@ -74,16 +74,20 @@ export function useTaskActions({ setTasks, setTasksSilent, onSelect }) {
         });
     }, [setTasks]);
 
-    const indent = useCallback((taskId) => {
-        setTasks(prev => indentTask(prev, taskId));
+    // viewTasks = 화면에 그려진 목록(검색 중이면 필터를 거친 것). 배치 판정은 사용자가
+    // 보고 있는 순서를 따라야 한다 — 넘기는 곳은 App 하나다(App.handleMoveTask 참조).
+    const indent = useCallback((taskId, viewTasks) => {
+        setTasks(prev => indentTask(prev, taskId, viewTasks || prev));
     }, [setTasks]);
 
+    // 내어쓰기는 "부모의 다음 형제가 된다"라 화면 순서와 무관하다 — 필터 밖의 형제가
+    // 있어도 결과가 같으므로 viewTasks 를 받지 않는다.
     const outdent = useCallback((taskId) => {
         setTasks(prev => outdentTask(prev, taskId));
     }, [setTasks]);
 
-    const moveTask = useCallback((activeId, overId) => {
-        setTasks(prev => moveTaskInTree(prev, activeId, overId));
+    const moveTask = useCallback((activeId, overId, viewTasks) => {
+        setTasks(prev => moveTaskInTree(prev, activeId, overId, viewTasks || prev));
     }, [setTasks]);
 
     const reorderTasks = useCallback((reordered) => setTasks(reordered), [setTasks]);

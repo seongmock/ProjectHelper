@@ -24,9 +24,9 @@ npm run dev          # Vite dev server, http://localhost:5173, hot-reload
 npm run dev:api      # Express API server (PORT env, default 3000)
 npm run build        # Production build → dist/
 npm run lint         # ESLint 9 (flat config)
-npm run test:unit    # Vitest — 도메인 순수함수 + XSS 회귀 (310건)
+npm run test:unit    # Vitest — 도메인 순수함수 + XSS 회귀 (324건)
 npm run test:server  # node:test — 검증·서비스·저장소 내구성·감사 로그·의존성 정합성 (128건)
-npm run test:e2e     # Playwright E2E 68건 (API·dev 서버 자동 기동)
+npm run test:e2e     # Playwright E2E 71건 (API·dev 서버 자동 기동)
 npm run verify       # 위 전부 + 빌드 — 변경 후 이것을 돌려라
 ```
 
@@ -44,8 +44,8 @@ npx playwright test -g "프로젝트"                   # by test-title substrin
 npx playwright test --headed --debug                # watch it / step through
 ```
 
-**변경 후에는 `npm run verify`** — 합격 기준은 lint 0 error · unit 310/310 · server 128/128 ·
-빌드 성공 · **E2E 68/68 (skip 0)**.
+**변경 후에는 `npm run verify`** — 합격 기준은 lint 0 error · unit 324/324 · server 128/128 ·
+빌드 성공 · **E2E 71/71 (skip 0)**.
 
 `playwright.config.js` 는 **API 서버와 dev 서버를 모두 자동 기동**하며, API는
 `PH_DATA_DIR=.tmp-e2e-data` 로 격리된다. 예전에는 API 서버를 수동으로 띄우지 않으면 8건이
@@ -208,6 +208,17 @@ See `docs/AI_INTEGRATION.md` and the `timeline-api` skill. Prefer per-task endpo
   (2) Outside search it writes the tree **silently** (`updateTaskSilent`): collapsing is
   visual state, and history is 20 entries deep, so collapses would push out the edit the user
   actually wants to undo.
+- **Drag placement is judged against what is on screen, not against the stored tree.**
+  `moveTaskInTree(tasks, activeId, overId, viewTasks)` and `indentTask(items, taskId, viewTasks)`
+  take the rendered list as their last argument, and `App.handleMoveTask`/`handleIndentTask` are
+  the one gate that passes `filteredTasks` (identical to `tasks` when not searching, so no
+  branch is needed). While searching the two differ: the filter force-expands ancestors, so a
+  task that `flattenTasks(tasks)` skips (collapsed branch) is still draggable — judging from the
+  tree made that drag a **silent no-op**, and indent nested the task under a sibling the user
+  could not see. `outdentTask` needs no view: "become the parent's next sibling" is the same
+  either way. For the same reason the drag-start auto-collapse (`TableView`/`TimelineView`) is
+  skipped while searching — it has no visible effect there and its restore flipped the stored
+  `expanded` to `true`.
 - View mode is `'table' | 'timeline' | 'split'`; ~10 UI settings (timeScale, zoomLevel,
   darkMode, etc.) are each their own `useState`, initialized synchronously from the
   localStorage settings cache and then overwritten after the async server load resolves.
