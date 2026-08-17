@@ -24,9 +24,9 @@ npm run dev          # Vite dev server, http://localhost:5173, hot-reload
 npm run dev:api      # Express API server (PORT env, default 3000)
 npm run build        # Production build → dist/
 npm run lint         # ESLint 9 (flat config)
-npm run test:unit    # Vitest — 도메인 순수함수 + XSS 회귀 (364건)
+npm run test:unit    # Vitest — 도메인 순수함수 + XSS 회귀 (381건)
 npm run test:server  # node:test — 검증·서비스·저장소 내구성·감사 로그·의존성 정합성 (128건)
-npm run test:e2e     # Playwright E2E 77건 (API·dev 서버 자동 기동)
+npm run test:e2e     # Playwright E2E 80건 (API·dev 서버 자동 기동)
 npm run verify       # 위 전부 + 빌드 — 변경 후 이것을 돌려라
 ```
 
@@ -44,8 +44,8 @@ npx playwright test -g "프로젝트"                   # by test-title substrin
 npx playwright test --headed --debug                # watch it / step through
 ```
 
-**변경 후에는 `npm run verify`** — 합격 기준은 lint 0 error · unit 364/364 · server 128/128 ·
-빌드 성공 · **E2E 77/77 (skip 0)**.
+**변경 후에는 `npm run verify`** — 합격 기준은 lint 0 error · unit 381/381 · server 128/128 ·
+빌드 성공 · **E2E 80/80 (skip 0)**.
 
 `playwright.config.js` 는 **API 서버와 dev 서버를 모두 자동 기동**하며, API는
 `PH_DATA_DIR=.tmp-e2e-data` 로 격리된다. 예전에는 API 서버를 수동으로 띄우지 않으면 8건이
@@ -321,6 +321,24 @@ Dependencies now live at the range level.
   goes through `App.handleOpenDependencies` → `focusInInspector(taskId)`, the same gate the
   milestone column uses; it clears the range/milestone focus because a task-level badge does not
   name one. A row with no edges renders `—`, not an empty cell.
+- **Collapsing a branch hides its rows, not its schedule.** `flattenTasks` only looks at
+  `expanded`, so a collapsed branch's descendants have no row to draw on — while
+  `computeDateRange` still walks them and keeps the axis space. The result was a stretch of
+  empty chart, and *"has no schedule"* and *"is collapsed"* looked identical (a group task with
+  no dates of its own left the row completely blank; since the arrow roll-up above, an arrow
+  could point at that empty row). `features/timeline/rollupBars.js` (pure) answers it per row:
+  `resolveRollup(task)` → `{segments, milestones, taskCount}` or `null`, and `TimelineBar` draws
+  the segments as thin hatched bars **on top of** the real bar (z-index 30 — behind it they were
+  entirely covered whenever the parent's own range spanned its children) plus hollow diamonds for
+  the hidden milestones. Three judgements worth keeping: overlapping/touching intervals merge but
+  **gaps stay gaps** (one bar from January to December would assert work that isn't there — worse
+  than hiding it), each segment and marker carries the descendant's **name** in its `title`
+  because that is the only way to read whose schedule it is, and the roll-up is **not editable** —
+  clicking selects the representing row, since one bar covering several tasks can't say what a
+  drag should move. Unlike the dependency roll-ups it is judged against the **rendered** tree
+  (`TimelineView`'s `tasks`, i.e. `filteredTasks`), not `allTasks`: reviving search-filtered
+  tasks on an ancestor row would invert "show me only these". A connection is a fact; a filter is
+  a request.
 - `htmlExporter.js` generates a **self-contained interactive HTML** export of the timeline.
 
 ### Tree-update invariants (critical for correctness)

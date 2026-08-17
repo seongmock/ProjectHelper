@@ -969,3 +969,63 @@ test.describe('연속 입력과 되돌리기 히스토리', () => {
         await expect(page.locator('.inspector-panel')).toHaveCount(0);
     });
 });
+
+test.describe('접힌 가지의 요약 막대', () => {
+    // 화면의 행은 expanded 만 보는 flattenTasks 가 정한다 — 가지를 접으면 그 안의 기간은
+    // **그릴 행이 없어져서 통째로 사라졌다.** 축(computeDateRange)은 자손까지 훑으므로
+    // 그 자리는 빈 채로 남고, 사용자에게는 "일정이 없다"와 "접었다"가 똑같아 보였다.
+    // 판정은 rollupBars.resolveRollup 이 하고(단위테스트가 규칙을 고정한다), 여기서는
+    // 실제 화면에서 막대와 표식이 남는지만 본다.
+    const row = (page, name) => page.locator('.task-row', { hasText: name }).first();
+    const rollupBars = (page) => page.getByTestId('rollup-bar');
+
+    // 접기 토글은 표에만 있다 → 분할 뷰에서 접고 같은 화면의 타임라인을 본다
+    const collapseInSplit = async (page, name) => {
+        await page.getByTitle('분할 뷰').click();
+        await row(page, name).locator('.expand-toggle').click();
+    };
+
+    test('겹치는 자손의 기간은 하나의 요약 막대로 합쳐 남는다', async ({ page }) => {
+        // '개발' 의 두 자식은 2026-03-01~03-31 이 겹친다 → 02-10 ~ 04-30 한 구간
+        await collapseInSplit(page, '개발');
+        await expect(page.locator('.task-row', { hasText: '프론트엔드 개발' })).toHaveCount(0);
+
+        // 고치기 전에는 여기서 0 이었다 — 접는 것만으로 자손의 일정이 화면에서 없어졌다
+        await expect(rollupBars(page)).toHaveCount(1);
+        // 어느 자손의 일정인지는 이름 말고 읽을 방법이 없다
+        await expect(rollupBars(page)).toHaveAttribute('title', /프론트엔드 개발, 백엔드 개발/);
+        await expect(rollupBars(page)).toHaveAttribute('title', /2026-02-10 ~ 2026-04-30/);
+
+        // 펼치면 자손이 자기 행으로 돌아오므로 요약은 사라진다
+        await row(page, '개발').locator('.expand-toggle').click();
+        await expect(rollupBars(page)).toHaveCount(0);
+    });
+
+    test('떨어져 있는 구간은 한 덩어리로 뭉치지 않는다', async ({ page }) => {
+        // '프로젝트 기획' 의 두 자식은 01-20 / 01-21 로 맞닿지 않는다(하루 뜬다).
+        // min~max 한 덩어리로 그리면 없는 일정을 있다고 말하는 셈이다.
+        await collapseInSplit(page, '프로젝트 기획');
+        await expect(rollupBars(page)).toHaveCount(2);
+        await expect(rollupBars(page).first()).toHaveAttribute('title', /요구사항 분석/);
+        await expect(rollupBars(page).last()).toHaveAttribute('title', /설계 문서 작성/);
+    });
+
+    test('접힌 가지 안의 마일스톤도 표식으로 남는다', async ({ page }) => {
+        // 자손에 마일스톤을 하나 만든다 (샘플의 마일스톤은 전부 최상위에 있다)
+        await page.locator('.timeline-bar[title^="설계 문서 작성 ("]').click({ button: 'right' });
+        await page.getByTestId('inspector-add-milestone').click();
+        await page.getByPlaceholder('마일스톤 이름').fill('중간 점검');
+        await page.locator('.modal-overlay button[type="submit"]').click();
+        await expect(page.locator('.milestone-marker', { hasText: '중간 점검' })).toHaveCount(1);
+
+        await collapseInSplit(page, '프로젝트 기획');
+        await expect(page.locator('.milestone-marker', { hasText: '중간 점검' })).toHaveCount(0);
+
+        const mark = page.getByTestId('rollup-milestone');
+        await expect(mark).toHaveCount(1);
+        await expect(mark).toHaveAttribute('title', /중간 점검.*설계 문서 작성/);
+
+        await page.getByTitle('인스펙터 패널').click();
+        await expect(page.locator('.inspector-panel')).toHaveCount(0);
+    });
+});

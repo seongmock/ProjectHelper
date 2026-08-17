@@ -31,6 +31,7 @@ import DependencyLayer from './DependencyLayer';
 import { flattenTasks } from '../../utils/dataModel';
 import { buildItemMap } from './timelineGeometry';
 import { resolveDependencyLinks } from './dependencyLinks';
+import { resolveRollup } from './rollupBars';
 import { useTimelineScale } from './useTimelineScale';
 import { useBarDrag } from './useBarDrag';
 import { useDependencyLink } from './useDependencyLink';
@@ -160,6 +161,17 @@ const TimelineView = forwardRef(({
         () => resolveDependencyLinks(itemMap, allTasks || tasks),
         [itemMap, allTasks, tasks],
     );
+
+    // 접힌 가지의 일정을 대표 행으로 끌어올린다. 기준은 **그리는 트리**(tasks)다 —
+    // 검색이 걸러낸 작업까지 되살리면 "이것만 보여 달라"를 뒤집는다(rollupBars.js 주석).
+    const rollups = useMemo(() => {
+        const map = new Map();
+        flatTasks.forEach(task => {
+            const rollup = resolveRollup(task);
+            if (rollup) map.set(task.id, rollup);
+        });
+        return map;
+    }, [flatTasks]);
 
     const { timelineScrollRef, taskNamesScrollRef, dateRange, contentWidth, todayPosition } =
         useTimelineScale({ tasks, timeScale, showToday, zoomLevel, showTaskNames });
@@ -409,6 +421,7 @@ const TimelineView = forwardRef(({
                                 <TimelineBar
                                     key={task.id}
                                     task={task}
+                                    rollup={rollups.get(task.id)}
                                     level={task.level}
                                     startDate={dateRange.start}
                                     endDate={dateRange.end}

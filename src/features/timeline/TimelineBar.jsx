@@ -2,11 +2,14 @@ import { useState, useRef, useEffect } from 'react';
 import { dateUtils } from '../../utils/dateUtils';
 import { isTaskOverdue, getTaskStatus } from '../../utils/taskTree';
 import { getStatusColor } from '../../themes/index.js';
+import { rollupSegmentTitle, rollupMilestoneTitle } from './rollupBars';
 import Tooltip from '../../shared/ui/Tooltip';
 import './TimelineBar.css';
 
 function TimelineBar({
     task,
+    // 접혀 있는 가지의 요약 (rollupBars.resolveRollup) — 접혀 있지 않으면 undefined
+    rollup = null,
     level,
     startDate, // View start date
     endDate,   // View end date
@@ -501,6 +504,57 @@ function TimelineBar({
         });
     };
 
+    // 접힌 가지의 요약 — 실제 바보다 얇고, 빗금이 있고, 그 위(z-index 30)에 얹힌다
+    // (부모가 자기 기간을 가지면 뒤에 깔린 요약은 통째로 가려진다 — TimelineBar.css 주석).
+    // 편집 대상이 아니다: 드래그도 우클릭 메뉴도 없고, 클릭하면 대표 행(이 작업)을 고른다.
+    // 그 안의 무엇을 고치려면 가지를 펼쳐야 한다 — 요약은 하나의 막대에 여러 작업을 담으므로
+    // 여기서 끌면 무엇이 움직여야 하는지 화면이 말해 줄 수 없다.
+    const renderRollup = () => {
+        if (!rollup) return null;
+
+        const viewStart = new Date(startDate);
+        const viewEnd = new Date(endDate);
+
+        return (
+            <>
+                {rollup.segments.map(segment => {
+                    const { width, offset } = dateUtils.calculateWidth(
+                        segment.startDate, segment.endDate, startDate, endDate, containerWidth
+                    );
+                    return (
+                        <div
+                            key={`${segment.startDate}~${segment.endDate}`}
+                            className="timeline-rollup-bar"
+                            data-testid="rollup-bar"
+                            style={{
+                                left: `${offset}px`,
+                                width: `${width}px`,
+                                backgroundColor: statusColor || task.color,
+                            }}
+                            title={rollupSegmentTitle(segment)}
+                            onClick={(e) => { e.stopPropagation(); onSelect(task.id); }}
+                        />
+                    );
+                })}
+                {rollup.milestones.map(ms => {
+                    const date = new Date(ms.date);
+                    if (date < viewStart || date > viewEnd) return null;
+                    const left = (dateUtils.getDaysBetween(startDate, ms.date) / totalDays) * containerWidth;
+                    return (
+                        <div
+                            key={ms.id}
+                            className="rollup-milestone-marker"
+                            data-testid="rollup-milestone"
+                            style={{ left: `${left}px`, borderColor: ms.color }}
+                            title={rollupMilestoneTitle(ms)}
+                            onClick={(e) => { e.stopPropagation(); onSelect(task.id); }}
+                        />
+                    );
+                })}
+            </>
+        );
+    };
+
     return (
         <div
             className={`timeline-row level-${level} ${isDragTarget ? 'drag-target' : ''}`}
@@ -761,6 +815,8 @@ function TimelineBar({
                     </div>
                 );
             })}
+
+            {renderRollup()}
 
             {renderMilestones()}
 
