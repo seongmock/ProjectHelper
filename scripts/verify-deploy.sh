@@ -15,7 +15,18 @@ skip() { echo -e "  ${YELLOW}−${NC} $*"; }
 
 d() { if docker info &>/dev/null; then docker "$@"; else sudo docker "$@"; fi; }
 
+# 인증이 켜져 있는지 **Caddyfile 에서 읽어** 판정한다. 하드코딩하면 basicauth 를 붙이거나
+# 떼는 순간 이 스크립트가 통째로 거짓말을 한다 — 2026-08-18 에 사용자 결정으로 인증을
+# 일시 제거했고, 그때 [2]·[10] 이 전부 실패로 뒤집혔다. 어느 쪽 상태든 의도대로인지를 본다.
+AUTH_ON=false
+grep -qE '^[[:space:]]*basic_auth[[:space:]]' Caddyfile 2>/dev/null && AUTH_ON=true
+
 echo "=== ProjectHelper 배포 검증 (대상: $HOST) ==="
+if [ "$AUTH_ON" = true ]; then
+    echo "    인증: basicauth 활성 (Caddyfile 기준)"
+else
+    echo -e "    인증: ${YELLOW}없음 — 의도된 일시 상태${NC} (Caddyfile 주석 참조. 개선 완료 후 복구)"
+fi
 
 echo "[1] 컨테이너 상태"
 for c in caddy-https project-management-app project-helper-api; do
@@ -26,16 +37,36 @@ for c in caddy-https project-management-app project-helper-api; do
     fi
 done
 
-echo "[2] 인증 경계 (열린 경로는 /api/health 하나뿐이어야 한다)"
-# /api/health 는 Caddyfile 의 @needs_auth 매처로 인증에서 제외돼 있다 — 자격증명 없이도
-# 검사할 수 있는 200 응답을 하나 두기 위한 것이다([10] 참조). 그래서 이 검사의 핵심은
-# "헬스가 200" 이 아니라 **다른 경로는 전부 401** 이라는 쪽이다. 매처가 넓어지면 여기서 걸린다.
+echo "[2] 인증 경계"
 code=$(curl -s -o /dev/null -w "%{http_code}" -m 5 -k "https://$HOST/api/health" || echo 000)
-[ "$code" = "200" ] && ok "GET /api/health → 200 (의도된 인증 제외)" || no "GET /api/health → $code (200 기대)"
-for p in "/" "/api/projects" "/api/tasks" "/api/data" "/api/settings" "/api/health/"; do
-    code=$(curl -s -o /dev/null -w "%{http_code}" -m 5 -k "https://$HOST$p" || echo 000)
-    [ "$code" = "401" ] && ok "GET $p → 401" || no "GET $p → $code (401 기대 — 인증 제외가 새고 있다)"
-done
+[ "$code" = "200" ] && ok "GET /api/health → 200" || no "GET /api/health → $code (200 기대)"
+
+if [ "$AUTH_ON" = true ]; then
+    # /api/health 는 @needs_auth 매처로 인증에서 제외돼 있다 — 자격증명 없이도 검사할 수 있는
+    # 200 응답을 하나 두기 위한 것이다([10] 참조). 그래서 이 검사의 핵심은 "헬스가 200" 이
+    # 아니라 **다른 경로는 전부 401** 이라는 쪽이다. 매처가 넓어지면 여기서 걸린다.
+    for p in "/" "/api/projects" "/api/tasks" "/api/data" "/api/settings" "/api/health/"; do
+        code=$(curl -s -o /dev/null -w "%{http_code}" -m 5 -k "https://$HOST$p" || echo 000)
+        [ "$code" = "401" ] && ok "GET $p → 401" || no "GET $p → $code (401 기대 — 인증 제외가 새고 있다)"
+    done
+else
+    # 인증이 없는 상태 — 열려 있는 것이 의도다. 그래도 검사는 한다: 응답이 오는지(=경로가
+    # 살아 있는지)와, **401 이 남아 있지 않은지**(설정이 반만 적용된 상태를 잡는다).
+    for p in "/" "/api/projects" "/api/tasks" "/api/settings"; do
+        code=$(curl -s -o /dev/null -w "%{http_code}" -m 5 -k "https://$HOST$p" || echo 000)
+        case "$code" in
+            200) ok "GET $p → 200 (인증 없음 — 의도된 상태)" ;;
+            401) no "GET $p → 401 — Caddyfile 은 인증 없음인데 응답은 401 (재시작 누락?)" ;;
+            *)   no "GET $p → $code (200 기대)" ;;
+        esac
+    done
+    # 인증을 되살릴 때 필요한 자격증명이 아직 있는지 — 여기서 사라지면 복구가 재발급이 된다.
+    if grep -qE '^BASIC_AUTH_HASH=.+' .env 2>/dev/null; then
+        ok ".env 에 BASIC_AUTH_HASH 보존됨 (복구는 Caddyfile 4줄 되살리기로 끝난다)"
+    else
+        no ".env 에 BASIC_AUTH_HASH 가 없다 — 인증 복구 시 비밀번호 재발급이 필요하다"
+    fi
+fi
 
 echo "[3] API 컨테이너가 호스트에 직접 노출되지 않아야 한다"
 if curl -s -o /dev/null -m 3 "http://$HOST:3000/api/health" 2>/dev/null; then
@@ -130,7 +161,17 @@ else
     no "인증 없이 /api/health 가 200이 아니다 — 헤더 검사를 할 수 없다"
 fi
 
-if [ -n "${PH_VERIFY_USER:-}" ] && [ -n "${PH_VERIFY_PASS:-}" ]; then
+if [ "$AUTH_ON" = false ]; then
+    # 인증이 없는 동안은 **실제 콘텐츠 응답**(`/`)에 대고도 검사할 수 있다 — 헬스보다 넓은
+    # 커버리지다(정적 프론트엔드 경로의 헤더까지 본다). 인증이 돌아오면 이 경로는 401 이 되어
+    # 검사할 수 없게 되므로, 그때는 아래 자격증명 분기가 다시 유일한 창구가 된다.
+    hdrs=$(curl -s -D - -o /dev/null -m 5 -k "https://$HOST/" 2>/dev/null)
+    if echo "$hdrs" | grep -qiE "^HTTP.* 200"; then
+        check_headers "$hdrs" "인증 없이 /"
+    else
+        no "인증 없이 / 가 200이 아니다 — 헤더 검사를 할 수 없다"
+    fi
+elif [ -n "${PH_VERIFY_USER:-}" ] && [ -n "${PH_VERIFY_PASS:-}" ]; then
     hdrs=$(curl -s -D - -o /dev/null -m 5 -k -u "$PH_VERIFY_USER:$PH_VERIFY_PASS" "https://$HOST/" 2>/dev/null)
     if echo "$hdrs" | grep -qiE "^HTTP.* 200"; then
         ok "인증 성공 (200) — .env 자격증명이 정상 동작"

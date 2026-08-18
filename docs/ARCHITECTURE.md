@@ -94,7 +94,7 @@ SSE/WebSocket 대신 폴링을 택한 이유: 단일 사용자 도구에서 10�
 
 ## 배포 토폴로지
 
-Docker Compose 3서비스: Caddy(443, basicauth, `/api/*` → api, 나머지 → 정적 프론트) + 프론트(nginx) + API(`api_data` 볼륨). `./start_server.sh` (--dev로 hot-reload overlay). 클립보드 기능은 HTTPS 전용.
+Docker Compose 3서비스: Caddy(443, `/api/*` → api, 나머지 → 정적 프론트 — basicauth 는 2026-08-18 일시 제거) + 프론트(nginx) + API(`api_data` 볼륨). `./start_server.sh` (--dev로 hot-reload overlay). 클립보드 기능은 HTTPS 전용.
 
 ## 효율성 검토 결과 (알려진 한계 / 향후 과제)
 

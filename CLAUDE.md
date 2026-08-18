@@ -66,10 +66,10 @@ task tree — the self-demo used for the README screenshots. It snapshots curren
 ### Deployment
 
 ```bash
-cp .env.example .env       # 최초 1회 — BASIC_AUTH_USER / BASIC_AUTH_HASH 필수
+cp .env.example .env       # 최초 1회 — BASIC_AUTH_USER / BASIC_AUTH_HASH (인증 복구 시 필요)
 ./start_server.sh          # 백업 → 빌드 → 기동 → 헬스게이트 (Docker 불가 시 HTTP:8080 폴백)
 ./start_server.sh --dev    # hot-reload 오버레이 (docker-compose.dev.yml)
-./scripts/verify-deploy.sh # 배포 후 검증 28건 — 자격증명 없이 전부 검사한다 (아래 참조)
+./scripts/verify-deploy.sh # 배포 후 검증 33건 — 자격증명 없이 전부 검사한다 (아래 참조)
 ```
 
 `start_server.sh` 는 **배포 전에 자동으로 데이터 백업을 수행하고, 실패하면 배포를 중단한다.**
@@ -80,8 +80,18 @@ API 컨테이너는 non-root(uid 1000)로 실행되므로, non-root 전환 전�
 Docker Compose runs three services: the static frontend (nginx/`80`), the Express API
 (`project-helper-api`, `3000`), and **Caddy** as the HTTPS reverse proxy (`443`). Caddy
 routes `/api/*` → API container and everything else → frontend, and terminates TLS with an
-internal cert (`tls internal`). Edit the IP/host in `Caddyfile` for your server. Note
-`Caddyfile` also has HTTP basic auth enabled.
+internal cert (`tls internal`). Edit the IP/host in `Caddyfile` for your server.
+
+**HTTP basic auth is currently REMOVED from `Caddyfile` (2026-08-18, user's decision) — the
+deployment is open to anyone on the corporate network, read *and* write.** It goes back on
+after the current improvement cycle. Restoring it is four lines, spelled out in the `Caddyfile`
+comment where they used to be; the credentials are still in `.env` (`rotate-password.sh` if the
+password is lost — the bcrypt hash cannot be reversed). Two consequences while it is off:
+`verify-deploy.sh` **reads `Caddyfile` to decide which state to assert** (never hard-code 401 —
+that made the script lie the moment auth moved), and `header_up X-Auth-User` is pinned to the
+literal `noauth` rather than `{http.auth.user.id}`. That literal is not cosmetic: an empty value
+makes Caddy *drop* the header, and then a client can set `X-Auth-User` itself and forge the
+audit-log actor. It also marks the unauthenticated window in `events.jsonl`.
 
 **`default_sni` in the global block is what makes the site reachable from a browser** — do not
 remove it. Browsers send **no SNI when the address is an IP literal** (RFC 6066 allows host
@@ -108,8 +118,9 @@ certutil -d sql:$HOME/.pki/nssdb -A -t "C,," -n caddy-local-2026 -i /tmp/caddy-r
 The root is valid to 2036; the 12-hour leaf certs Caddy issues under it renew themselves, so
 this is a one-time step. Firefox has its own store and needs its own import.
 
-**`/api/health` is the one path exempt from basicauth** (`@needs_auth not path /api/health`) —
-it is not an oversight. `basic_auth`'s 401 does not carry the `header` block (Caddy behaviour,
+**`/api/health` was the one path exempt from basicauth** (`@needs_auth not path /api/health`) —
+it was not an oversight, and this is the reasoning to restore along with the four lines above.
+`basic_auth`'s 401 does not carry the `header` block (Caddy behaviour,
 unchanged by `route` ordering), so without an unauthenticated 200 there was **no response the
 security-header checks could look at**, and `verify-deploy.sh` skipped that whole section unless
 someone typed the password — i.e. nobody verified the headers on a normal deploy. The exemption

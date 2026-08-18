@@ -22,6 +22,13 @@ ProjectHelper는 React 18 + Express(JSON 파일 저장) 기반 간트차트 도�
 넘어와 있다. 남은 큰 항목들(인증/RBAC, 공유링크, 인스펙터 패널)은 기술 부채가 아니라
 사용자가 용도를 정해야 하는 제품 결정이다.
 
+> ⚠️ **2026-08-18 현재 운영 사이트에는 인증이 없다.** 사용자 결정으로 `Caddyfile` 의
+> basicauth 를 **일시 제거**했다("개선이 다 끝난 뒤 다시 붙인다"). 그때까지 회사망에 있는
+> 누구나 인증 없이 타임라인 데이터를 **읽고 쓸 수 있다** — 의도된 상태다. 복구 절차는
+> `Caddyfile` 의 해당 주석 네 줄이고, 자격증명은 `.env` 에 그대로 있다. `verify-deploy.sh`
+> 는 `Caddyfile` 을 읽어 어느 상태인지 스스로 판정해 보고하므로 손댈 필요가 없다.
+> 작업 항목은 §4 Phase 1 의 **P1-9**. (§5 #10)
+
 전체 진단·근거·점수는 `docs/TECHNICAL_DUE_DILIGENCE.md`를 읽어라. 요약본에 의존하지 마라.
 
 ---
@@ -89,7 +96,8 @@ npm run lint
 배포 검증(운영 반영 후):
 
 ```bash
-./scripts/verify-deploy.sh      # 헬스체크·인증경계·gzip·보안헤더 일괄 확인
+./scripts/verify-deploy.sh      # 33건 — 헬스체크·인증경계·gzip·보안헤더·인증서 SAN
+                                # 인증 유무는 Caddyfile 을 읽어 자동 판정한다(둘 다 검사 대상)
 ```
 
 ---
@@ -121,6 +129,7 @@ npm run lint
 | P1-5b | CI 이미지 부팅 스모크(`docker-smoke`) — Dockerfile COPY 누락을 잡는 유일한 게이트 | ✅ 2026-08-18 | COPY services 를 뺀 이미지로 음성 검증 완료(§5 참조) |
 | P1-6 | E2E 가드 정리 → 28/28 green | ✅ | skip 0으로 전건 통과 |
 | P1-8 | 브라우저로 운영에 접속할 수 있게 한다(`default_sni` + 클라이언트 CA 신뢰) | ✅ 2026-08-18 | `verify-deploy.sh` [13] — SNI 없는 연결이 받는 인증서의 SAN 확인 (§5 #8) |
+| P1-9 | **basicauth 복구** — 개선 작업이 끝나면 다시 붙인다 (2026-08-18 일시 제거) | ⬜ 트리거: 개선 완료 | `Caddyfile` 네 줄 + `header_up X-Auth-User {http.auth.user.id}` 되돌리기 → `docker restart caddy-https` → `verify-deploy.sh` 가 인증 활성으로 판정하고 401 경계를 검사 |
 | P1-7 | UI Quick Win | ✅ 6/6 | 스모크 테스트 + 육안 |
 
 P1-7 세부 (실사 §5.4 Quick Win 기준):
@@ -1525,6 +1534,50 @@ IP→`IPAddress:10.178.21.120`, SNI 없음→`IPAddress:10.178.21.120`. `:80` �
 2026-08-05 복원본이 최신인지, `restored-data.json` 을 저장소 밖으로 옮길지, git 이력의 옛 해시
 처리(filter-repo vs private), 푸시 전략.
 
+### 2026-08-18 #10 — 비밀번호 접근 전면 제거 (사용자 결정, 되돌릴 예정)
+
+사용자 지시: **"일단 비밀번호로 접근하는 거 다 제거하고 모든 개선이 다 끝난 후에 추가하는
+걸로 하자."** 직전 질문("localhost 접속만 비밀번호 없이 되게 할 수 있나")을 대체한 결정이다.
+그 질문에 대한 조사에서 얻은 사실은 남긴다 — 복구할 때 다시 필요하다:
+
+- **`Host` 헤더로 예외를 판정하면 인증 우회다.** `Host` 는 클라이언트가 정하는 값이라
+  원격에서 `Host: localhost` 를 붙이면 그대로 통과한다. 판정은 **접속 주소**로 해야 한다.
+- Caddy 가 실제로 보는 클라이언트 IP 는 접속 경로에 따라 다르다(실측): `localhost`/`127.0.0.1`
+  은 docker 의 유저랜드 프록시를 거치므로 **브리지 게이트웨이**(운영 네트워크
+  `projecthelper_default` → `172.18.0.1`)로 보이고, 호스트 LAN IP(`10.178.21.120`)로 들어오면
+  iptables DNAT 라서 **실제 출처 IP 가 보존**된다. 즉 `remote_ip` 기반 예외는 가능하지만
+  게이트웨이 대역을 여는 것이므로, 그 컨테이너 네트워크에 붙는 모든 것이 통과한다.
+
+**바꾼 것 (4개 파일)**
+- `Caddyfile`: `@needs_auth`/`basic_auth` 네 줄 삭제 + **그 자리에 복구 절차를 주석으로 남겼다**
+  (되살릴 네 줄, `/api/health` 예외의 이유, 해시를 이 파일에 하드코딩하지 말 것).
+  `caddy validate` 통과 후 `docker restart caddy-https` 로 적용(재생성 아님 — 절대규칙 #5).
+- `header_up X-Auth-User` 를 `{http.auth.user.id}` → **리터럴 `noauth`**. 인증이 없으면 그
+  플레이스홀더는 빈 값이고, **빈 값을 넣으면 Caddy 가 헤더를 지운다** — 그러면 클라이언트가
+  `X-Auth-User` 를 스스로 붙여 감사 로그의 actor 를 위조할 수 있다(서버는
+  `req.get('X-Auth-User') || 'local'`). 고정값이면 `events.jsonl` 에서 무인증 기간의 쓰기가
+  한눈에 구분되기도 한다.
+- `scripts/verify-deploy.sh`: **Caddyfile 을 읽어 인증 상태를 판정한다**(`AUTH_ON`). 401 을
+  하드코딩하면 인증이 움직이는 순간 스크립트가 거짓말을 한다 — [2] 는 인증 켜짐이면 401 경계를,
+  꺼짐이면 200 을 검사하고 **`.env` 에 `BASIC_AUTH_HASH` 가 남아 있는지도 확인한다**(복구가
+  네 줄로 끝나려면 그것이 전제다). 남아 있는 401 은 "재시작 누락?"으로 지목한다. [10] 보안헤더
+  검사는 인증이 없는 동안 `https://$HOST/` **실제 콘텐츠 경로**에서 돌아 커버리지가 넓어졌다.
+  **33건 / 0 실패 / skip 0** 실측.
+- `scripts/rotate-password.sh`: 인증이 제거된 상태에서 실행되면 **거부**한다. 그 스크립트의
+  검증은 "인증 없이 401 → 새 자격증명으로 200"을 기대하므로, 무인증 상태에서는 **성공한 교체를
+  실패로 오판해 롤백**하고 그 과정에서 스택을 두 번 재생성한다(v1.29.2 함정).
+
+**절차**: 백업(`ph-data-20260818-174720.tar.gz`, 무결성 확인 · 24세대 보관) → `caddy validate`
++ `bash -n` → `docker restart caddy-https` → 실측(`/`, `/api/projects`, `/api/health` 모두 200,
+`www-authenticate` 없음) → `verify-deploy.sh` 33/0. 문서(`CLAUDE.md`·`README.md`·
+`docs/AI_INTEGRATION.md`·`docs/ARCHITECTURE.md`·`deploy`/`timeline-api` 스킬)의 "basicauth
+적용" 서술을 전부 현재 상태로 고쳤다 — 문서가 인증을 약속하면 다음 세션이 없는 보호를 있다고
+믿는다. 복구 항목은 §4 Phase 1 **P1-9**.
+
+**남은 위험(의도적으로 감수)**: 회사망의 누구나 데이터를 쓸 수 있다. 백업은 3중으로 돌고 있고
+(`backup-data.sh` 크론 · `store.js` 세대 백업 · 검증), 모든 쓰기는 `events.jsonl` 에 `noauth`
+actor 로 남는다. 그래도 이 창을 오래 열어 두지 마라.
+
 ---
 
 ## 6. 새 세션 시작 체크리스트
@@ -1541,7 +1594,7 @@ npm run test:unit && npm run test:server && npm run build
 
 # 3) 운영 상태 (읽기 전용!)
 sudo docker ps
-curl -s -o /dev/null -w "%{http_code}\n" -k https://10.178.21.120/api/health   # 401 정상(인증 필요)
+curl -s -o /dev/null -w "%{http_code}\n" -k https://10.178.21.120/api/health   # 200 (인증 일시 제거 상태 — P1-9)
 
 # 4) 백업 최신성
 ls -la backups/ 2>/dev/null | tail -3

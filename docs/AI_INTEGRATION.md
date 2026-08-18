@@ -26,6 +26,8 @@ MCP 경유 시에는 `get-guide` 도구가 같은 가이드를 반환한다 (처
 - MCP: `list-projects`/`create-project` 도구 + 모든 도구의 선택적 `projectId` 파라미터.
 - 사용자는 헤더의 프로젝트 드롭다운으로 전환해 확인 — 드롭다운을 열 때 목록을 다시 가져오므로 AI가 만든 프로젝트가 바로 보인다.
 - 멀티유저 배포 시 Caddy basicauth 사용자가 `X-Auth-User`로 전달되어 `owner`/`createdBy`에 기록된다.
+  (2026-08-18 현재 basicauth 가 일시 제거돼 있어 그 값은 고정 문자열 `noauth` 다 — 무인증
+  기간의 쓰기를 감사 로그에서 구분하기 위한 것이다.)
 
 ## 빠른 시작 (Claude Code)
 
@@ -88,7 +90,8 @@ GET    /api/dependency-issues # 의존성 점검 — 순환/일정 위반/끊어
 `/api/events` 는 프로젝트별 append-only 로그(`data/projects/<pid>/events.jsonl`)를 읽는다.
 쓰기 1건당 `{ts, actor, op, revision, nodes, prevNodes}` 한 줄 — "누가 언제 트리를 몇 개에서
 몇 개로 바꿨는가"를 사후에 답하기 위한 것이다. **되돌리기 수단이 아니다**(복구는 스냅샷과
-`data.json.bak.N` 세대 백업). `actor` 는 Caddy basicauth 가 넘긴 `X-Auth-User` 다.
+`data.json.bak.N` 세대 백업). `actor` 는 Caddy basicauth 가 넘긴 `X-Auth-User` 다
+(인증이 일시 제거된 2026-08-18 이후 구간은 `noauth`).
 
 `/api/dependency-issues` 는 브라우저 화면(타임라인 화살표·인스펙터 배지)과 **같은 판정**을
 돌려준다: `cycles`(순환) · `overlaps`(후행이 선행 종료보다 먼저 시작, `days` = 며칠 이른지) ·

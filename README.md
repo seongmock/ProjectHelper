@@ -44,7 +44,10 @@ React 기반의 인터랙티브한 프로젝트 타임라인 및 간트 차트 �
 
 ### 배포 (Docker Compose + HTTPS)
 
-Caddy가 HTTPS(자체 서명 인증서)와 Basic 인증을 처리합니다.
+Caddy가 HTTPS(자체 서명 인증서)를 처리합니다.
+
+> ⚠️ **2026-08-18 현재 Basic 인증은 `Caddyfile` 에서 일시 제거된 상태입니다** — 개선
+> 작업이 끝난 뒤 복구합니다. 복구 절차는 `Caddyfile` 의 해당 주석에 있습니다.
 
 ```bash
 # 1) 인증 정보 설정 (최초 1회)
@@ -111,7 +114,7 @@ npm run build
 - **Vanilla CSS** - 스타일링
 - **Express** (`server/`) - JSON 파일 영속화 + REST API
 - **localStorage** - 오프라인 캐시 (서버 장애 시 폴백)
-- **Caddy** - HTTPS 리버스 프록시 + Basic 인증
+- **Caddy** - HTTPS 리버스 프록시 (Basic 인증은 현재 일시 제거)
 - **Playwright / Vitest / node:test** - E2E 51건 + 단위 371건(unit 243 + server 128)
 
 ## 📖 사용법

@@ -94,4 +94,5 @@ curl -s -X POST -H 'Content-Type: application/json' \
 
 ## 프로덕션 (Caddy HTTPS 경유)
 
-`https://<host>/api/...`는 **basicauth**가 걸려있다. MCP는 `PH_BASIC_AUTH=user:pass` 환경변수로 지원.
+`https://<host>/api/...` 의 **basicauth 는 2026-08-18 현재 일시 제거된 상태**다 — 자격증명 없이
+호출된다. 복구되면 MCP는 `PH_BASIC_AUTH=user:pass` 환경변수로 지원한다.

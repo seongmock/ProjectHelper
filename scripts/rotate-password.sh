@@ -39,6 +39,15 @@ d() { if docker info &>/dev/null; then docker "$@"; else sudo docker "$@"; fi; }
 
 [ -f "$ENV_FILE" ] || die "$ENV_FILE 이 없다. cp .env.example .env 부터 하라."
 
+# 2026-08-18: basicauth 가 Caddyfile 에서 일시 제거된 상태에서는 이 스크립트를 돌리면 안 된다.
+# 아래 검증이 "인증 없이 401, 새 자격증명으로 200" 을 기대하므로 무인증 상태에서는 401 이
+# 오지 않아 **성공한 교체를 실패로 오판하고 롤백**한다(스택을 두 번 재생성하며 그때마다
+# 중단된다). 해시는 .env 에 갱신되므로 인증을 되살리는 순간 새 비밀번호가 유효해진다 —
+# 즉 지금 필요한 것은 교체가 아니라 Caddyfile 복구가 먼저다.
+if ! grep -qE '^[[:space:]]*basic_auth[[:space:]]' Caddyfile 2>/dev/null; then
+    die "Caddyfile 에 basic_auth 가 없다 (인증 일시 제거 상태). 먼저 Caddyfile 의 basicauth 네 줄을 되살린 뒤 실행하라 — 그 주석에 복구 절차가 있다."
+fi
+
 CUR_USER=$(grep -E '^BASIC_AUTH_USER=' "$ENV_FILE" | cut -d= -f2-)
 USER_NAME="${NEW_USER:-$CUR_USER}"
 [ -n "$USER_NAME" ] || die "BASIC_AUTH_USER 를 결정할 수 없다."
