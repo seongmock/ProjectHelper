@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useAnchoredMenu } from '../../shared/ui/useAnchoredMenu';
 import {
     SlidersHorizontal, Check, Text, Tag, CalendarDays, CalendarClock, Rows3, Magnet,
     Palette, Activity,
@@ -13,8 +14,8 @@ const COLOR_MODES = [
     { id: 'status', label: '상태 색상', Icon: Activity },
 ];
 
-// CSS 의 min-width 와 맞춘다 — 오른쪽 화면 밖으로 나가지 않게 클램프할 때 쓴다
-const MENU_WIDTH = 200;
+// 실측 전 첫 프레임에 쓰는 크기(CSS 의 min-width 와 맞춘다)
+const MENU_FALLBACK = { width: 200, height: 360 };
 
 // 툴바에 상시 노출되던 표시 토글 6종 + 차트 테마를 하나의 드롭다운으로 모은 것.
 // 툴바가 좁은 화면에서 넘치던 근본 원인이 "모든 옵션이 항상 버튼"이었다.
@@ -29,9 +30,12 @@ function DisplayOptionsMenu({
     colorMode, onColorModeChange,
 }) {
     const [isOpen, setIsOpen] = useState(false);
-    const [anchor, setAnchor] = useState({ top: 0, left: 0 });
     const triggerRef = useRef(null);
     const menuRef = useRef(null);
+    // 좌표·뒤집기·최대 높이는 공용 훅이 판단한다. 예전에는 오른쪽만 클램프해서,
+    // 항목이 늘어나 메뉴가 화면보다 길어지면 아래가 잘려 마지막 항목(차트 테마)을
+    // 클릭할 방법이 없었다.
+    const anchor = useAnchoredMenu(isOpen, triggerRef, menuRef, MENU_FALLBACK);
 
     useEffect(() => {
         if (!isOpen) return;
@@ -53,16 +57,7 @@ function DisplayOptionsMenu({
 
     // 툴바는 가로 스크롤(overflow-x)이 걸려 있어 자식으로 띄우면 메뉴가 잘린다 —
     // body 로 포털한 뒤 트리거 위치에 fixed 로 붙인다.
-    const toggle = () => {
-        if (!isOpen && triggerRef.current) {
-            const rect = triggerRef.current.getBoundingClientRect();
-            setAnchor({
-                top: rect.bottom + 6,
-                left: Math.min(rect.left, window.innerWidth - MENU_WIDTH - 12),
-            });
-        }
-        setIsOpen(!isOpen);
-    };
+    const toggle = () => setIsOpen(!isOpen);
 
     const toggles = [
         { key: 'taskNames', Icon: Text, label: '작업명 컬럼', checked: showTaskNames, onChange: onToggleTaskNames },
@@ -88,7 +83,17 @@ function DisplayOptionsMenu({
             </button>
 
             {isOpen && createPortal(
-                <div className="display-options-menu" role="menu" ref={menuRef} style={anchor}>
+                <div
+                    className="display-options-menu"
+                    role="menu"
+                    ref={menuRef}
+                    style={{
+                        top: anchor?.top ?? 0,
+                        left: anchor?.left ?? 0,
+                        maxHeight: anchor?.maxHeight,
+                        visibility: anchor ? 'visible' : 'hidden',
+                    }}
+                >
                     {toggles.map(({ key, Icon, label, checked, onChange }) => (
                         <button
                             key={key}

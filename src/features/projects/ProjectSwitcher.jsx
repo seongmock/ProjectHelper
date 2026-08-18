@@ -1,6 +1,10 @@
 import { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Folder, ChevronDown, Check, Pencil, Trash2, Plus } from 'lucide-react';
+import { useAnchoredMenu } from '../../shared/ui/useAnchoredMenu';
 import './ProjectSwitcher.css';
+
+const MENU_FALLBACK = { width: 260, height: 280 };
 
 // 프로젝트 전환 드롭다운 — Header 좌측에 배치
 // 목록 갱신은 열 때마다 onOpen(refetch) — AI가 REST로 만든 프로젝트도 열면 보인다
@@ -19,6 +23,14 @@ function ProjectSwitcher({
     const [creating, setCreating] = useState(false);
     const [newName, setNewName] = useState('');
     const rootRef = useRef(null);
+    const triggerRef = useRef(null);
+    const menuRef = useRef(null);
+
+    // 이 메뉴는 **body 로 포털한다.** `.header` 는 position: sticky + z-index: 100 이라
+    // 쌓임 문맥을 만들고, 그 안에서는 자식의 z-index 를 500 으로 올려도 100 으로만
+    // 비교된다 — 그래서 뒤에 오는 타임라인 요소(마일스톤 z 200 등) 위에 그려지려면
+    // 문맥 자체를 벗어나야 한다. 좌표·뒤집기·최대 높이는 공용 훅이 계산한다.
+    const anchor = useAnchoredMenu(isOpen, triggerRef, menuRef, MENU_FALLBACK);
 
     const activeProject = projects.find(p => p.id === activeProjectId);
 
@@ -26,7 +38,9 @@ function ProjectSwitcher({
     useEffect(() => {
         if (!isOpen) return;
         const handleMouseDown = (e) => {
-            if (rootRef.current && !rootRef.current.contains(e.target)) {
+            const inRoot = rootRef.current?.contains(e.target);
+            const inMenu = menuRef.current?.contains(e.target);
+            if (!inRoot && !inMenu) {
                 setIsOpen(false);
                 setEditingId(null);
                 setCreating(false);
@@ -76,6 +90,7 @@ function ProjectSwitcher({
     return (
         <div className="project-switcher" ref={rootRef}>
             <button
+                ref={triggerRef}
                 className="project-switcher-trigger"
                 data-testid="project-switcher"
                 onClick={toggleOpen}
@@ -86,8 +101,18 @@ function ProjectSwitcher({
                 <ChevronDown size={14} aria-hidden="true" />
             </button>
 
-            {isOpen && (
-                <div className="project-switcher-menu">
+            {isOpen && createPortal(
+                <div
+                    className="project-switcher-menu"
+                    role="menu"
+                    ref={menuRef}
+                    style={{
+                        top: anchor?.top ?? 0,
+                        left: anchor?.left ?? 0,
+                        maxHeight: anchor?.maxHeight,
+                        visibility: anchor ? 'visible' : 'hidden',
+                    }}
+                >
                     {projects.map(project => (
                         <div
                             key={project.id}
@@ -152,7 +177,8 @@ function ProjectSwitcher({
                             </button>
                         )}
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
         </div>
     );

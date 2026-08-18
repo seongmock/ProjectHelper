@@ -5,8 +5,11 @@
 .display-options-menu {
     /* body 로 포털되므로 뷰포트 기준 fixed — top/left 는 트리거 위치에서 인라인으로 준다 */
     position: fixed;
-    z-index: 10000;
+    z-index: var(--z-dropdown);
     min-width: 200px;
+    /* 훅이 준 maxHeight 안에서 스크롤한다 — 잘려서 못 누르는 항목이 없게 */
+    overflow-y: auto;
+    overscroll-behavior: contain;
     padding: var(--spacing-xs) 0;
     background-color: var(--color-bg-primary);
     border: 1px solid var(--color-border);

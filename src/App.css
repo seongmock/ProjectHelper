@@ -19,6 +19,10 @@
   --color-text-primary: #212529;
   --color-text-secondary: #6C757D;
   --color-text-tertiary: #ADB5BD;
+  /* --color-text-muted 은 차트 테마(themes.css)에만 정의돼 있었다. 그 블록은
+     [data-chart-theme] 스코프라 인스펙터·표에서는 값이 없었고, 정의되지 않은 var() 는
+     선언 자체를 무효로 만든다 → color 는 상속값으로 떨어져 '흐린 글씨'가 아니었다. */
+  --color-text-muted: #ADB5BD;
 
   /* 보더 및 그리드 */
   --color-border: #DEE2E6;
@@ -48,6 +52,27 @@
   --transition-normal: 200ms ease;
   --transition-slow: 300ms ease;
 
+  /* 포커스 링 등 반투명 강조. rgba 를 직접 쓰던 자리에 이름을 준다 */
+  --color-primary-transparent: rgba(74, 144, 226, 0.25);
+
+  /* ── 겹침 순서(z-index) 계단 ──────────────────────────────────
+     숫자를 파일마다 즉흥적으로 고르면 "메뉴가 차트 뒤로 숨는" 종류의 버그가 반복된다.
+     **핵심 함정**: .header(z 100)·.toolbar(z 90) 처럼 position 이 붙고 z-index 가 있는
+     조상은 **쌓임 문맥**을 만들어서, 그 안의 자식이 z-index 를 얼마로 올려도 조상의
+     값으로 취급된다. 그래서 드롭다운은 숫자만 올리는 게 아니라 **body 로 포털**해야 한다
+     (DisplayOptionsMenu·ProjectSwitcher 가 그 패턴이다). */
+  --z-timeline-bar: 20;
+  --z-timeline-rollup: 30;
+  --z-sticky-col: 60;
+  --z-toolbar: 90;
+  --z-header: 100;
+  --z-timeline-marker: 150;
+  --z-timeline-milestone: 200;
+  --z-dropdown: 9000;
+  --z-modal: 10000;
+  --z-toast: 10500;
+  --z-tooltip: 11000;
+
   /* 기타 */
   --border-radius: 6px;
   --header-height: 64px;
@@ -64,6 +89,7 @@
   --color-text-primary: #E9ECEF;
   --color-text-secondary: #ADB5BD;
   --color-text-tertiary: #6C757D;
+  --color-text-muted: #6C757D;
 
   --color-border: #404040;
   --color-grid: #333333;

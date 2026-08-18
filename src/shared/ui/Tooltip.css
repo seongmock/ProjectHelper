@@ -12,7 +12,7 @@
     font-size: 13px;
     white-space: pre-wrap;
     max-width: 300px;
-    z-index: 10001;
+    z-index: var(--z-tooltip);
     pointer-events: none;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
     animation: tooltipFadeIn 0.2s ease-in-out;
@@ -28,7 +28,7 @@
     font-size: 13px;
     white-space: pre-wrap;
     max-width: 300px;
-    z-index: 10001;
+    z-index: var(--z-tooltip);
     pointer-events: none;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
     animation: tooltipFadeIn 0.2s ease-in-out;
