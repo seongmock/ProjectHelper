@@ -69,7 +69,7 @@ task tree — the self-demo used for the README screenshots. It snapshots curren
 cp .env.example .env       # 최초 1회 — BASIC_AUTH_USER / BASIC_AUTH_HASH 필수
 ./start_server.sh          # 백업 → 빌드 → 기동 → 헬스게이트 (Docker 불가 시 HTTP:8080 폴백)
 ./start_server.sh --dev    # hot-reload 오버레이 (docker-compose.dev.yml)
-./scripts/verify-deploy.sh # 배포 후 검증 — 인증경계·gzip·보안헤더·non-root·백업 최신성
+./scripts/verify-deploy.sh # 배포 후 검증 27건 — 자격증명 없이 전부 검사한다 (아래 참조)
 ```
 
 `start_server.sh` 는 **배포 전에 자동으로 데이터 백업을 수행하고, 실패하면 배포를 중단한다.**
@@ -82,6 +82,22 @@ Docker Compose runs three services: the static frontend (nginx/`80`), the Expres
 routes `/api/*` → API container and everything else → frontend, and terminates TLS with an
 internal cert (`tls internal`). Edit the IP/host in `Caddyfile` for your server. Note
 `Caddyfile` also has HTTP basic auth enabled.
+
+**`/api/health` is the one path exempt from basicauth** (`@needs_auth not path /api/health`) —
+it is not an oversight. `basic_auth`'s 401 does not carry the `header` block (Caddy behaviour,
+unchanged by `route` ordering), so without an unauthenticated 200 there was **no response the
+security-header checks could look at**, and `verify-deploy.sh` skipped that whole section unless
+someone typed the password — i.e. nobody verified the headers on a normal deploy. The exemption
+is an **exact** path match (`/api/health/` and every data route still 401, asserted in
+`verify-deploy.sh` [2]) and the body is only `{ok, time}`. Never widen the matcher to `/api/*`;
+that opens the timeline data.
+
+**`npm run verify` cannot see inside the Docker images** — unit/server/E2E all read host
+sources, so a `COPY` missing from a Dockerfile is green everywhere and only surfaces at deploy
+time (it happened twice: `0fca603`, and 2026-08-18 with `server/services/`). The `docker-smoke`
+CI job is the only gate for that class: it builds both images, boots them, and probes
+`/api/health` · `/api/projects` · `/api/tasks` plus the frontend's `index.html`/`assets/*.js`.
+If you add a runtime directory, fix the Dockerfile `COPY` list too.
 
 **Never run `docker compose down -v`** (or otherwise prune volumes): the `api_data` named
 volume mounted at `/app/data` in the API container holds live production timeline data.

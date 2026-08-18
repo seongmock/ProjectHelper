@@ -26,11 +26,16 @@ for c in caddy-https project-management-app project-helper-api; do
     fi
 done
 
-echo "[2] 인증 경계 (자격증명 없이 401이어야 한다)"
+echo "[2] 인증 경계 (열린 경로는 /api/health 하나뿐이어야 한다)"
+# /api/health 는 Caddyfile 의 @needs_auth 매처로 인증에서 제외돼 있다 — 자격증명 없이도
+# 검사할 수 있는 200 응답을 하나 두기 위한 것이다([10] 참조). 그래서 이 검사의 핵심은
+# "헬스가 200" 이 아니라 **다른 경로는 전부 401** 이라는 쪽이다. 매처가 넓어지면 여기서 걸린다.
 code=$(curl -s -o /dev/null -w "%{http_code}" -m 5 -k "https://$HOST/api/health" || echo 000)
-[ "$code" = "401" ] && ok "GET /api/health → 401" || no "GET /api/health → $code (401 기대)"
-code=$(curl -s -o /dev/null -w "%{http_code}" -m 5 -k "https://$HOST/" || echo 000)
-[ "$code" = "401" ] && ok "GET / → 401" || no "GET / → $code (401 기대)"
+[ "$code" = "200" ] && ok "GET /api/health → 200 (의도된 인증 제외)" || no "GET /api/health → $code (200 기대)"
+for p in "/" "/api/projects" "/api/tasks" "/api/data" "/api/settings" "/api/health/"; do
+    code=$(curl -s -o /dev/null -w "%{http_code}" -m 5 -k "https://$HOST$p" || echo 000)
+    [ "$code" = "401" ] && ok "GET $p → 401" || no "GET $p → $code (401 기대 — 인증 제외가 새고 있다)"
+done
 
 echo "[3] API 컨테이너가 호스트에 직접 노출되지 않아야 한다"
 if curl -s -o /dev/null -m 3 "http://$HOST:3000/api/health" 2>/dev/null; then
@@ -100,26 +105,41 @@ fi
 
 echo "[10] 보안 헤더 (Caddy)"
 # 주의: basic_auth 의 401 응답에는 header 블록이 적용되지 않는다(Caddy 동작, route 로도
-# 바뀌지 않음). 401은 본문이 없어 문제가 아니지만, 그래서 검사는 반드시 '인증된 200
-# 응답'에 대고 해야 한다. 401을 검사하면 항상 실패하는 무의미한 테스트가 된다.
+# 바뀌지 않음). 401은 본문이 없어 문제가 아니지만, 그래서 검사는 반드시 '200 응답'에 대고
+# 해야 한다 — 401을 검사하면 항상 실패하는 무의미한 테스트가 된다.
+# 예전에는 그 200을 얻는 방법이 인증뿐이어서, 자격증명이 없으면 이 항목 전체가 skip 됐다
+# (=배포마다 보안 헤더를 아무도 검증하지 않았다). 이제 /api/health 가 인증 제외이므로
+# **자격증명 없이도** 검사한다. 자격증명을 주면 인증 경로까지 추가로 확인한다.
+check_headers() {
+    local hdrs="$1" label="$2"
+    for h in "x-content-type-options" "x-frame-options" "content-security-policy" "referrer-policy"; do
+        echo "$hdrs" | grep -qi "^$h:" && ok "$h 존재 ($label)" || no "$h 없음 ($label)"
+    done
+    echo "$hdrs" | grep -qi "^server:" \
+        && no "Server 헤더가 남아 있다 ($label)" \
+        || ok "Server 헤더 제거됨 ($label)"
+    echo "$hdrs" | grep -qi "^strict-transport-security:" \
+        && no "HSTS가 켜져 있다 — 자체서명 인증서 환경에서는 접속 불가를 유발한다" \
+        || ok "HSTS 미적용 (자체서명 환경에서 의도된 설정)"
+}
+
+hdrs=$(curl -s -D - -o /dev/null -m 5 -k "https://$HOST/api/health" 2>/dev/null)
+if echo "$hdrs" | grep -qiE "^HTTP.* 200"; then
+    check_headers "$hdrs" "인증 없이 /api/health"
+else
+    no "인증 없이 /api/health 가 200이 아니다 — 헤더 검사를 할 수 없다"
+fi
+
 if [ -n "${PH_VERIFY_USER:-}" ] && [ -n "${PH_VERIFY_PASS:-}" ]; then
     hdrs=$(curl -s -D - -o /dev/null -m 5 -k -u "$PH_VERIFY_USER:$PH_VERIFY_PASS" "https://$HOST/" 2>/dev/null)
     if echo "$hdrs" | grep -qiE "^HTTP.* 200"; then
         ok "인증 성공 (200) — .env 자격증명이 정상 동작"
-        for h in "x-content-type-options" "x-frame-options" "content-security-policy" "referrer-policy"; do
-            echo "$hdrs" | grep -qi "^$h:" && ok "$h 존재" || no "$h 없음"
-        done
-        echo "$hdrs" | grep -qi "^server:" \
-            && no "Server 헤더가 남아 있다" \
-            || ok "Server 헤더 제거됨"
-        echo "$hdrs" | grep -qi "^strict-transport-security:" \
-            && no "HSTS가 켜져 있다 — 자체서명 인증서 환경에서는 접속 불가를 유발한다" \
-            || ok "HSTS 미적용 (자체서명 환경에서 의도된 설정)"
+        check_headers "$hdrs" "인증된 /"
     else
         no "인증 실패 — .env 의 BASIC_AUTH_USER/HASH 또는 전달한 자격증명을 확인하라"
     fi
 else
-    skip "보안 헤더 검사 건너뜀 — 다음처럼 자격증명을 주면 검사한다:"
+    skip "인증 경로 검사 건너뜀 (보안 헤더는 위에서 이미 검사했다). 함께 보려면:"
     skip "  PH_VERIFY_USER=<사용자> PH_VERIFY_PASS=<비밀번호> $0 $HOST"
 fi
 

@@ -42,6 +42,79 @@ jobs:
       - name: Audit (server)
         run: npm audit --audit-level=high --prefix server
 
+  # 이미지 부팅 스모크 — '이미지 안에 무엇이 들어갔는지'를 보는 유일한 게이트.
+  #
+  # 왜 필요한가: 나머지 모든 테스트(unit/server/E2E)는 **호스트 소스**를 읽는다. 그래서
+  # Dockerfile 의 COPY 목록에서 디렉토리가 빠져도 전부 초록불이고, 결함은 배포 순간에만
+  # 드러난다. 2026-08-18 재배포가 그렇게 실패했다 — P2-4 에서 생긴 server/services/ 가
+  # Dockerfile 에 없어서 컨테이너가 MODULE_NOT_FOUND 로 죽고, caddy 가 api 의 healthy 를
+  # 기다리므로 배포 전체가 멈췄다. 커밋 33건 동안 아무 신호도 없었다(같은 사고가 0fca603 에도).
+  # 두 Dockerfile 모두 COPY 대상을 손으로 열거하므로 같은 함정이 양쪽에 있다.
+  #
+  # 포트를 퍼블리시하지 않고 컨테이너 안에서 자기 자신을 찔러 본다 —
+  # 러너의 포트 점유와 무관하고, scripts/verify-deploy.sh 가 쓰는 방식과 같다.
+  docker-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Build API image
+        run: docker build -t ph-api:ci ./server
+
+      - name: Build frontend image
+        run: docker build -t ph-web:ci .
+
+      - name: Boot API image and probe endpoints
+        run: |
+          docker run -d --name ph-api-ci ph-api:ci
+          probe() {
+            docker exec ph-api-ci node -e "
+              require('http').get({host:'127.0.0.1',port:3000,path:'$1'},res=>{
+                let d='';res.on('data',c=>d+=c);
+                res.on('end',()=>{ process.stdout.write(res.statusCode+' '+d.slice(0,200)) });
+              }).on('error',e=>{ console.error(e.message); process.exit(1) })"
+          }
+          for i in $(seq 1 30); do
+            probe /api/health 2>/dev/null | grep -q '"ok":true' && break
+            sleep 1
+            if [ "$i" = "30" ]; then
+              echo "::error::API 이미지가 30초 안에 부팅되지 않았다 (Dockerfile COPY 누락 의심)"
+              docker logs ph-api-ci; exit 1
+            fi
+          done
+          # 라우터를 실제로 태운다 — 헬스만 보면 index.js 만 검증된다.
+          # /api/tasks 는 routes/tasks.js → services/taskService 경로다(누락됐던 그 모듈).
+          for path in /api/health /api/projects /api/tasks; do
+            out=$(probe "$path") || { echo "::error::$path 요청 실패"; docker logs ph-api-ci; exit 1; }
+            echo "$path → $out"
+            case "$out" in
+              200*) ;;
+              *) echo "::error::$path 가 200이 아니다: $out"; docker logs ph-api-ci; exit 1 ;;
+            esac
+          done
+
+      - name: Boot frontend image and probe index
+        run: |
+          docker run -d --name ph-web-ci ph-web:ci
+          # 127.0.0.1 로 찌른다 — nginx.conf 가 IPv4 로만 listen 하므로 'localhost' 는
+          # ::1 로 먼저 풀려 connection refused 가 된다(실측).
+          for i in $(seq 1 30); do
+            docker exec ph-web-ci curl -fsS http://127.0.0.1/ 2>/dev/null | grep -q '<div id="root">' && break
+            sleep 1
+            if [ "$i" = "30" ]; then
+              echo "::error::프론트 이미지가 index.html 을 서빙하지 않는다"
+              docker logs ph-web-ci; exit 1
+            fi
+          done
+          # 빌드 산출물이 실제로 이미지에 들어갔는지 (dist/assets 가 비면 흰 화면이 배포된다)
+          docker exec ph-web-ci sh -c 'ls /usr/share/nginx/html/assets/*.js >/dev/null' \
+            || { echo "::error::assets/*.js 가 이미지에 없다"; exit 1; }
+
+      - name: Container logs on failure
+        if: failure()
+        run: docker logs ph-api-ci || true; docker logs ph-web-ci || true
+
   e2e:
     runs-on: ubuntu-latest
     timeout-minutes: 15

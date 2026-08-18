@@ -118,6 +118,7 @@ npm run lint
 | P1-3 | 구조화 로깅 + graceful shutdown + `PORT` env화 | ✅ | SIGTERM 시 정상 종료 로그 |
 | P1-4 | 단위테스트 도입(Vitest + node:test) | ✅ | `npm run test:unit`, `npm run test:server` |
 | P1-5 | ESLint + CI 게이트(lint·audit·unit) | ✅ | `npm run lint`, CI 워크플로 |
+| P1-5b | CI 이미지 부팅 스모크(`docker-smoke`) — Dockerfile COPY 누락을 잡는 유일한 게이트 | ✅ 2026-08-18 | COPY services 를 뺀 이미지로 음성 검증 완료(§5 참조) |
 | P1-6 | E2E 가드 정리 → 28/28 green | ✅ | skip 0으로 전건 통과 |
 | P1-7 | UI Quick Win | ✅ 6/6 | 스모크 테스트 + 육안 |
 
@@ -1348,6 +1349,53 @@ Ctrl+Z 를 눌러도 진행률이 5%씩, 날짜가 하루씩 돌아간다(사용
   `-u user:pass` argv 노출을 `curl -K -` 로 이전 ② **CI 이미지 부팅 스모크 테스트** — 이번
   `COPY services` 누락을 사전에 잡을 수 있었던 유일한 게이트인데 현재 CI 는 이미지를 아예
   빌드하지 않는다.
+
+### 2026-08-18 #7 — 검증이 검증을 못 하고 있었다: 인증 뒤에 200이 하나도 없었다
+
+사용자 요청: 앞 세션이 남긴 개선 후보 전부 + **"검증을 위해서는 아이디/비밀번호 없이 접근이
+되어야 할 것 같은데?"**. 그 지적이 맞았다. 세 가지를 했다.
+
+**(1) `/api/health` 를 인증에서 제외 — 검증 가능성이 목적이다.**
+`basic_auth` 의 401 응답에는 `header` 블록이 적용되지 않는다(Caddy 동작, `route` 로도 안 바뀜 —
+이건 08-05 에 이미 확인해 Caddyfile 주석에 있었다). 그런데 그 결과가 방치돼 있었다: 200 응답을
+얻는 방법이 인증뿐이라 `verify-deploy.sh` [10] 이 `PH_VERIFY_USER/PASS` 없이는 **통째로 skip**
+됐다 — 즉 평소 배포에서 보안 헤더·`-Server`·HSTS-off 를 **아무도 검증하지 않았다**. skip 을
+불합격으로 취급하는 이 저장소의 원칙(E2E 게이트)이 배포 검증에는 적용돼 있지 않았던 셈이다.
+- `@needs_auth not path /api/health` — `path` 는 **정확 일치**다. 노출되는 본문은 `{ok, time}`.
+- 그래서 [2] 의 초점을 바꿨다: "헬스가 200" 이 아니라 **다른 경로가 전부 401** 인지를 본다
+  (`/`, `/api/projects`, `/api/tasks`, `/api/data`, `/api/settings`, 그리고 `/api/health/`).
+  마지막 하나가 정확 일치를 증명한다 — 매처가 넓어지면 여기서 걸린다.
+- [10] 은 이제 인증 없이 헤더를 검사하고, 자격증명을 주면 인증 경로를 **추가로** 본다.
+- 실측: `caddy validate` 통과 → 재배포 → `verify-deploy.sh` **27/0, skip 1**(남은 skip 은
+  선택적인 인증 경로 검사뿐). 데이터 무손실(4 루트 / 14 노드), 배포 전 백업 `164552`.
+
+**(2) CI `docker-smoke` — 이미지 안을 보는 유일한 게이트.**
+`npm run verify` 는 이미지 속을 볼 수 없다. unit/server/E2E 가 전부 호스트 소스를 읽으므로
+Dockerfile `COPY` 누락은 어디서도 빨간불이 되지 않고 배포 순간에만 드러난다(`0fca603`, 그리고
+이번 `server/services/`). 새 잡이 두 이미지를 빌드·부팅하고 API 는 `/api/health`·
+`/api/projects`·`/api/tasks`(= 누락됐던 `services/taskService` 를 태우는 경로), 프론트는
+`index.html` + `assets/*.js` 를 확인한다.
+- **음성 검증까지 했다** — `COPY services ./services` 를 뺀 이미지를 만들어 돌렸더니
+  `Cannot find module '../services/taskService'` 로 기대대로 실패했다. 게이트가 그 결함을
+  실제로 잡는다.
+- 포트를 퍼블리시하지 않고 컨테이너 안에서 자기 자신을 찌른다(러너 포트 점유와 무관,
+  `verify-deploy.sh` 와 같은 방식). 프론트 프로브는 **`127.0.0.1`** 을 쓴다 — `nginx.conf` 가
+  IPv4 로만 listen 해서 `localhost` 는 `::1` 로 먼저 풀려 connection refused 가 된다(실측으로 발견).
+- 프론트 Dockerfile 도 `COPY index.html vite.config.js public src` 로 대상을 손으로 열거한다 —
+  같은 함정이 양쪽에 있어서 두 이미지를 다 스모크한다.
+
+**(3) `rotate-password.sh` 의 마지막 argv 노출 제거.**
+검증 curl 이 `-u user:pass` 를 써서 그 순간 `ps` 에 비밀번호가 보였다 — 스크립트 자신은 인자를
+받지 않으려고 설계됐는데 curl 에서 다시 새면 의미가 없다. `-K -` 로 설정을 stdin 으로 넘긴다
+(`printf` 는 bash 내장이라 그것도 argv 가 아니다). 설정 파일 형식이 `user = "값"` 이고 따옴표
+안에서 `\` 와 `"` 가 이스케이프 문자이므로 `curl_auth_conf()` 가 먼저 escape 한다.
+- 실측: `-v` 로 `Authorization: Basic cHJvYmU6cHcieA==` 가 실제 전송되는 것과, 디코딩 결과가
+  `probe:pw"x` 로 따옴표를 그대로 왕복하는 것을 확인했다. 검증 없이 넘겼다면 `-K` 가 무시돼
+  또 000 → 롤백이 됐을 것이다.
+
+**하지 않은 것**: 제품 기능 개선. 남은 ⬜ 는 §5.4-11 정보구조 재설계 하나이고 "프로젝트 수가
+늘어야 필요해진다" 는 조건 대기 중이다 — 지금 착수하면 근거 없는 작업이 된다. 새 방향은
+사용자가 정해야 생긴다. **운영 14 노드가 기대값인지 확인**도 여전히 열려 있다.
 
 ---
 

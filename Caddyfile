@@ -40,7 +40,15 @@
 		# 자격증명은 .env 로 주입한다 (docker-compose.yml 참조).
 		# 과거 이 자리에 사용자명과 bcrypt 해시가 평문 커밋돼 있었다 — 공개 저장소 기준 상시 노출.
 		# 해시 생성: docker run --rm caddy:2.10-alpine caddy hash-password --plaintext '새비밀번호'
-		basic_auth {
+		#
+		# /api/health 만 인증에서 제외한다 (`path` 는 정확 일치 — 접두어나 하위 경로가 아니다).
+		# 이유: basic_auth 의 401 응답에는 위 header 블록이 적용되지 않으므로(Caddy 동작),
+		# 자격증명이 없으면 검사할 수 있는 200 응답이 하나도 없었다. 그래서 보안 헤더·-Server·
+		# HSTS 검사는 비밀번호를 아는 사람만 돌릴 수 있었고 자동 검증에서는 통째로 skip 됐다.
+		# 노출되는 것은 `{ok:true, time}` 뿐이다 — 타임라인 데이터 경로는 전부 인증 뒤에 남는다.
+		# 이 매처를 넓히지 마라. /api/* 를 제외로 만들면 데이터 전체가 열린다.
+		@needs_auth not path /api/health
+		basic_auth @needs_auth {
 			{env.BASIC_AUTH_USER} {env.BASIC_AUTH_HASH}
 		}
 

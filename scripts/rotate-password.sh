@@ -124,14 +124,28 @@ HOST=$(hostname -I | awk '{print $1}')
 
 # 재생성 직후 caddy 가 443 을 잡기까지 몇 초 걸린다. 한 번 찔러 보고 판정하면 성공한 교체를
 # 실패로 오판해 롤백하므로, 연결이 될 때까지(=000 이 아닐 때까지) 기다린다.
+#
+# 자격증명은 `-u user:pass` 로 넘기지 않는다 — 그 순간 호스트의 `ps` 에 비밀번호가 그대로
+# 보인다. 이 스크립트는 자신의 argv 노출을 피하려고 인자를 받지 않는데 curl 에서 다시 새면
+# 의미가 없다. `-K -` 로 설정을 **stdin** 으로 넘긴다(printf 는 bash 내장이라 argv 도 아니다).
 probe() {
-    local code=000
+    local conf="${1:-}" code=000
     for _ in $(seq 1 20); do
-        code=$(curl -s -o /dev/null -w "%{http_code}" -m 5 -k "$@" "https://$HOST/" 2>/dev/null)
+        if [ -n "$conf" ]; then
+            code=$(printf '%s\n' "$conf" | curl -s -o /dev/null -w "%{http_code}" -m 5 -k -K - "https://$HOST/" 2>/dev/null)
+        else
+            code=$(curl -s -o /dev/null -w "%{http_code}" -m 5 -k "https://$HOST/" 2>/dev/null)
+        fi
         [ "$code" != "000" ] && break
         sleep 2
     done
     echo "$code"
+}
+
+# curl 설정 파일 형식은 `user = "값"` 이고 따옴표 안에서 \ 와 " 가 이스케이프 문자다 —
+# 비밀번호에 그 두 글자가 들어와도 깨지지 않게 먼저 escape 한다.
+curl_auth_conf() {
+    printf 'user = "%s"' "$(printf '%s' "$1" | sed 's/[\\"]/\\&/g')"
 }
 
 info "Caddy 에 적용 중 (스택 재생성 — 수 초간 중단된다)..."
@@ -146,7 +160,7 @@ fi
 info "검증 중 (대상: $HOST)..."
 
 CODE_NOAUTH=$(probe)
-CODE_AUTH=$(probe -u "$USER_NAME:$PASSWORD")
+CODE_AUTH=$(probe "$(curl_auth_conf "$USER_NAME:$PASSWORD")")
 unset PASSWORD
 
 if [ "$CODE_NOAUTH" = "401" ] && [ "$CODE_AUTH" = "200" ]; then
