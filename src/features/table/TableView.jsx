@@ -74,7 +74,6 @@ function TableView({
     onOpenDependencies,
     allTasks,
     dependencyIssues,
-    viewMode,
     isSearching
 }) {
     // 트리 구조를 평탄화하여 DnD에 사용
@@ -160,7 +159,7 @@ function TableView({
     };
 
     return (
-        <div className={`table-view ${viewMode === 'split' ? 'split-mode' : ''}`}>
+        <div className="table-view">
             <div className="table-container">
                 {/* 테이블 헤더 */}
                 <div className="table-header">

@@ -99,7 +99,7 @@ export const buildCommands = ({
     handlers,
 }) => {
     const h = handlers;
-    const isTimeline = viewMode === 'timeline' || viewMode === 'split';
+    const isTimeline = viewMode === 'timeline';
     const onOff = (flag) => (flag ? '켜짐' : '꺼짐');
     const cmds = [];
 
@@ -111,7 +111,6 @@ export const buildCommands = ({
     // ── 보기 ─────────────────────────────────────────
     [
         ['table', '표 뷰', 'table'],
-        ['split', '분할 뷰', 'split'],
         ['timeline', '타임라인 뷰', 'timeline gantt'],
     ].forEach(([mode, label, keywords]) => {
         if (viewMode === mode) return;

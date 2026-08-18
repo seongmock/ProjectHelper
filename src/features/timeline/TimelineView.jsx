@@ -40,7 +40,7 @@ import { useTimelineCapture } from './useTimelineCapture';
 import './TimelineView.css';
 
 // 작업명 한 줄 — dnd-kit 정렬 대상
-function SortableTaskNameItem({ task, selectedTaskId, editingTaskId, editingName, onSelect, onDoubleClick, onContextMenu, onEditChange, onEditBlur, onEditKeyDown }) {
+function SortableTaskNameItem({ task, selectedTaskId, editingTaskId, editingName, onSelect, onDoubleClick, onContextMenu, onEditChange, onEditBlur, onEditKeyDown, onToggleExpand }) {
     const {
         attributes,
         listeners,
@@ -71,6 +71,25 @@ function SortableTaskNameItem({ task, selectedTaskId, editingTaskId, editingName
             onDoubleClick={onDoubleClick}
             onContextMenu={onContextMenu}
         >
+            {/* 접기 토글. 분할 뷰가 없어진 뒤로 이것이 타임라인에서 가지를 접는 유일한
+                수단이다(접으면 자손의 일정은 요약 막대로 남는다 — rollupBars).
+                DnD 센서가 pointerdown 을 잡으므로 여기서 끊어 줘야 클릭이 드래그로
+                해석되지 않는다. */}
+            {task.children?.length > 0 ? (
+                <button
+                    className="expand-toggle icon"
+                    onClick={(e) => { e.stopPropagation(); onToggleExpand?.(task.id, !task.expanded); }}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onMouseDown={(e) => e.stopPropagation()}
+                    title={task.expanded ? '접기' : '펼치기'}
+                    aria-expanded={!!task.expanded}
+                >
+                    {task.expanded ? '▼' : '▶'}
+                </button>
+            ) : (
+                <span className="expand-spacer" />
+            )}
+
             {editingTaskId === task.id ? (
                 <input
                     type="text"
@@ -89,7 +108,7 @@ function SortableTaskNameItem({ task, selectedTaskId, editingTaskId, editingName
                     onPointerDown={(e) => e.stopPropagation()} // 드래그 방지
                 />
             ) : (
-                task.name
+                <span className="task-name-text" title={task.name}>{task.name}</span>
             )}
             {/* 구분선 (Divider) */}
             {task.divider && task.divider.enabled && (
@@ -126,9 +145,9 @@ const TimelineView = forwardRef(({
     onOutdentTask,
     onContextMenu,
     onMilestoneContextMenu,
+    onToggleExpand,
     onOpenMilestoneAdd,
     timeScale,
-    viewMode,
     zoomLevel = 1.0,
     showToday = true,
     isCompact = false,
@@ -279,7 +298,7 @@ const TimelineView = forwardRef(({
     }), [copyToClipboard, startLinking]);
 
     return (
-        <div className={`timeline-view ${viewMode === 'split' ? 'split-mode' : ''} ${isCompact ? 'compact-mode' : ''}`} ref={containerRef} data-chart-theme={chartTheme}>
+        <div className={`timeline-view ${isCompact ? 'compact-mode' : ''}`} ref={containerRef} data-chart-theme={chartTheme}>
             <div className={`timeline-container ${showTaskNames ? 'with-names' : ''}`} ref={captureRef}>
                 {/* 왼쪽 작업명 컬럼 */}
                 {showTaskNames && (<>
@@ -317,6 +336,7 @@ const TimelineView = forwardRef(({
                                                     setEditingName(task.name);
                                                 }}
                                                 onContextMenu={(e) => handleContextMenu(e, task, dateRange.start)}
+                                                onToggleExpand={onToggleExpand}
                                                 onEditChange={(e) => setEditingName(e.target.value)}
                                                 onEditBlur={() => {
                                                     if (editingName.trim() !== task.name) {

@@ -146,8 +146,9 @@ describe('buildCommands', () => {
         expect(list).not.toContain('display:showBarLabels');
     });
 
-    it('분할 뷰는 타임라인으로 취급한다', () => {
-        expect(ids(build({ viewMode: 'split' }))).toContain('file:image');
+    it("제거된 '분할' 뷰 명령은 더 이상 제시되지 않는다", () => {
+        expect(ids(build({ viewMode: 'table' }))).not.toContain('view:split');
+        expect(ids(build({ viewMode: 'timeline' }))).not.toContain('view:split');
     });
 
     it('현재 시간축은 다시 제시하지 않는다', () => {

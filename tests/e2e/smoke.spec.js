@@ -116,17 +116,17 @@ test.describe('실행 취소 / 다시 실행', () => {
 });
 
 test.describe('뷰 전환', () => {
-    test('표 / 타임라인 / 분할 뷰 전환', async ({ page }) => {
+    test('표 / 타임라인 뷰 전환 — 분할 뷰는 제거됐다', async ({ page }) => {
         await openTableView(page);
         await expect(page.locator('.timeline-view')).toHaveCount(0);
-
-        await page.getByTitle('분할 뷰').click();
-        await expect(page.locator('.table-view')).toBeVisible();
-        await expect(page.locator('.timeline-view').first()).toBeVisible();
 
         await page.getByTitle('타임라인 뷰').click();
         await expect(page.locator('.table-view')).toHaveCount(0);
         await expect(page.locator('.timeline-view').first()).toBeVisible();
+
+        // 두 뷰를 반씩 보여 주던 '분할'은 어느 쪽도 쓸 만한 폭이 아니어서 제거했다.
+        // 버튼이 남아 있으면 사용자가 없는 기능을 찾는다.
+        await expect(page.getByTitle('분할 뷰')).toHaveCount(0);
     });
 });
 

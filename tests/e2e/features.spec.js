@@ -640,11 +640,10 @@ test.describe('화면 밖으로 나간 의존성', () => {
     test('부모를 접어도 화살표가 사라지지 않는다 — 대표 행으로 끌어올려 그린다', async ({ page }) => {
         await linkChildToSibling(page);
 
-        // 접기 토글은 표에만 있다 → 분할 뷰에서 접고 같은 화면의 타임라인을 본다
-        await page.getByTitle('분할 뷰').click();
-        const parent = page.locator('.task-row', { hasText: '프로젝트 기획' }).first();
+        // 접기 토글은 타임라인 작업명 컬럼에 있다 (분할 뷰 제거 후 이것이 유일한 수단)
+        const parent = page.locator('.task-name-item', { hasText: '프로젝트 기획' }).first();
         await parent.locator('.expand-toggle').click();
-        await expect(page.locator('.task-row', { hasText: '설계 문서 작성' })).toHaveCount(0);
+        await expect(page.locator('.task-name-item', { hasText: '설계 문서 작성' })).toHaveCount(0);
 
         // 고치기 전에는 여기서 0 이었다 — 접는 것만으로 연결이 없어진 것처럼 보였다
         const arrow = page.locator('.dependency-layer path[data-rolled-up="true"]');
@@ -976,19 +975,18 @@ test.describe('접힌 가지의 요약 막대', () => {
     // 그 자리는 빈 채로 남고, 사용자에게는 "일정이 없다"와 "접었다"가 똑같아 보였다.
     // 판정은 rollupBars.resolveRollup 이 하고(단위테스트가 규칙을 고정한다), 여기서는
     // 실제 화면에서 막대와 표식이 남는지만 본다.
-    const row = (page, name) => page.locator('.task-row', { hasText: name }).first();
+    const row = (page, name) => page.locator('.task-name-item', { hasText: name }).first();
     const rollupBars = (page) => page.getByTestId('rollup-bar');
 
-    // 접기 토글은 표에만 있다 → 분할 뷰에서 접고 같은 화면의 타임라인을 본다
-    const collapseInSplit = async (page, name) => {
-        await page.getByTitle('분할 뷰').click();
+    // 접기 토글은 타임라인 작업명 컬럼에 있다 (분할 뷰 제거 후 이것이 유일한 수단)
+    const collapse = async (page, name) => {
         await row(page, name).locator('.expand-toggle').click();
     };
 
     test('겹치는 자손의 기간은 하나의 요약 막대로 합쳐 남는다', async ({ page }) => {
         // '개발' 의 두 자식은 2026-03-01~03-31 이 겹친다 → 02-10 ~ 04-30 한 구간
-        await collapseInSplit(page, '개발');
-        await expect(page.locator('.task-row', { hasText: '프론트엔드 개발' })).toHaveCount(0);
+        await collapse(page, '개발');
+        await expect(page.locator('.task-name-item', { hasText: '프론트엔드 개발' })).toHaveCount(0);
 
         // 고치기 전에는 여기서 0 이었다 — 접는 것만으로 자손의 일정이 화면에서 없어졌다
         await expect(rollupBars(page)).toHaveCount(1);
@@ -1004,7 +1002,7 @@ test.describe('접힌 가지의 요약 막대', () => {
     test('떨어져 있는 구간은 한 덩어리로 뭉치지 않는다', async ({ page }) => {
         // '프로젝트 기획' 의 두 자식은 01-20 / 01-21 로 맞닿지 않는다(하루 뜬다).
         // min~max 한 덩어리로 그리면 없는 일정을 있다고 말하는 셈이다.
-        await collapseInSplit(page, '프로젝트 기획');
+        await collapse(page, '프로젝트 기획');
         await expect(rollupBars(page)).toHaveCount(2);
         await expect(rollupBars(page).first()).toHaveAttribute('title', /요구사항 분석/);
         await expect(rollupBars(page).last()).toHaveAttribute('title', /설계 문서 작성/);
@@ -1018,7 +1016,7 @@ test.describe('접힌 가지의 요약 막대', () => {
         await page.locator('.modal-overlay button[type="submit"]').click();
         await expect(page.locator('.milestone-marker', { hasText: '중간 점검' })).toHaveCount(1);
 
-        await collapseInSplit(page, '프로젝트 기획');
+        await collapse(page, '프로젝트 기획');
         await expect(page.locator('.milestone-marker', { hasText: '중간 점검' })).toHaveCount(0);
 
         const mark = page.getByTestId('rollup-milestone');

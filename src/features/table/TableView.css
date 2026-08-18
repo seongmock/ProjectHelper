@@ -4,11 +4,6 @@
     background-color: var(--color-bg-primary);
 }
 
-.table-view.split-mode {
-    flex: 0 0 500px;
-    border-right: 1px solid var(--color-border);
-}
-
 .table-container {
     min-width: 980px;
 }
@@ -83,12 +78,6 @@
 }
 
 @media (max-width: 768px) {
-    .table-view.split-mode {
-        flex: 1;
-        border-right: none;
-        border-bottom: 1px solid var(--color-border);
-    }
-
     .table-container {
         min-width: 100%;
     }

@@ -54,3 +54,33 @@ describe('uiStore — searchCollapsedIds', () => {
         expect(store().searchQuery).toBe('');
     });
 });
+
+// 뷰 모드는 저장 파일(내보내기)에도 들어 있어서 **모르는 값이 밖에서 들어올 수 있다.**
+// '분할'을 제거한 뒤로 'split' 이 그런 값이고, 그대로 들어가면 App 의 두 조건 어느 쪽도
+// 참이 아니라 본문이 빈 화면이 된다 — 그래서 게이트가 setViewMode 하나뿐이어야 한다.
+describe('uiStore — viewMode 정규화', () => {
+    beforeEach(() => {
+        useUiStore.setState({ viewMode: 'timeline' });
+    });
+
+    it('아는 값은 그대로 둔다', () => {
+        store().setViewMode('table');
+        expect(store().viewMode).toBe('table');
+        store().setViewMode('timeline');
+        expect(store().viewMode).toBe('timeline');
+    });
+
+    it("제거된 'split' 은 타임라인으로 되돌린다 (빈 화면 방지)", () => {
+        store().setViewMode('table');
+        store().setViewMode('split');
+        expect(store().viewMode).toBe('timeline');
+    });
+
+    it('모르는 값·빈 값도 타임라인으로 떨어진다', () => {
+        for (const bad of ['gantt', '', null, undefined, 42]) {
+            store().setViewMode('table');
+            store().setViewMode(bad);
+            expect(store().viewMode).toBe('timeline');
+        }
+    });
+});

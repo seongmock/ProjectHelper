@@ -7,10 +7,17 @@
 // 없고, 하나를 열 때 다른 것을 닫는 규칙을 강제할 수 없다.
 import { create } from 'zustand';
 
+export const VIEW_MODES = ['table', 'timeline'];
+
 export const useUiStore = create((set) => ({
     // ── 뷰 ───────────────────────────────────────────
-    viewMode: 'timeline', // 'table' | 'timeline' | 'split'
-    setViewMode: (viewMode) => set({ viewMode }),
+    // 뷰는 표/타임라인 둘이다. '분할'은 2026-08-18 에 제거했다.
+    // **모르는 값은 여기서 걸러진다** — 내보낸 파일에는 viewMode 가 들어 있어서 예전에
+    // 저장한 'split' 을 가져올 수 있고, 그 값이 그대로 들어가면 App 의 두 조건
+    // (=== 'table' / === 'timeline') 어느 쪽도 참이 아니라 **본문이 빈 화면이 된다**.
+    // 전환 경로가 셋(툴바·팔레트·가져오기)이므로 판정은 이 게이트 한 곳에만 둔다.
+    viewMode: 'timeline',
+    setViewMode: (viewMode) => set({ viewMode: VIEW_MODES.includes(viewMode) ? viewMode : 'timeline' }),
 
     // 검색을 지우면 그동안 접어 둔 것도 함께 버린다 — 그 접기는 검색 결과에서만 의미가 있다.
     searchQuery: '',

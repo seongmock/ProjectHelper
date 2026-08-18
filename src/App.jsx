@@ -247,7 +247,7 @@ function App() {
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [undo, redo, io, handleAddTask]);
 
-    // 검색어 필터 — split 모드에서 중복 계산 방지
+    // 검색어 필터 — 뷰가 바뀌어도 다시 계산되지 않게 useMemo 로 둔다
     const isSearching = searchQuery.trim().length > 0;
     const filteredTasks = useMemo(
         () => filterTasksByQuery(tasks, searchQuery, searchCollapsedIds),
@@ -397,7 +397,7 @@ function App() {
                     </div>
                 ) : (
                     <>
-                        {(viewMode === 'table' || viewMode === 'split') && (
+                        {viewMode === 'table' && (
                             <TableView
                                 tasks={filteredTasks}
                                 selectedTaskId={selectedTaskId}
@@ -419,12 +419,11 @@ function App() {
                                 // 한다 — 타임라인 화살표·인스펙터와 같은 이유다.
                                 allTasks={tasks}
                                 dependencyIssues={dependencyIssues}
-                                viewMode={viewMode}
                                 isSearching={isSearching}
                             />
                         )}
 
-                        {(viewMode === 'timeline' || viewMode === 'split') && (
+                        {viewMode === 'timeline' && (
                             <TimelineView
                                 ref={timelineRef}
                                 tasks={filteredTasks}
@@ -440,8 +439,10 @@ function App() {
                                 onOutdentTask={actions.outdent}
                                 onContextMenu={handleContextMenu}
                                 onMilestoneContextMenu={handleMilestoneContextMenu}
+                                // 접기는 표와 같은 게이트를 쓴다 — 검색 중 여부에 따라
+                                // 기록 위치가 다르고, 그 판단은 handleToggleExpand 에만 있다
+                                onToggleExpand={handleToggleExpand}
                                 timeScale={timeScale}
-                                viewMode={viewMode}
                                 zoomLevel={zoomLevel}
                                 showToday={showToday}
                                 isCompact={isCompact}

@@ -1,11 +1,13 @@
 import {
-    Table2, Columns2, ChartGantt, ZoomIn, ZoomOut, Camera, Code2, Search, Plus, PanelRight,
+    Table2, ChartGantt, ZoomIn, ZoomOut, Camera, Code2, Search, Plus, PanelRight,
     Command,
 } from 'lucide-react';
 import DisplayOptionsMenu from './DisplayOptionsMenu';
 import './Toolbar.css';
 
 // 툴바는 3그룹이다: [뷰 전환] | [시간축·줌] | [표시 옵션·내보내기].
+// 뷰는 표/타임라인 둘이다 — '분할'은 2026-08-18 에 제거했다(둘을 반씩 보여 주느라 어느
+// 쪽도 쓸 만한 폭이 아니었다). 표에만 있던 접기 토글은 타임라인 작업명 컬럼으로 옮겼다.
 // 예전에는 표시 토글 6종과 차트 테마까지 전부 상시 버튼이라 좁은 화면에서 넘쳤다.
 function Toolbar({
     viewMode,
@@ -45,7 +47,7 @@ function Toolbar({
     onToggleInspector,
     onOpenPalette,
 }) {
-    const isTimeline = viewMode === 'timeline' || viewMode === 'split';
+    const isTimeline = viewMode === 'timeline';
 
     return (
         <div className="toolbar">
@@ -60,14 +62,6 @@ function Toolbar({
                         >
                             <Table2 size={15} aria-hidden="true" />
                             <span>표</span>
-                        </button>
-                        <button
-                            className={viewMode === 'split' ? 'active' : ''}
-                            onClick={() => onViewModeChange('split')}
-                            title="분할 뷰"
-                        >
-                            <Columns2 size={15} aria-hidden="true" />
-                            <span>분할</span>
                         </button>
                         <button
                             className={viewMode === 'timeline' ? 'active' : ''}
