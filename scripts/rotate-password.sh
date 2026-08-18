@@ -99,26 +99,54 @@ awk -v u="$USER_NAME" -v h="$HASH" '
 chmod 600 "$ENV_FILE"
 
 # ── 적용 ─────────────────────────────────────────────
-# Caddyfile 은 볼륨 마운트이고 자격증명은 환경변수이므로 컨테이너 재생성이 필요하다.
-# 주의: docker-compose v1.29.2 의 `--force-recreate <서비스>` 는 최신 Docker Engine 에서
-#       KeyError 로 죽으면서 컨테이너를 rename+정지시킨다. 전체 up 을 쓴다.
-info "Caddy 에 적용 중..."
+# 자격증명은 컨테이너 생성 시 환경변수로 주입되고(docker-compose.yml) Caddyfile 이
+# {env.BASIC_AUTH_HASH} 를 읽으므로 `docker restart` 로는 반영되지 않는다 — 재생성이 필요하다.
+#
+# ⚠️ 이 호스트에는 compose v2 플러그인이 없고 docker-compose v1.29.2 만 있다. v1 은 최신
+#    Docker Engine 에서 기존 컨테이너를 *재생성*할 때 KeyError: 'ContainerConfig' 로 죽는데,
+#    죽기 전에 그 컨테이너를 해시 접두어로 rename 하고 정지시킨다. 그러면 443 에서 아무것도
+#    응답하지 않아 아래 검증이 401/200 이 아니라 000 을 받고, 교체가 롤백되며, 이름이 바뀐
+#    잔여 컨테이너(`<해시>_caddy-https`)를 손으로 지워야 한다 — 2026-08-18 에 실제로 발생했다.
+#    그래서 `up` 단독이 아니라 start_server.sh 와 같은 순서(down → up)를 쓴다.
+#    `-v` 는 어떤 경로에서도 쓰지 않는다 — api_data 볼륨에 운영 데이터가 있다.
 COMPOSE=""
 if d compose version &>/dev/null; then COMPOSE="compose"; fi
 
-if [ -n "$COMPOSE" ]; then
-    d compose up -d caddy >/dev/null 2>&1
-else
-    sudo docker-compose up -d >/dev/null 2>&1
+apply_stack() {
+    if [ -n "$COMPOSE" ]; then
+        d compose down --remove-orphans && d compose up -d
+    else
+        sudo docker-compose down --remove-orphans && sudo docker-compose up -d
+    fi
+}
+
+HOST=$(hostname -I | awk '{print $1}')
+
+# 재생성 직후 caddy 가 443 을 잡기까지 몇 초 걸린다. 한 번 찔러 보고 판정하면 성공한 교체를
+# 실패로 오판해 롤백하므로, 연결이 될 때까지(=000 이 아닐 때까지) 기다린다.
+probe() {
+    local code=000
+    for _ in $(seq 1 20); do
+        code=$(curl -s -o /dev/null -w "%{http_code}" -m 5 -k "$@" "https://$HOST/" 2>/dev/null)
+        [ "$code" != "000" ] && break
+        sleep 2
+    done
+    echo "$code"
+}
+
+info "Caddy 에 적용 중 (스택 재생성 — 수 초간 중단된다)..."
+if ! apply_stack; then
+    warn "컨테이너 재생성이 실패했다. .env 를 되돌린다..."
+    cp -p "$BACKUP" "$ENV_FILE"
+    apply_stack >/dev/null 2>&1
+    die "재생성 실패. 상태 확인: sudo docker ps -a (이름이 <해시>_caddy-https 인 잔여 컨테이너가 있으면 rm -f)"
 fi
-sleep 3
 
 # ── 검증 ─────────────────────────────────────────────
-HOST=$(hostname -I | awk '{print $1}')
 info "검증 중 (대상: $HOST)..."
 
-CODE_NOAUTH=$(curl -s -o /dev/null -w "%{http_code}" -m 8 -k "https://$HOST/" 2>/dev/null)
-CODE_AUTH=$(curl -s -o /dev/null -w "%{http_code}" -m 8 -k -u "$USER_NAME:$PASSWORD" "https://$HOST/" 2>/dev/null)
+CODE_NOAUTH=$(probe)
+CODE_AUTH=$(probe -u "$USER_NAME:$PASSWORD")
 unset PASSWORD
 
 if [ "$CODE_NOAUTH" = "401" ] && [ "$CODE_AUTH" = "200" ]; then
@@ -135,13 +163,8 @@ die_msg="검증 실패 (인증 없이=$CODE_NOAUTH, 새 자격증명=$CODE_AUTH 
 echo -e "${RED}[rotate] $die_msg${NC}" >&2
 warn "이전 .env 로 롤백한다..."
 cp -p "$BACKUP" "$ENV_FILE"
-if [ -n "$COMPOSE" ]; then
-    d compose up -d caddy >/dev/null 2>&1
-else
-    sudo docker-compose up -d >/dev/null 2>&1
-fi
-sleep 3
-ROLLBACK_CODE=$(curl -s -o /dev/null -w "%{http_code}" -m 8 -k "https://$HOST/" 2>/dev/null)
+apply_stack >/dev/null 2>&1
+ROLLBACK_CODE=$(probe)
 warn "롤백 완료 (현재 응답: $ROLLBACK_CODE). 이전 비밀번호가 다시 유효하다."
 warn "Caddy 로그: sudo docker logs --tail 30 caddy-https"
 exit 1
