@@ -23,7 +23,7 @@ warn() { echo -e "${YELLOW}[rotate]${NC} $*"; }
 die()  { echo -e "${RED}[rotate] $*${NC}" >&2; exit 1; }
 
 ENV_FILE=".env"
-MIN_LEN=12
+MIN_LEN=10
 GENERATE=false
 NEW_USER=""
 
