@@ -218,7 +218,7 @@ Postgres+pgvector · 멀티테넌시 · RAG/Copilot · Workflow 엔진 · 실시
 |---|---|
 | basicauth 비밀번호 교체 | 기존 해시가 git 이력 208커밋에 잔존. **비밀번호 실물 교체는 사용자만 가능** — 도구는 준비돼 있다: `./scripts/rotate-password.sh`(입력 비노출·`.env` 백업·실패 시 자동 롤백). 실행하면 Caddy 컨테이너가 재생성된다 |
 | git 이력 정리 | `git filter-repo`로 과거 해시 제거 vs 저장소 private 전환 |
-| 운영 재배포 시점 | Phase 0/1 반영에는 재배포 필요. 다운타임 수용 시점 협의 |
+| ~~운영 재배포 시점~~ | ✅ 2026-08-18 재배포 완료 (§5 참조). 다음 재배포도 같은 절차 |
 | `restored-data.json` | 저장소 루트의 실데이터 백업 — 저장소 밖으로 이동할지 |
 | 복원된 운영 데이터 | 2026-08-05 복원본이 최신인지 사용자 확인 필요 |
 | 푸시 전략 | main 직푸시 vs 브랜치+PR. 저장소 이력은 main 직푸시였고 `npm run verify` 가 게이트다 |
@@ -1261,10 +1261,37 @@ Ctrl+Z 를 눌러도 진행률이 5%씩, 날짜가 하루씩 돌아간다(사용
   (`package.json` 무변경). 프론트·서버 양쪽 audit 0건. 이 게이트는 앞으로도 전이 의존의 새
   권고마다 red 를 낼 수 있다 — 정책은 그대로 두는 것이 맞고(취약점이 빌드를 막는다),
   **대응은 lockfile 갱신이다.**
-- CI 경고 하나는 남겼다(실패 아님): `actions/checkout@v4`/`setup-node@v4` 가 Node 20 기반이라
-  deprecated 알림이 뜬다. `@v5` 로 올릴 자리이고 사용자 판단 대기.
+- CI 액션을 `@v5` 로 승급했다(`checkout`/`setup-node`/`upload-artifact`). v4 는 Node 20
+  런타임이라 러너가 Node 24 로 강제 실행하며 deprecation 경고를 냈다 — 입력은 v5 에서 그대로다.
+  `be19f07` 런에서 두 잡 모두 통과 확인.
+- `scripts/rotate-password.sh` 의 `MIN_LEN` 12 → 10 (사용자 요청). **최대 길이 제한은 원래
+  없다** — 그 검사는 최소 길이다. `--generate` 는 그대로 24자를 만든다.
 - **다음 세션 후보**(변동 없음): 표(TableView)의 접힌 부모 행에도 08-17 과 같은 요약이 없다.
   §5.4-11(정보구조 재설계)은 여전히 트리거 대기.
+
+---
+
+### 2026-08-18 (같은 날, 이어서) — 운영 재배포: 33커밋 반영, Dockerfile 누락 1건 발각
+
+**첫 시도는 실패했고 그 실패가 실재하는 결함을 잡았다.** `server/Dockerfile` 이 P2-4(2026-08-06)
+에서 새로 생긴 `server/services/` 를 이미지에 넣지 않았다 — `routes/tasks.js` 가
+`require('../services/taskService')` 에서 `MODULE_NOT_FOUND` 로 죽고, caddy 는 api 의
+`service_healthy` 를 기다리므로 **배포 전체가 실패했다**(`Container ... is unhealthy`).
+
+- **테스트로는 절대 잡히지 않는 종류다.** unit/server/E2E 는 모두 호스트의 소스를 직접 읽고,
+  CI 는 이미지를 빌드하지 않는다. 이미지 안의 파일 목록은 배포할 때만 검증된다 — 그래서
+  리팩터 후 12일(커밋 33건) 동안 아무 신호 없이 잠들어 있었다. 같은 사고가 전에도 있었다
+  (`0fca603 fix(deploy): ship full server source in image`).
+- 조치는 `COPY services ./services` 한 줄 + **왜 이 목록을 함께 고쳐야 하는지** 주석.
+  런타임에 필요한 것은 `index.js`/`openapi.yaml`/`lib`/`routes`/`services` 다(로컬 require 전수 확인).
+- **재배포 결과**: 빌드 → 기동 → 헬스게이트 통과. `verify-deploy.sh` **16/16 통과, 실패 0**
+  (인증경계 401·non-root·gzip·immutable 캐시·NODE_ENV·스택트레이스 미유출·백업 최신성).
+- **데이터는 그대로다**: `default` 프로젝트 루트 4 · 전체 14노드 · revision 5.
+  배포 스크립트가 만든 배포 전 백업은 `backups/ph-data-20260818-161136.tar.gz`.
+- 절대 규칙은 지켰다 — `down -v` 없음, `--force-recreate <서비스>` 없음, 백업 먼저.
+- **후속 후보**: 이미지 내용물을 검증하는 게이트가 없다. 가장 싼 형태는 CI 에서 API 이미지를
+  빌드해 `node -e "require('./index.js')"` 수준의 부팅 스모크를 한 번 돌리는 것이다(현재 CI 는
+  이미지를 아예 만들지 않는다). 넣을지는 사용자 판단.
 
 ---
 

@@ -10,10 +10,16 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 
-# 서버 소스 (index.js + lib/ + routes/ + openapi.yaml)
+# 서버 소스 (index.js + lib/ + routes/ + services/ + openapi.yaml)
+#
+# ⚠️ 런타임에 필요한 디렉토리를 여기서 빠뜨리면 컨테이너가 MODULE_NOT_FOUND 로 죽고,
+#    caddy 가 api 의 healthy 를 기다리므로 배포 전체가 실패한다. 실제로 P2-4(2026-08-06)
+#    에서 새로 생긴 services/ 가 여기 없어서 첫 재배포가 실패했다.
+#    새 디렉토리를 추가하면 이 목록도 함께 고쳐야 한다.
 COPY index.js openapi.yaml ./
 COPY lib ./lib
 COPY routes ./routes
+COPY services ./services
 
 # /app 전체를 non-root 사용자 소유로 만든다.
 # node 이미지에는 uid/gid 1000 인 `node` 사용자가 이미 있다.
