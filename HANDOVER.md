@@ -120,6 +120,7 @@ npm run lint
 | P1-5 | ESLint + CI 게이트(lint·audit·unit) | ✅ | `npm run lint`, CI 워크플로 |
 | P1-5b | CI 이미지 부팅 스모크(`docker-smoke`) — Dockerfile COPY 누락을 잡는 유일한 게이트 | ✅ 2026-08-18 | COPY services 를 뺀 이미지로 음성 검증 완료(§5 참조) |
 | P1-6 | E2E 가드 정리 → 28/28 green | ✅ | skip 0으로 전건 통과 |
+| P1-8 | 브라우저로 운영에 접속할 수 있게 한다(`default_sni` + 클라이언트 CA 신뢰) | ✅ 2026-08-18 | `verify-deploy.sh` [13] — SNI 없는 연결이 받는 인증서의 SAN 확인 (§5 #8) |
 | P1-7 | UI Quick Win | ✅ 6/6 | 스모크 테스트 + 육안 |
 
 P1-7 세부 (실사 §5.4 Quick Win 기준):
@@ -1396,6 +1397,65 @@ Dockerfile `COPY` 누락은 어디서도 빨간불이 되지 않고 배포 순�
 **하지 않은 것**: 제품 기능 개선. 남은 ⬜ 는 §5.4-11 정보구조 재설계 하나이고 "프로젝트 수가
 늘어야 필요해진다" 는 조건 대기 중이다 — 지금 착수하면 근거 없는 작업이 된다. 새 방향은
 사용자가 정해야 생긴다. **운영 14 노드가 기대값인지 확인**도 여전히 열려 있다.
+
+---
+
+### 2026-08-18 #8 — 스크립트는 전부 통과하는데 사람은 브라우저로 들어갈 수 없었다
+
+사용자 보고: **"paseo 내의 브라우저상에서 https://10.178.21.120/ 접속이 안 되네
+ERR_CERT_AUTHORITY_INVALID"**. 처음엔 자체서명 CA 를 신뢰 저장소에 안 넣은 문제로 보였지만,
+그것을 고치자 **오류 코드가 바뀌면서** 진짜 원인이 드러났다. 두 개의 벽이 겹쳐 있었다.
+
+**벽 1 — 신뢰(CA). Chromium/Electron 은 `/etc/ssl/certs` 를 안 본다.**
+리눅스의 Chromium 계열은 사용자 CA 를 `~/.pki/nssdb` 에서 읽는다. `certutil` 이 없어서
+`libnss3-tools` 를 깔고, `caddy-https` 컨테이너의
+`/data/caddy/pki/authorities/local/root.crt`(`CN = Caddy Local Authority - 2026 ECC Root`,
+2036 년까지 유효)를 `-t "C,,"`(SSL 서버 인증용 CA 로만) 등록했다. 브라우저 재시작도 필요 없었다.
+
+**벽 2 — 이름(SAN). 이것이 실제 원인이었고, 자동 검증이 볼 수 없는 자리에 있었다.**
+CA 를 신뢰시키자 `ERR_CERT_AUTHORITY_INVALID` → `ERR_CERT_COMMON_NAME_INVALID` 로 바뀌었다.
+`openssl` 로 SNI 유무를 갈라 찔러 보니 답이 나왔다:
+
+| 접속 방식 | 받는 인증서 SAN |
+|---|---|
+| `-servername 10.178.21.120` (curl·스크립트) | `IP:10.178.21.120` ✅ |
+| `-noservername` (**IP 주소를 입력한 브라우저**) | `IP:172.18.0.4` ❌ |
+
+브라우저는 **주소가 IP 리터럴이면 SNI 를 보내지 않는다**(RFC 6066 은 호스트명만 허용한다).
+SNI 가 없으면 `tls internal { on_demand }` 는 발급할 이름을 알 수 없어 **연결의 로컬 주소**로
+발급하는데, Caddy 는 docker 네트워크 안에 있으므로 그 주소가 컨테이너 IP 였다. 즉 브라우저는
+`172.18.0.4` 짜리 인증서를 받아 주소창의 `10.178.21.120` 과 맞지 않아 거부했다.
+
+**이 결함이 오래 살아남은 이유가 핵심이다.** `curl` 과 `openssl -servername` 은 SNI 를 보낸다.
+그래서 `verify-deploy.sh` 27건, 헬스게이트, `start_server.sh` 가 **전부 초록불인데 사람은
+들어갈 수 없는** 상태였다 — 검증 도구가 사용자와 다른 방식으로 접속하고 있었다.
+"인증 없이 검사되게 만들었다"(#7)와 같은 종류의 사각지대이고, 이번엔 방식의 차이였다.
+
+**고친 것**
+- `Caddyfile` 전역 블록에 `default_sni {$SITE_HOST:10.178.21.120}`. `tls` 의 하위 지시어가
+  아니라 **전역 옵션**이다(`tls { default_sni }` 는 `unknown subdirective` 로 거부된다 — 실측).
+  격리 컨테이너에서 먼저 증명했다: 적용 후 SNI 없는 연결 → `IP:10.178.21.120`, SNI 를 보내는
+  연결 → 그 이름의 인증서(`on_demand` 동작은 그대로 유지된다).
+- `SITE_HOST` 를 **compose 에는 일부러 넣지 않았다.** `${SITE_HOST:-}` 로 넣으면 값이 없을 때
+  빈 문자열이 주입돼 `default_sni` 가 비고 caddy 기동이 깨진다. 서버를 옮기면 Caddyfile 의
+  기본값을 고치거나 caddy 컨테이너에 직접 환경변수를 준다.
+- `verify-deploy.sh` **[13]** 신설 — `-noservername` 으로 붙어 SAN 에 대상 호스트가 있는지 본다.
+  이 검사만이 "브라우저로 들어갈 수 있는가"를 대신 말해 준다. **28/0**(skip 1 = 선택적 인증 경로).
+- 적용은 `docker restart caddy-https` 로 끝났다 — `Caddyfile` 은 bind-mount 이고 환경변수는
+  건드리지 않았으므로 컨테이너 **재생성이 필요 없다**(v1.29.2 의 `ContainerConfig` 함정을 피한다).
+  `admin off` 라서 `caddy reload` 는 쓸 수 없다. 그래도 규칙대로 사전 백업(`170710`)을 먼저 했다.
+
+**검증**: 헤드리스 Chrome(같은 `~/.pki/nssdb` 를 읽는다)으로 `https://10.178.21.120/` →
+인증서 오류 페이지가 사라지고 401 + `WWW-Authenticate: Basic` 만 남았다. paseo 브라우저에서
+`https://10.178.21.120/api/health` → `{"ok":true,...}` 실측. `npm run verify` 통과(E2E 80/80).
+
+**남은 벽(고치지 않음)**: basicauth 는 **네이티브 대화상자**라 자동화가 채울 수 없다. 사람이
+직접 입력하면 되고, 그래서 `/api/health` 예외(#7)가 자동 점검의 유일한 창구다.
+자체서명을 그만두고 **사내 CA 발급 인증서**로 가면 클라이언트마다 CA 를 심는 일도, 이 SNI
+문제도 함께 사라지고 HSTS 도 켤 수 있다(`Caddyfile` 주석의 TODO). 사용자 결정 사항이다.
+
+**정리한 임시물**: `/tmp/ph-prod-view`(운영 데이터 읽기전용 사본으로 띄웠던 로컬 인스턴스)와
+로컬 dev 서버(5173·3100)를 모두 종료·삭제했다 — 남겨 두면 E2E 유령 서버 함정이 된다.
 
 ---
 

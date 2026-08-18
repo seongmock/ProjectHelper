@@ -154,6 +154,24 @@ latest=$(find backups -name 'ph-data-*.tar.gz' -mtime -2 2>/dev/null | head -1)
 [ -n "$latest" ] && ok "48시간 내 백업 존재: $(basename "$latest")" || no "최근 백업 없음 — ./scripts/backup-data.sh 실행"
 
 echo
+echo "[13] TLS 인증서 이름 (SNI 없는 접속 = 브라우저로 IP 주소 접속)"
+# 이 검사가 따로 있는 이유: `curl` 과 `openssl -servername` 은 SNI 를 보내므로 위 검사가
+# 전부 통과하는데도 **사람은 브라우저로 들어갈 수 없는** 상태가 가능하다. 브라우저는
+# IP 주소로 접속할 때 SNI 를 보내지 않고(RFC 6066), 그러면 Caddy 의 on_demand 가
+# 컨테이너 IP 로 인증서를 발급해 ERR_CERT_COMMON_NAME_INVALID 가 됐다(2026-08-18 실측).
+# Caddyfile 의 `default_sni` 가 그 경로를 고정한다 — 여기서 회귀를 잡는다.
+if command -v openssl &>/dev/null; then
+    san=$(echo | openssl s_client -connect "$HOST:443" -noservername 2>/dev/null \
+        | openssl x509 -noout -ext subjectAltName 2>/dev/null | tr -d ' \n')
+    if echo "$san" | grep -qF "$HOST"; then
+        ok "SNI 없는 연결이 $HOST 용 인증서를 받는다"
+    else
+        no "SNI 없는 연결이 엉뚱한 인증서를 받는다 (${san:-응답 없음}) — 브라우저 접속이 깨진다"
+    fi
+else
+    skip "openssl 없음 — 인증서 이름 검사 건너뜀"
+fi
+
 echo "───────────────────────────────"
 echo -e "통과 ${GREEN}$PASS${NC} / 실패 ${RED}$FAIL${NC}"
 [ "$FAIL" -eq 0 ] || exit 1
