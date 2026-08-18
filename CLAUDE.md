@@ -9,6 +9,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 >
 > Related docs: `HANDOVER.md` (진행 상태 — 먼저 읽기),
 > `docs/TECHNICAL_DUE_DILIGENCE.md` (기술 실사: 문제점·근거·로드맵),
+> `docs/AUTO_CYCLE_REPORT_2026-08.md` (08-06~08-17 자동 사이클이 바꾼 것 정리),
 > `AGENTS.md` (Korean dev guide), `docs/ARCHITECTURE.md` (full architecture +
 > known limitations), `docs/AI_INTEGRATION.md` (REST/MCP usage), `docs/REFACTORING_REPORT.md`.
 > Project skills in `.claude/skills/`: `timeline-api` (AI data manipulation), `verify-app`
