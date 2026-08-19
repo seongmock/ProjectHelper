@@ -1,10 +1,26 @@
 // 날짜 계산 및 포맷팅 유틸리티
 
+// `YYYY-MM-DD` 문자열은 **로컬 자정**으로 읽는다.
+// `new Date('2026-03-15')` 는 ISO 날짜만 있는 문자열을 **UTC** 자정으로 파싱하는데(ECMA-262),
+// 아래 함수들은 결과를 `getFullYear/getMonth/getDate` 같은 **로컬** 접근자로 다시 읽는다.
+// UTC 서쪽(예: America/New_York)에서는 그 두 기준이 하루 어긋나서 `snapToDay('2026-03-15')`
+// 가 3월 14일을 돌려주고 `addDays(d, 1)` 이 같은 날을 돌려줬다 — 즉 스냅·이동이 통째로
+// 하루씩 밀렸다. 저장 데이터는 시각이 없는 날짜 문자열이므로 UTC 로 읽을 이유가 없다.
+// (한국 시간대에서는 결과가 예전과 완전히 같다 — 이 함수는 UTC 동쪽에서 아무것도 바꾸지 않는다.)
+const toDate = (value) => {
+    if (value instanceof Date) return new Date(value.getTime());
+    if (typeof value === 'string') {
+        const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+        if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+    }
+    return new Date(value);
+};
+
 export const dateUtils = {
     // Date 객체를 YYYY-MM-DD 형식으로 변환
     formatDate: (date) => {
         if (typeof date === 'string') return date;
-        const d = new Date(date);
+        const d = toDate(date);
         const year = d.getFullYear();
         const month = String(d.getMonth() + 1).padStart(2, '0');
         const day = String(d.getDate()).padStart(2, '0');
@@ -13,16 +29,16 @@ export const dateUtils = {
 
     // 두 날짜 사이의 일수 계산
     getDaysBetween: (startDate, endDate) => {
-        const start = new Date(startDate);
-        const end = new Date(endDate);
+        const start = toDate(startDate);
+        const end = toDate(endDate);
         const diffTime = end - start;
         return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     },
 
     // 두 날짜 사이의 기간(일수) 계산 (시작일, 종료일 포함)
     getDuration: (startDate, endDate) => {
-        const start = new Date(startDate);
-        const end = new Date(endDate);
+        const start = toDate(startDate);
+        const end = toDate(endDate);
         const diffTime = end - start;
         const days = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
         return days >= 0 ? days + 1 : 0;
@@ -31,8 +47,8 @@ export const dateUtils = {
     // 날짜 범위 생성 (월별)
     generateMonthRange: (startDate, endDate) => {
         const months = [];
-        const start = new Date(startDate);
-        const end = new Date(endDate);
+        const start = toDate(startDate);
+        const end = toDate(endDate);
 
         let current = new Date(start.getFullYear(), start.getMonth(), 1);
 
@@ -40,7 +56,7 @@ export const dateUtils = {
             months.push({
                 year: current.getFullYear(),
                 month: current.getMonth() + 1,
-                date: new Date(current),
+                date: toDate(current),
                 label: `${current.getFullYear()}년 ${current.getMonth() + 1}월`,
             });
             current.setMonth(current.getMonth() + 1);
@@ -52,8 +68,8 @@ export const dateUtils = {
     // 날짜 범위 생성 (분기별)
     generateQuarterRange: (startDate, endDate) => {
         const quarters = [];
-        const start = new Date(startDate);
-        const end = new Date(endDate);
+        const start = toDate(startDate);
+        const end = toDate(endDate);
 
         let current = new Date(start.getFullYear(), Math.floor(start.getMonth() / 3) * 3, 1);
 
@@ -62,7 +78,7 @@ export const dateUtils = {
             quarters.push({
                 year: current.getFullYear(),
                 quarter: quarter,
-                date: new Date(current),
+                date: toDate(current),
                 label: `${current.getFullYear()}년 Q${quarter}`,
             });
             current.setMonth(current.getMonth() + 3);
@@ -73,7 +89,7 @@ export const dateUtils = {
 
     // 날짜에 일수 추가
     addDays: (date, days) => {
-        const result = new Date(date);
+        const result = toDate(date);
         result.setDate(result.getDate() + days);
         return result;
     },
@@ -81,8 +97,8 @@ export const dateUtils = {
     // 날짜 범위의 전체 폭 계산 (픽셀)
     calculateWidth: (startDate, endDate, viewStartDate, viewEndDate, totalWidth) => {
         const viewDays = dateUtils.getDuration(viewStartDate, viewEndDate);
-        const taskStart = new Date(startDate) < new Date(viewStartDate) ? viewStartDate : startDate;
-        const taskEnd = new Date(endDate) > new Date(viewEndDate) ? viewEndDate : endDate;
+        const taskStart = toDate(startDate) < toDate(viewStartDate) ? viewStartDate : startDate;
+        const taskEnd = toDate(endDate) > toDate(viewEndDate) ? viewEndDate : endDate;
         const taskDays = dateUtils.getDuration(taskStart, taskEnd);
         const offsetDays = dateUtils.getDaysBetween(viewStartDate, taskStart);
 
@@ -114,7 +130,7 @@ export const dateUtils = {
 
     // 월 단위 스냅
     snapToMonth: (date, type) => { // type: 'start' | 'end' | 'closest'
-        const d = new Date(date);
+        const d = toDate(date);
         const year = d.getFullYear();
         const month = d.getMonth();
 
@@ -142,18 +158,18 @@ export const dateUtils = {
 
     // 주 단위 스냅 (월요일 기준)
     snapToWeek: (date, type) => {
-        const d = new Date(date);
+        const d = toDate(date);
         const day = d.getDay(); // 0(일) ~ 6(토)
         const diff = day === 0 ? -6 : 1 - day; // 월요일까지의 차이
 
         if (type === 'start') {
             // 해당 주의 월요일
-            const result = new Date(d);
+            const result = toDate(d);
             result.setDate(d.getDate() + diff);
             return result;
         } else if (type === 'end') {
             // 해당 주의 일요일
-            const result = new Date(d);
+            const result = toDate(d);
             result.setDate(d.getDate() + diff + 6);
             return result;
         }
@@ -162,7 +178,7 @@ export const dateUtils = {
 
     // 일 단위 스냅
     snapToDay: (date, type) => {
-        const d = new Date(date);
+        const d = toDate(date);
         return new Date(d.getFullYear(), d.getMonth(), d.getDate());
     },
 
@@ -186,7 +202,7 @@ export const dateUtils = {
 
     // 분기 단위 스냅
     snapToQuarter: (date, type) => { // type: 'start' | 'end'
-        const d = new Date(date);
+        const d = toDate(date);
         const year = d.getFullYear();
         const month = d.getMonth();
         const quarter = Math.floor(month / 3) + 1;
