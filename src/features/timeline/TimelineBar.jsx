@@ -5,7 +5,6 @@ import { getStatusColor } from '../../themes/index.js';
 import { rollupSegmentTitle, rollupMilestoneTitle } from './rollupBars';
 import { placeMilestoneLabels, milestoneLabelStyle } from './milestoneLabels';
 import { visibleMilestoneItems } from './timelineGeometry';
-import Tooltip from '../../shared/ui/Tooltip';
 import './TimelineBar.css';
 
 function TimelineBar({
@@ -330,7 +329,6 @@ function TimelineBar({
 
             const shape = milestone.shape || 'diamond';
 
-            let shapeElement;
             const baseStyle = {
                 width: '16px',
                 height: '16px',
@@ -339,8 +337,6 @@ function TimelineBar({
                 boxShadow: '0 2px 6px rgba(0, 0, 0, 0.3)',
             };
 
-            // Simplified shape rendering for brevity, can expand later if needed
-            // For now trusting component has it. I will copy the svg paths from previous read if possible or keep simple
             const getShape = () => {
                 switch (shape) {
                     case 'circle': return <div style={{ ...baseStyle, borderRadius: '50%' }} />;

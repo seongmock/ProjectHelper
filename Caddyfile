@@ -68,8 +68,18 @@
 		#         {env.BASIC_AUTH_USER} {env.BASIC_AUTH_HASH}
 		#     }
 		#
-		# 함께 되돌릴 것은 아래 `header_up X-Auth-User` 를 `{http.auth.user.id}` 로 되돌리는
-		# 것 하나뿐이다. 검증 스크립트는 자동 판정하므로 손댈 필요가 없다.
+		# 함께 되돌릴 것이 둘 있다. ① 아래 `header_up X-Auth-User` 를 `{http.auth.user.id}` 로
+		# 되돌린다. ② **api 컨테이너에 `PH_TRUST_PROXY_AUTH=1` 을 준다**(docker-compose.yml).
+		# 검증 스크립트는 자동 판정하므로 손댈 필요가 없다.
+		#
+		# ②가 필요해진 이유 (2026-08-19, P3-3): 이제 **앱 자체에 계정과 역할이 있다**
+		# (`server/lib/auth.js`). 계정이 하나도 없으면 잠들어 있고, 첫 관리자를 만드는 순간
+		# 앱이 스스로 로그인을 요구한다. 그 상태에서 basicauth 를 그냥 되살리면 사용자는
+		# **비밀번호 창을 두 번** 본다(Caddy 것 하나, 앱 것 하나). `PH_TRUST_PROXY_AUTH=1` 을
+		# 켜면 Caddy 가 인증한 이름이 그대로 앱의 신원이 되어 앱은 다시 묻지 않는다
+		# (그 이름의 계정이 앱에 없으면 역할은 `PH_PROXY_ROLE`, 기본 editor).
+		# 그 스위치를 켜지 않은 채 헤더만 보내면 서버는 헤더를 **무시한다** — 켜지 않았는데
+		# 믿으면 클라이언트가 `X-Auth-User: admin` 을 직접 붙여 아무나 관리자가 되기 때문이다.
 		#
 		# 되살릴 때 다시 필요해지는 지식 — **`/api/health` 만 인증에서 제외했던 이유**:
 		# basic_auth 의 401 응답에는 위 header 블록이 적용되지 않으므로(Caddy 동작, route 로
@@ -88,8 +98,11 @@
 				# `header_up` 은 클라이언트가 보낸 동일 헤더를 덮어쓰는 지점이다 —
 				# 인증이 없으면 `{http.auth.user.id}` 는 빈 값이고, 빈 값을 넣으면 Caddy 가
 				# 헤더를 지워 **클라이언트가 X-Auth-User 를 스스로 붙여 감사 로그의 actor 를
-				# 위조**할 수 있게 된다(서버는 `req.get('X-Auth-User') || 'local'`).
-				# 'noauth' 로 고정하면 events.jsonl 에서 무인증 기간의 쓰기가 한눈에 구분된다.
+				# 위조**할 수 있게 된다. 'noauth' 로 고정하면 events.jsonl 에서 무인증 기간의
+				# 쓰기가 한눈에 구분된다.
+				# (2026-08-19 이후 서버는 `PH_TRUST_PROXY_AUTH=1` 일 때만 이 헤더를 신원으로
+				# 받아들인다. 즉 지금은 이 값이 감사 로그의 표식일 뿐 권한을 주지 않는다 —
+				# 그래도 고정해 둔다. 그 스위치를 켠 순간 위조 경로가 되살아나기 때문이다.)
 				header_up X-Auth-User noauth
 			}
 		}
