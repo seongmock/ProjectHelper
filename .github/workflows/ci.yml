@@ -180,7 +180,10 @@ jobs:
 
   e2e:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # 25분: E2E 자체는 5~6분이지만 앞에 `playwright install --with-deps`(apt + 브라우저
+    # 내려받기)가 붙는다. 15분 캡에서는 그 설치가 느린 날 **캡에 걸려 잡이 취소되고**
+    # 테스트는 한 건도 돌지 않는다(2026-08-19 실제 발생, 설치에서 15분 19초).
+    timeout-minutes: 25
     needs: checks
     steps:
       - uses: actions/checkout@v5
