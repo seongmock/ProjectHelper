@@ -4,6 +4,13 @@
     flex: 1;
     overflow: hidden;
     box-sizing: border-box;
+    /* 첫 행 위로도 마일스톤 라벨이 층을 쌓는다. 여백이 없으면 그 라벨들이 sticky 한 날짜
+       헤더 위에 겹쳐 그려져 헤더 글자를 덮는다. 브라우저에서 재어 필요한 높이는 행 중앙에서
+       40px(마커 반높이 10 + 기준 4 + 1층 24 + 라벨 22 − 행 반높이 20)이므로 42px 로 둔다 —
+       1층까지 덮는다. 2층 이상(라벨 5개 이상이 겹칠 때)은 여전히 헤더를 조금 침범한다.
+       작업명 열과 화살표 레이어도 **같은 값만큼** 내려야 어긋나지 않는다 — 그래서 세 곳이
+       이 변수 하나를 본다. */
+    --timeline-label-headroom: 42px;
 }
 
 
@@ -32,6 +39,8 @@
 
 .task-names-list {
     flex: 1;
+    /* 막대 쪽 여백과 같은 값 — 작업명과 행이 어긋나면 아무것도 읽을 수 없다 */
+    padding-top: var(--timeline-label-headroom);
     overflow-y: scroll;
     /* 스크롤 가능하지만 */
     overflow-x: hidden;
@@ -179,6 +188,7 @@
 .timeline-content {
     position: relative;
     min-height: 400px;
+    padding-top: var(--timeline-label-headroom);
     background-color: var(--color-bg-primary);
 }
 
@@ -280,7 +290,8 @@
 /* 의존성 레이어 */
 .dependency-layer {
     position: absolute;
-    top: 0;
+    /* 절대배치의 기준은 padding box 라 top:0 은 여백 **위**다 — 행들과 같이 내려야 한다 */
+    top: var(--timeline-label-headroom);
     left: 0;
     pointer-events: none;
     z-index: 1;

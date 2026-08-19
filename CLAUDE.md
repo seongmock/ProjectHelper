@@ -27,7 +27,7 @@ npm run build        # Production build → dist/
 npm run lint         # ESLint 9 (flat config)
 npm run test:unit    # Vitest — 도메인 순수함수 + XSS 회귀 (453건)
 npm run test:server  # node:test — 검증·서비스·저장소 내구성·감사 로그·의존성 정합성 (128건)
-npm run test:e2e     # Playwright E2E 92건 (API·dev 서버 자동 기동)
+npm run test:e2e     # Playwright E2E 94건 (API·dev 서버 자동 기동)
 npm run verify       # 위 전부 + 빌드 — 변경 후 이것을 돌려라
 ```
 
@@ -46,7 +46,7 @@ npx playwright test --headed --debug                # watch it / step through
 ```
 
 **변경 후에는 `npm run verify`** — 합격 기준은 lint 0 error · unit 453/453 · server 128/128 ·
-빌드 성공 · **E2E 92/92 (skip 0)**.
+빌드 성공 · **E2E 94/94 (skip 0)**.
 
 `playwright.config.js` 는 **API 서버와 dev 서버를 모두 자동 기동**하며, API는
 `PH_DATA_DIR=.tmp-e2e-data` 로 격리된다. 예전에는 API 서버를 수동으로 띄우지 않으면 8건이
@@ -444,6 +444,16 @@ Dependencies now live at the range level.
   (`TimelineView`'s `tasks`, i.e. `filteredTasks`), not `allTasks`: reviving search-filtered
   tasks on an ancestor row would invert "show me only these". A connection is a fact; a filter is
   a request.
+- **Milestone labels stack upward, so the chart reserves room above its first row.**
+  `--timeline-label-headroom` (42px, declared on `.timeline-container`) is read by three rules
+  and all three must move together: `.timeline-content` (padding, moves the in-flow rows),
+  `.task-names-list` (same padding, or names stop lining up with their bars), and
+  `.dependency-layer` (`top`, because an absolutely positioned child's containing block is the
+  **padding box** — `top: 0` sits *above* the padding, so arrows would keep the old origin while
+  the rows moved). Without it the first row's tier-1 labels drew on top of the sticky date
+  header. 42px covers tier 1 (marker half 10 + base 4 + tier 24 + label 22 − row half 20);
+  tier 2 and beyond still encroach, which needs five or more labels colliding at once.
+  `features.spec.js` measures the three-way alignment, since that is what silently breaks.
 - **`htmlExporter.js` re-implements the gantt render — so anything it can share, it shares by
   embedding the source, not by copying it.** The export must stay a self-contained `<div>`
   fragment (it is pasted into a Confluence HTML macro), so React components can't be reused;

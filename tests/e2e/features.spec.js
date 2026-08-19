@@ -1029,3 +1029,44 @@ test.describe('접힌 가지의 요약 막대', () => {
         await expect(page.locator('.inspector-panel')).toHaveCount(0);
     });
 });
+
+// 첫 행 위의 마일스톤 라벨이 날짜 헤더를 덮지 않도록 타임라인 위쪽에 여백을 뒀다
+// (`--timeline-label-headroom`). 그 여백은 **세 곳이 같이** 내려가야 의미가 있다:
+// 막대가 있는 행, 왼쪽 작업명, 그리고 절대배치라 padding 을 따라오지 않는 화살표 레이어.
+// 하나라도 빠지면 이름과 막대가, 또는 화살표와 막대가 어긋난다 — 그래서 여기서 잰다.
+test.describe('타임라인 위쪽 여백', () => {
+    test('여백을 줘도 작업명·행·화살표 레이어가 같은 높이에 있다', async ({ page }) => {
+        const geom = await page.evaluate(() => {
+            const mid = (el) => { const b = el.getBoundingClientRect(); return b.top + b.height / 2; };
+            const rows = [...document.querySelectorAll('.timeline-row')];
+            const names = [...document.querySelectorAll('.task-name-item')];
+            return {
+                rowMids: rows.map(mid),
+                nameMids: names.map(mid),
+                firstRowTop: rows[0].getBoundingClientRect().top,
+                svgTop: document.querySelector('.dependency-layer').getBoundingClientRect().top,
+            };
+        });
+
+        expect(geom.rowMids.length).toBeGreaterThan(0);
+        expect(geom.nameMids.length).toBe(geom.rowMids.length);
+        geom.rowMids.forEach((y, i) => expect(Math.abs(y - geom.nameMids[i])).toBeLessThanOrEqual(1));
+        // 화살표 좌표는 행 인덱스로 계산된다(itemAnchor) — 레이어 원점이 첫 행 위여야 맞는다
+        expect(Math.abs(geom.svgTop - geom.firstRowTop)).toBeLessThanOrEqual(1);
+    });
+
+    test('첫 행의 마일스톤 라벨이 날짜 헤더를 덮지 않는다', async ({ page }) => {
+        const y = await page.evaluate(() => {
+            const rows = [...document.querySelectorAll('.timeline-row')];
+            const labels = [...rows[0].querySelectorAll('.milestone-label')];
+            return {
+                count: labels.length,
+                top: Math.min(...labels.map(el => el.getBoundingClientRect().top)),
+                contentTop: document.querySelector('.timeline-content').getBoundingClientRect().top,
+            };
+        });
+        // 조건부 skip 을 두지 않는다 — CI 는 skip 을 불합격으로 센다
+        expect(y.count).toBeGreaterThan(0);
+        expect(y.top).toBeGreaterThanOrEqual(y.contentTop);
+    });
+});
