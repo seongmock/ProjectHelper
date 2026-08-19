@@ -7,6 +7,7 @@ import { describe, it, expect } from 'vitest';
 import { exportToHtml } from '../../src/features/io/htmlExporter.js';
 import { placeMilestoneLabels, milestoneLabelStyle } from '../../src/features/timeline/milestoneLabels.js';
 import { dependencyPath } from '../../src/features/timeline/dependencyPath.js';
+import { dependencyStyleFor, dependencyStrokes } from '../../src/features/timeline/dependencyStyle.js';
 
 const XSS = '<img src=x onerror=alert(1)>';
 const BREAKOUT = '</script><script>alert(1)</script>';
@@ -238,5 +239,68 @@ describe('exportToHtml — 내보낸 스크립트는 구문이 온전하다', ()
         const body = html.slice(html.indexOf('<script>') + '<script>'.length, html.lastIndexOf('</script>'));
         expect(body).toContain('function placeMilestoneLabels');
         expect(() => new Function(body)).not.toThrow();
+    });
+});
+
+// 내보낸 문서는 지금까지 **모든 연결을 회색 점선 하나로** 그렸다. 앱이 순환을 빨간 실선,
+// 일정 위반을 주황 파선으로 구분해 말해도, 그 화면을 컨플루언스에 붙이는 순간 문제가 있던
+// 연결과 없던 연결이 똑같아 보인다 — 보는 사람에게는 아무 문제 없는 계획으로 읽힌다.
+describe('exportToHtml — 의존성 문제를 색과 모양으로 말한다', () => {
+    // A(1월) → B(1월 중순 시작) : 일정 위반. C ↔ D : 순환.
+    const range = (id, s, e, deps = []) => ({ id, startDate: s, endDate: e, dependencies: deps });
+    const tree = [
+        task({ id: 'A', name: '선행', timeRanges: [range('ra', '2026-01-01', '2026-01-31')] }),
+        task({ id: 'B', name: '후행', timeRanges: [range('rb', '2026-01-15', '2026-02-28', ['ra'])] }),
+        task({ id: 'C', name: '고리1', timeRanges: [range('rc', '2026-03-01', '2026-03-10', ['rd'])] }),
+        task({ id: 'D', name: '고리2', timeRanges: [range('rd', '2026-03-05', '2026-03-20', ['rc'])] }),
+    ];
+
+    it('판정 결과를 구워 넣는다 — 문서 안에서 다시 계산하지 않는다', () => {
+        const html = exportToHtml(tree);
+        // 키의 '>' 는 스크립트 블록 탈출을 막느라 \\u003e 로 심긴다(파싱되면 다시 '>' 다)
+        expect(html).toContain('"ra\\u003erb":"overlap"');
+        expect(html).toContain('"cycle"');
+        expect(html).not.toContain('function findDependencyIssues');
+    });
+
+    it('색·굵기·점선은 앱과 같은 모듈이 고른다', () => {
+        const html = exportToHtml(tree);
+        const begin = html.indexOf('// ---8<--- dependencyStyle.js');
+        const end = html.indexOf('// ---8<--- /dependencyStyle.js');
+        expect(begin).toBeGreaterThan(-1);
+        const source = html.slice(html.indexOf('\n', begin) + 1, end);
+        const embedded = new Function(`${source}\nreturn { dependencyStyleFor, dependencyStrokes, dependencyMarkerId };`)();
+        for (const issue of [null, 'cycle', 'overlap']) {
+            expect(embedded.dependencyStyleFor(issue, false)).toEqual(dependencyStyleFor(issue, false));
+        }
+        expect(embedded.dependencyStrokes()).toEqual(dependencyStrokes());
+        // 한 페이지에 여러 개를 심으므로 화살촉 id 는 내보내기마다 달라야 한다
+        expect(embedded.dependencyMarkerId('#dc2626', 'chk_x')).toContain('chk_x');
+    });
+
+    it('선 스타일을 CSS 기본값이 덮어쓰지 않는다 — 순환은 실선이어야 한다', () => {
+        const html = exportToHtml(tree);
+        // 예전 CSS 는 모든 path 에 점선·회색·고정 화살촉을 걸어 두었다
+        expect(html).not.toContain('stroke: var(--color-link);');
+        expect(html).not.toContain('marker-end: url(#arrowhead-chk');
+        expect(html).toContain("'stroke-dasharray: ' + (st.dash || 'none') + ';'");
+    });
+
+    it('작업명 열에 선행/후행 배지가 선다', () => {
+        const html = exportToHtml(tree);
+        // 배지 데이터가 구워지고(방향·문제), 마크업이 그것을 그린다
+        expect(html).toContain('const DEP_BADGES');
+        expect(html).toContain('"issue":"overlap"');
+        expect(html).toContain('ph-dep-badge');
+        expect(html).toContain('function badgeHtml');
+        // 툴팁에는 상대 이름이 실린다 — 이름이 없으면 "무언가 걸려 있다"까지만 말하는 셈이다
+        expect(html).toContain('선행:');
+        // 정적 문서에는 인스펙터가 없다
+        expect(html).not.toContain('클릭하면 인스펙터에서 본다');
+    });
+
+    it('연결이 없는 트리에는 배지가 하나도 없다', () => {
+        const html = exportToHtml([task()]);
+        expect(html).toContain('const DEP_BADGES = {}');
     });
 });

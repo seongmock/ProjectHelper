@@ -134,7 +134,11 @@ const ISSUE_TEXT = {
 
 // 배지의 툴팁. 이름을 싣지 않으면 "무언가 걸려 있다"까지만 말하는 셈이라,
 // 인스펙터를 열지 않고는 상대를 알 수 없다 — 표에 배지를 다는 이유가 절반 사라진다.
-export const describeRowDependencies = (entry) => {
+//
+// actionHint 는 마지막 줄의 행동 안내다. 내보낸 HTML 은 같은 배지를 쓰지만 **인스펙터가
+// 없으므로** null 을 넘겨 그 줄을 뺀다 — 정적 문서에서 "클릭하면 인스펙터에서 본다"는
+// 없는 기능을 안내하는 것이 된다.
+export const describeRowDependencies = (entry, { actionHint = '클릭하면 인스펙터에서 본다' } = {}) => {
     if (!entry) return '';
     const line = ({ name, via }) => (via ? `${name} (하위 ${via})` : name);
     const parts = [];
@@ -142,6 +146,6 @@ export const describeRowDependencies = (entry) => {
     if (entry.successors.length > 0) parts.push(`후행: ${entry.successors.map(line).join(', ')}`);
     if (entry.broken > 0) parts.push(`끊어진 참조 ${entry.broken}건`);
     if (entry.issue) parts.push(ISSUE_TEXT[entry.issue]);
-    parts.push('클릭하면 인스펙터에서 본다');
+    if (actionHint) parts.push(actionHint);
     return parts.join('\n');
 };

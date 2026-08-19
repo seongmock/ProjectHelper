@@ -4,31 +4,19 @@ import React from 'react';
 import { dateUtils } from '../../utils/dateUtils';
 import { dependencyEdgeKey } from '../../utils/taskTree';
 import { itemAnchor, dependencyPath } from './timelineGeometry';
+import { DEPENDENCY_HIDDEN_STYLE as HIDDEN_STYLE, dependencyStyleFor, dependencyStrokes, dependencyMarkerId } from './dependencyStyle';
 
-// 문제 있는 간선의 표현. 색만으로 구분하지 않는다 — 실선/점선과 hover 설명을 함께 준다
-// (§5.3 접근성: 색 단독 인코딩 금지). 판정은 taskTree.js 의 findDependencyIssues 가 한다.
-const ISSUE_STYLES = {
-    cycle: { stroke: '#dc2626', dash: null, width: 2.5, title: '순환 의존성 — 이 연결이 고리를 닫는다' },
-    overlap: { stroke: '#f59e0b', dash: '6 3', width: 2.5, title: '일정 위반 — 후행이 선행 종료보다 먼저 시작한다' },
-};
-const NORMAL_STYLE = { stroke: '#999', dash: '4 2', width: 2, title: null };
-// 끝이 화면에 없어 대표 행으로 끌어올린 선 — 더 촘촘한 점선이라 "이 행 자신의 연결이
-// 아니다"가 색 없이도 읽힌다. 어느 자손의 것인지는 툴팁이 이름으로 말한다.
-const ROLLED_UP_STYLE = { stroke: '#999', dash: '2 3', width: 2, title: null };
-// 화면 밖으로 나가는 연결의 표식. 오류가 아니라 정보라서 빨강/주황을 쓰지 않고,
-// 선이 아닌 **원**이라 색을 못 보아도 다른 간선과 구별된다.
-const HIDDEN_STYLE = { stroke: '#0ea5e9', width: 2 };
+// 선의 색·모양·설명은 **내보내기와 공유하는** 순수 모듈이 정한다(dependencyStyle.js) —
+// 여기에 다시 적으면 내보낸 HTML 은 문제 있는 연결도 평범한 회색 점선으로 그린다.
 const HIDDEN_STUB = 18; // 보이는 끝에서 화면 밖 방향으로 뻗는 길이(px)
-
-const styleFor = (issue, rolledUp) => ISSUE_STYLES[issue] || (rolledUp ? ROLLED_UP_STYLE : NORMAL_STYLE);
-// 화살촉은 marker 라 stroke 를 물려받지 못한다 — 색마다 하나씩 정의해 두고 골라 쓴다.
-const markerId = (stroke) => `arrowhead-${stroke.replace('#', '')}`;
+const styleFor = dependencyStyleFor;
+const markerId = (stroke) => dependencyMarkerId(stroke);
 
 const joinTitle = (parts) => parts.filter(Boolean).join('\n');
 
 function DependencyLayer({ links, hiddenEdges, rowCount, dateRange, contentWidth, rowHeight, edgeIssues }) {
     const totalDays = dateUtils.getDuration(dateRange.start, dateRange.end);
-    const strokes = [NORMAL_STYLE.stroke, HIDDEN_STYLE.stroke, ...Object.values(ISSUE_STYLES).map(s => s.stroke)];
+    const strokes = dependencyStrokes();
 
     return (
         <svg
@@ -36,7 +24,7 @@ function DependencyLayer({ links, hiddenEdges, rowCount, dateRange, contentWidth
             style={{ width: contentWidth, height: rowCount * rowHeight }}
         >
             <defs>
-                {[...new Set(strokes)].map(stroke => (
+                {strokes.map(stroke => (
                     <marker
                         key={stroke}
                         id={markerId(stroke)}

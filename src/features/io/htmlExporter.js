@@ -1,5 +1,6 @@
 import { dateUtils } from '../../utils/dateUtils';
-import { getTaskStatus } from '../../utils/taskTree';
+import { getTaskStatus, flattenAll, findDependencyIssues } from '../../utils/taskTree';
+import { summarizeRowDependencies, describeRowDependencies } from '../table/dependencyBadges';
 import { STATUS_STYLES, getStatusColor } from '../../themes/index.js';
 
 // 라벨 배치는 **앱과 같은 코드**를 쓴다. 내보낸 HTML 은 정적 산출물이라, 배치 규칙을 여기에
@@ -9,6 +10,7 @@ import { STATUS_STYLES, getStatusColor } from '../../themes/index.js';
 // 자립형 <div> 하나여야 한다) 순수함수는 심을 수 있다.
 import milestoneLabelsSource from '../timeline/milestoneLabels.js?raw';
 import dependencyPathSource from '../timeline/dependencyPath.js?raw';
+import dependencyStyleSource from '../timeline/dependencyStyle.js?raw';
 
 // ESM 소스를 <script> 안의 평범한 선언으로 바꾼다. export 키워드만 떼면 되고, 심는 값은
 // 템플릿 리터럴의 **보간값**이라 백틱이나 치환 구문을 다시 이스케이프하면 오히려 깨진다.
@@ -105,6 +107,27 @@ export const exportToHtml = (tasks, settings = {}) => {
     const statusMode = settings.colorMode === 'status';
     const statusColorJson = toSafeJson(statusMode ? buildStatusColorMap(tasks) : {});
 
+    // 의존성 판정은 **내보내는 시점에** 한 번 하고 결과를 심는다. 판정 로직(findDependencyIssues)
+    // 자체를 심으려면 그것이 의존하는 트리 유틸까지 따라와야 하고, 내보낸 문서는 어차피
+    // 그 시점의 스냅샷이라 다시 계산할 이유가 없다. 반대로 **표현**(색·선 모양)은 소스를
+    // 심어 공유한다 — 그래야 앱에서 색을 바꿔도 내보내기가 따라온다.
+    const dependencyIssues = findDependencyIssues(tasks);
+    const edgeIssuesJson = toSafeJson(dependencyIssues.edgeIssues);
+    // 내보낸 차트는 트리를 전부 펼쳐 그리므로 모든 작업에 자기 행이 있다(= 끌어올림 없음).
+    const badges = summarizeRowDependencies(
+        tasks,
+        new Set(flattenAll(tasks).map(t => t.id)),
+        dependencyIssues,
+    );
+    const badgeJson = toSafeJson(Object.fromEntries([...badges].map(([id, entry]) => [id, {
+        pre: entry.predecessors.length,
+        suc: entry.successors.length,
+        broken: entry.broken,
+        issue: entry.issue,
+        // 앱과 같은 문구를 쓰되 "클릭하면 인스펙터에서 본다"는 뺀다 — 정적 문서에는 인스펙터가 없다.
+        title: describeRowDependencies(entry, { actionHint: null }),
+    }])));
+
     // Generate unique ID for scope isolation
     const listId = 'chk_' + Math.random().toString(36).substr(2, 9);
     const zoomLevel = settings.zoomLevel || 1.0;
@@ -194,6 +217,26 @@ export const exportToHtml = (tasks, settings = {}) => {
             font-size: 13px;
             color: var(--color-text-primary);
         }
+        #ph-gantt-${listId} .ph-task-name {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        /* 배지는 줄이지 않는다 — 이름이 길다고 '선행 2' 가 잘리면 없는 것과 같다. */
+        #ph-gantt-${listId} .ph-dep-badge {
+            flex: 0 0 auto;
+            margin-left: 6px;
+            font-size: 11px;
+            font-variant-numeric: tabular-nums;
+            color: var(--color-text-secondary);
+            border: 1px solid var(--color-border);
+            border-radius: 3px;
+            padding: 0 4px;
+            line-height: 16px;
+        }
+        #ph-gantt-${listId} .ph-dep-cycle { color: #dc2626; border-color: #dc2626; }
+        #ph-gantt-${listId} .ph-dep-overlap { color: #f59e0b; border-color: #f59e0b; }
+        #ph-gantt-${listId} .ph-dep-broken { color: #6b7280; border-color: #6b7280; }
         #ph-gantt-${listId} .task-item.level-0 { font-weight: 600; }
         #ph-gantt-${listId} .task-item.level-1 { padding-left: 32px; font-size: 12px; }
         #ph-gantt-${listId} .task-item.level-2 { padding-left: 48px; font-size: 12px; color: var(--color-text-secondary); }
@@ -505,17 +548,11 @@ export const exportToHtml = (tasks, settings = {}) => {
             pointer-events: none;
             z-index: 1;
         }
+        /* 색·굵기·점선·화살촉은 **인라인 스타일**이 정한다(dependencyStyle.js 를 심어서 쓴다).
+           여기에 기본값을 남겨 두면 순환처럼 '실선이어야 하는' 간선까지 점선으로 그려진다. */
         #ph-gantt-${listId} .dependency-svg path {
             fill: none;
-            stroke: var(--color-link);
-            stroke-width: 1.5;
-            marker-end: url(#arrowhead-${listId});
-            opacity: 0.6;
-            stroke-dasharray: 4 2; /* Default dashed style */
-        }
-        #ph-gantt-${listId} .dependency-line {
-            stroke-dasharray: 4 2;
-            opacity: 1.0 !important; /* Ensure visibility */
+            opacity: 1.0;
         }
 
 ${statusMode ? legendCss(listId) : ''}
@@ -579,6 +616,10 @@ ${inlineModuleSource(milestoneLabelsSource)}
 ${inlineModuleSource(dependencyPathSource)}
         // ---8<--- /dependencyPath.js ---8<---
 
+        // ---8<--- dependencyStyle.js (앱과 같은 소스, export 만 제거) ---8<---
+${inlineModuleSource(dependencyStyleSource)}
+        // ---8<--- /dependencyStyle.js ---8<---
+
         // 배치 결과(React 스타일 객체)를 인라인 CSS 로 바꾼다. undefined 는 "지정 안 함"이므로
         // 건너뛴다 — 'max-width: undefined' 는 선언 하나를 통째로 무효로 만든다.
         function styleToCss(style) {
@@ -596,6 +637,10 @@ ${inlineModuleSource(dependencyPathSource)}
         const CHART_THEME = '${settings.chartTheme || 'default'}';
         // 작업 id → 상태 색상. 작업 색상 모드로 내보내면 빈 객체다.
         const STATUS_COLOR = ${statusColorJson};
+        // 간선 키('선행id>후행id') → 'cycle' | 'overlap'. 내보낼 때 앱이 판정한 것이다.
+        const EDGE_ISSUES = ${edgeIssuesJson};
+        // 작업 id → 선행/후행 개수와 문제. 작업명 열의 배지가 쓴다.
+        const DEP_BADGES = ${badgeJson};
 
         // Flatten Data
         const FLATTENED_TASKS = [];
@@ -691,9 +736,25 @@ ${inlineModuleSource(dependencyPathSource)}
         elSvg.style.width = '100%'; 
 
         // Render Functions
+        // 배지 마크업. 앱의 표(TaskRow)와 같은 것을 말한다: 선행 n / 후행 n 과 가장 나쁜 문제
+        // 하나. 연결이 없는 행에는 아무것도 붙이지 않는다 — 정적 문서에서 '—' 는 잡음이다.
+        function badgeHtml(taskId) {
+            const b = DEP_BADGES[taskId];
+            if (!b) return '';
+            const marks = [];
+            if (b.pre > 0) marks.push('&#8592;' + b.pre);
+            if (b.suc > 0) marks.push('&#8594;' + b.suc);
+            if (b.issue) marks.push(ISSUE_MARK[b.issue] || '');
+            if (marks.length === 0) return '';
+            const cls = 'ph-dep-badge' + (b.issue ? ' ph-dep-' + b.issue : '');
+            return '<span class="' + cls + '" title="' + esc(b.title) + '">' + marks.join(' ') + '</span>';
+        }
+        // 색만으로 구분하지 않는다 — 글리프가 문제의 종류를 함께 말한다.
+        const ISSUE_MARK = { cycle: '&#8635;', overlap: '&#9888;', broken: '&#10006;' };
+
         function renderTaskList() {
             elTaskList.innerHTML = DATA.map(task => {
-                return \`<div class="task-item level-\${task.level}" title="\${esc(task.name)}">\${esc(task.name)}</div>\`;
+                return \`<div class="task-item level-\${task.level}" title="\${esc(task.name)}"><span class="ph-task-name">\${esc(task.name)}</span>\${badgeHtml(task.id)}</div>\`;
             }).join('');
         }
 
@@ -994,11 +1055,18 @@ ${inlineModuleSource(dependencyPathSource)}
 
             // Dependencies
             // Force visible color and higher Z-Index for lines
-            let svgHtml = '<defs><marker id="arrowhead-${listId}" markerWidth="6" markerHeight="4" refX="5" refY="2" orient="auto"><polygon points="0 0, 6 2, 0 4" fill="#999" /></marker></defs>';
+            // 화살촉은 marker 라 stroke 를 물려받지 못한다 — 앱과 같은 색 목록으로 하나씩
+            // 정의한다. id 에 listId 를 섞는 것은 한 페이지에 여러 개를 심을 때를 위한 것이다.
+            let svgHtml = '<defs>' + dependencyStrokes().map(function(stroke) {
+                return '<marker id="' + dependencyMarkerId(stroke, '${listId}') + '" markerWidth="6" markerHeight="4" refX="5" refY="2" orient="auto">'
+                     + '<polygon points="0 0, 6 2, 0 4" fill="' + stroke + '" /></marker>';
+            }).join('') + '</defs>';
             const connections = [];
             const collect = (src, tgt) => {
                  const s = coordMap.get(src); const t = coordMap.get(tgt);
-                 if (s && t) connections.push({src: s, tgt: t});
+                 // 간선의 **id** 도 들고 간다 — 색은 판정 결과(EDGE_ISSUES)로 고르고,
+                 // 판정은 id 로만 찾을 수 있다.
+                 if (s && t) connections.push({src: s, tgt: t, srcId: src, tgtId: tgt});
             };
             DATA.forEach(t => {
                 if (t.dependencies) t.dependencies.forEach(d => collect(d, t.id));
@@ -1024,7 +1092,7 @@ ${inlineModuleSource(dependencyPathSource)}
                 const width = elTimelineContent.offsetWidth || 1000;
 
                 let pathHtml = '';
-                connections.forEach(({src, tgt}) => {
+                connections.forEach(({src, tgt, srcId, tgtId}) => {
                     const startX = (src.right / 100) * width;
                     let endX = (tgt.left / 100) * width;
                     const startY = src.y;
@@ -1037,8 +1105,13 @@ ${inlineModuleSource(dependencyPathSource)}
                     
                     // 경로는 앱과 같은 순수함수가 그린다(dependencyPath) — 여기서 다시 적으면 어긋난다.
                     const path = dependencyPath(startX, startY, endX, endY);
-                    // Match color with TimelineView (#999)
-                    pathHtml += \`<path d="\${path}" class="dependency-line" marker-end="url(#arrowhead-${listId})" style="stroke: #999; stroke-width: 2px; stroke-dasharray: 4 2; opacity: 1.0; fill: none;" />\`;
+                    // 색·선 모양도 앱과 같은 모듈이 고른다(dependencyStyle). 전부 회색 점선으로
+                    // 그리면 문제가 있던 연결과 없던 연결이 문서에서 똑같아 보인다.
+                    const issue = EDGE_ISSUES[srcId + '>' + tgtId] || null;
+                    const st = dependencyStyleFor(issue, false);
+                    const dash = 'stroke-dasharray: ' + (st.dash || 'none') + ';';
+                    const titleEl = st.title ? '<title>' + esc(st.title) + '</title>' : '';
+                    pathHtml += \`<path d="\${path}" class="dependency-line" data-issue="\${issue || ''}" marker-end="url(#\${dependencyMarkerId(st.stroke, '${listId}')})" style="stroke: \${st.stroke}; stroke-width: \${st.width}px; \${dash} opacity: 1.0; fill: none;">\${titleEl}</path>\`;
                 });
                 elSvg.innerHTML = svgHtml + pathHtml;
                 // Force Z-Index update

@@ -25,9 +25,9 @@ npm run dev          # Vite dev server, http://localhost:5173, hot-reload
 npm run dev:api      # Express API server (PORT env, default 3000)
 npm run build        # Production build → dist/
 npm run lint         # ESLint 9 (flat config)
-npm run test:unit    # Vitest — 도메인 순수함수 + XSS 회귀 (463건)
+npm run test:unit    # Vitest — 도메인 순수함수 + XSS 회귀 (468건)
 npm run test:server  # node:test — 검증·서비스·저장소 내구성·감사 로그·의존성 정합성 (128건)
-npm run test:e2e     # Playwright E2E 96건 (API·dev 서버 자동 기동)
+npm run test:e2e     # Playwright E2E 99건 (API·dev 서버 자동 기동)
 npm run verify       # 위 전부 + 빌드 — 변경 후 이것을 돌려라
 ```
 
@@ -45,8 +45,8 @@ npx playwright test -g "프로젝트"                   # by test-title substrin
 npx playwright test --headed --debug                # watch it / step through
 ```
 
-**변경 후에는 `npm run verify`** — 합격 기준은 lint 0 error · unit 463/463 · server 128/128 ·
-빌드 성공 · **E2E 96/96 (skip 0)**.
+**변경 후에는 `npm run verify`** — 합격 기준은 lint 0 error · unit 468/468 · server 128/128 ·
+빌드 성공 · **E2E 99/99 (skip 0)**.
 
 `playwright.config.js` 는 **API 서버와 dev 서버를 모두 자동 기동**하며, API는
 `PH_DATA_DIR=.tmp-e2e-data` 로 격리된다. 예전에는 API 서버를 수동으로 띄우지 않으면 8건이
@@ -484,14 +484,28 @@ Dependencies now live at the range level.
   fragment (it is pasted into a Confluence HTML macro), so React components can't be reused;
   pure modules can. `import x from '../timeline/foo.js?raw'` + `inlineModuleSource()` (strips the
   `export` keywords) drops the module's **own source** into the exported `<script>`, between
-  `// ---8<---` markers. Two modules ride that path today: `milestoneLabels.js` (label placement)
-  and `dependencyPath.js` — the latter exists as a separate, **import-free** file for exactly this
-  reason, and `timelineGeometry.js` merely re-exports it. What this buys is not tidiness: the
+  `// ---8<---` markers. Three modules ride that path today: `milestoneLabels.js` (label
+  placement), `dependencyPath.js` (arrow geometry) and `dependencyStyle.js` (arrow colour/dash/
+  width/title) — the latter two exist as separate, **import-free** files for exactly this reason,
+  and `timelineGeometry.js` merely re-exports the geometry. What this buys is not tidiness: the
   copies had already drifted (the export tried three label slots and then just overlapped, while
-  the app stacks tiers). `tests/unit/htmlExporter.test.js` **evaluates the embedded source and
-  compares its output against the imported module** — a "contains the string" check would pass on
-  a copy — and asserts the emitted `<script>` parses at all, because one bad escape turns the
-  whole export into a blank chart that still looks fine.
+  the app stacks tiers; and every edge came out as one grey dashed line, so a cycle pasted into
+  Confluence read as a healthy plan). **Judgement is baked, presentation is shared** — the split
+  matters: `findDependencyIssues`/`summarizeRowDependencies` run once at export time and their
+  answers ride along as data (`EDGE_ISSUES`, `DEP_BADGES`), because embedding them would drag in
+  the whole tree-util graph and the export is a snapshot anyway, while colour/dash/width/title
+  come from the shared source so changing one in the app cannot leave the export behind. Two
+  traps that class of change walks into: the export's CSS defaults (a fixed `marker-end`, a
+  blanket `stroke-dasharray: 4 2`) silently overrode the new per-edge inline styles — they are
+  gone, and the inline dash spells out `none`; and `describeRowDependencies` takes an
+  `actionHint` option so the static document drops *"클릭하면 인스펙터에서 본다"*, which is a lie
+  on a page nobody can click. `tests/unit/htmlExporter.test.js` **evaluates the embedded source
+  and compares its output against the imported module** — a "contains the string" check would pass
+  on a copy — and asserts the emitted `<script>` parses at all, because one bad escape turns the
+  whole export into a blank chart that still looks fine; `tests/e2e/export-html.spec.js` then
+  **renders the exported HTML in a real page** and measures the drawn strokes, dashes, markers and
+  badges, which is the only way to catch string assembly that produces a valid-looking document
+  that draws nothing.
 
 ### Tree-update invariants (critical for correctness)
 
