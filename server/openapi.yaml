@@ -495,6 +495,23 @@ paths:
       responses:
         '200': { description: '{ ok, time }' }
 
+  /metrics:
+    get:
+      summary: 운영 지표 — 가동시간·요청수·상태코드 분포·마지막 변경 시각
+      description: >-
+        헬스체크와 달리 **인증이 필요하다**(강제 모드에서 viewer 이상). 프로세스 안의
+        카운터라 재시작하면 0으로 돌아가며, uptimeSec 이 그 사실을 함께 알려준다.
+        프로젝트 이름 같은 식별 정보는 담지 않는다.
+      parameters:
+        - in: query
+          name: format
+          required: false
+          schema: { type: string, enum: [prometheus] }
+          description: 지정하면 Prometheus 텍스트 노출 형식으로 응답한다 (기본은 JSON)
+      responses:
+        '200':
+          description: '{ ok, metrics: {uptimeSec, startedAt, node, memory, requests, mutations, lastErrorAt} }'
+
   /auth/me:
     get:
       summary: 현재 신원과 인증 모드 — 화면이 로그인 창을 띄울지 정하는 근거

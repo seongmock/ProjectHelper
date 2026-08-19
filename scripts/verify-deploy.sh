@@ -208,7 +208,29 @@ latest=$(find backups -name 'ph-data-*.tar.gz' -mtime -2 2>/dev/null | head -1)
 [ -n "$latest" ] && ok "48시간 내 백업 존재: $(basename "$latest")" || no "최근 백업 없음 — ./scripts/backup-data.sh 실행"
 
 echo
-echo "[13] TLS 인증서 이름 (SNI 없는 접속 = 브라우저로 IP 주소 접속)"
+echo "[13] 운영 지표 엔드포인트"
+# 왜 배포 검증에 넣는가: 메트릭은 평소에 아무도 열어 보지 않는 경로라, 깨져도 사고가
+# 터진 **뒤에야** 발견된다 — 정확히 필요할 때 없는 셈이다. 인증이 켜져 있으면 401 이
+# 정답이다(헬스와 달리 예외가 아니다).
+mcode=$(curl -s -o /dev/null -w "%{http_code}" -m 5 -k "https://$HOST/api/metrics" || echo 000)
+if [ "$AUTH_ON" = true ]; then
+    [ "$mcode" = "401" ] && ok "GET /api/metrics → 401 (인증 뒤에 있다)" \
+        || no "GET /api/metrics → $mcode (401 기대 — 지표가 인증 없이 열려 있다)"
+else
+    if [ "$mcode" = "200" ]; then
+        body=$(curl -s -m 5 -k "https://$HOST/api/metrics")
+        echo "$body" | grep -q '"uptimeSec"' && ok "GET /api/metrics → 200 (uptimeSec 포함)" \
+            || no "GET /api/metrics 응답에 uptimeSec 이 없다: $(echo "$body" | head -c 120)"
+        curl -s -m 5 -k "https://$HOST/api/metrics?format=prometheus" | grep -q '^ph_uptime_seconds ' \
+            && ok "GET /api/metrics?format=prometheus → 노출 형식" \
+            || no "prometheus 형식 응답이 아니다"
+    else
+        no "GET /api/metrics → $mcode (200 기대)"
+    fi
+fi
+echo
+
+echo "[14] TLS 인증서 이름 (SNI 없는 접속 = 브라우저로 IP 주소 접속)"
 # 이 검사가 따로 있는 이유: `curl` 과 `openssl -servername` 은 SNI 를 보내므로 위 검사가
 # 전부 통과하는데도 **사람은 브라우저로 들어갈 수 없는** 상태가 가능하다. 브라우저는
 # IP 주소로 접속할 때 SNI 를 보내지 않고(RFC 6066), 그러면 Caddy 의 on_demand 가

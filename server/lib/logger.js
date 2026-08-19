@@ -5,6 +5,8 @@
 //
 // 실사 지적사항 B4(로깅 0건) 대응. 사고 시 "누가 언제 무엇을 바꿨는가"를 답할 수 있어야 한다.
 
+const metrics = require('./metrics');
+
 const LEVELS = { debug: 10, info: 20, warn: 30, error: 40 };
 const MIN_LEVEL = LEVELS[process.env.LOG_LEVEL] || LEVELS.info;
 
@@ -27,12 +29,14 @@ const logger = {
 };
 
 // 요청 로깅 미들웨어 — 응답 완료 시점에 1줄.
+// 메트릭도 여기서 함께 센다. 계측 지점을 둘로 나누면 한쪽만 새 라우트를 놓친다.
 // 변경 요청(POST/PATCH/PUT/DELETE)은 감사 목적이므로 사용자·프로젝트·리비전을 함께 남긴다.
 const requestLogger = (req, res, next) => {
     const startedAt = process.hrtime.bigint();
     res.on('finish', () => {
         const durationMs = Number(process.hrtime.bigint() - startedAt) / 1e6;
         const mutating = req.method !== 'GET' && req.method !== 'HEAD';
+        metrics.record({ method: req.method, status: res.statusCode, durationMs });
         logger[res.statusCode >= 500 ? 'error' : res.statusCode >= 400 ? 'warn' : 'info'](
             'request',
             {

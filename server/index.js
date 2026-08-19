@@ -9,6 +9,7 @@ const projectsRouter = require('./routes/projects');
 const authRouter = require('./routes/auth');
 const auth = require('./lib/auth');
 const { logger, requestLogger } = require('./lib/logger');
+const metrics = require('./lib/metrics');
 
 const app = express();
 // 포트 고정은 호스트 충돌 시 손쓸 방법이 없다. (이 개발 호스트의 3000번은
@@ -72,7 +73,7 @@ app.get('/api', (req, res) => {
             '/api/projects/{pid}/tasks', '/api/projects/{pid}/data', '/api/projects/{pid}/revision', '/api/projects/{pid}/snapshots',
             '/api/projects/{pid}/events', '/api/projects/{pid}/dependency-issues',
             '/api/tasks (→ default 프로젝트 별칭)', '/api/revision', '/api/data', '/api/snapshots',
-            '/api/events', '/api/health', '/api/auth/me',
+            '/api/events', '/api/health', '/api/metrics', '/api/auth/me',
         ],
     });
 });
@@ -100,8 +101,22 @@ app.post('/api/settings', (req, res) => {
 });
 
 // ── 헬스체크 ─────────────────────────────────────────
+// 본문은 {ok,time} 뿐이고 앞으로도 그래야 한다. 이 경로는 인증 예외라서(PUBLIC_PATHS)
+// 여기에 무엇을 더 담든 그건 인증 없이 공개된다. 운영 숫자는 아래 /api/metrics 로 간다.
 app.get('/api/health', (req, res) => {
     res.json({ ok: true, time: new Date().toISOString() });
+});
+
+// ── 운영 메트릭 ──────────────────────────────────────
+// **일부러 인증 예외가 아니다** — 강제 모드에서는 viewer 이상이어야 읽힌다. 요청량·오류·
+// 마지막 변경 시각은 "누가 이 서버를 얼마나 쓰는가"를 그대로 드러내는 값이다.
+// 기본은 JSON(사람과 스크립트가 읽는다), `?format=prometheus` 면 노출 형식.
+// 프로세스 안의 숫자이므로 재시작하면 0이다 — uptimeSec 이 그 사실을 함께 말해 준다.
+app.get('/api/metrics', (req, res) => {
+    if (req.query.format === 'prometheus') {
+        return res.type('text/plain; version=0.0.4').send(metrics.toPrometheus());
+    }
+    res.json({ ok: true, metrics: metrics.snapshot() });
 });
 
 // ── 프로젝트 레지스트리 CRUD ─────────────────────────

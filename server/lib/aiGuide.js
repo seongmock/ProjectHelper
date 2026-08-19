@@ -14,6 +14,7 @@ module.exports = {
         projects: 'GET /api/projects (프로젝트 목록 — 각각 독립된 작업 트리/리비전)',
         revision: 'GET /api/projects/{pid}/revision (경량 변경 감지)',
         health: 'GET /api/health',
+        metrics: 'GET /api/metrics (운영 지표 — 가동시간·요청수·오류·마지막 변경 시각. ?format=prometheus 로 노출 형식)',
         events: 'GET /api/projects/{pid}/events?limit=50 (감사 로그 — 누가 언제 무엇을 얼마나 바꿨는지)',
         dependencyIssues: 'GET /api/projects/{pid}/dependency-issues (의존성 점검 — 순환·일정 위반·끊어진 참조)',
         mcp: '프로젝트 루트 .mcp.json 등록 시 16개 MCP 도구 사용 가능 (get-guide, list-projects, create-project, add-task, reschedule 등)',
