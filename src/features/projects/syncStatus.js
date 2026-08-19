@@ -13,6 +13,11 @@ export const SYNC_SAVED = 'saved';     // 서버와 일치 — 잃을 것이 없
 export const SYNC_PENDING = 'pending'; // 저장할 편집이 있고 디바운스 대기 중
 export const SYNC_SAVING = 'saving';   // 요청 진행 중
 export const SYNC_ERROR = 'error';     // 마지막 시도가 실패 — 미저장 편집이 남아 있다
+// 저장할 **대상이 사라졌다** — 다른 사람(또는 AI)이 이 프로젝트를 지웠다. error 와 나눠야
+// 하는 이유는 재시도 때문이다: 404 는 기다린다고 낫지 않는데 error 는 60초까지 백오프하며
+// 영원히 다시 던지고, 화면에는 이유 없는 '저장 실패'만 남는다. 여기서 갈라야 사용자에게
+// **무슨 일이 일어났는지**와 **화면의 내용을 어떻게 살리는지**를 말할 수 있다.
+export const SYNC_GONE = 'gone';
 
 export const initialSyncState = { phase: SYNC_SAVED, failures: 0 };
 
@@ -32,6 +37,11 @@ const RETRY_MAX_MS = 60000;
 export function nextSyncState(state, event) {
     const { phase, failures } = state;
 
+    // 프로젝트가 사라진 것은 되돌아오지 않는다(복구는 **새 프로젝트**를 만드는 일이고,
+    // 그때 상태는 통째로 초기화된다). 뒤늦게 도착한 응답이 이 상태를 덮으면 사용자는
+    // 다시 '저장됨'을 보게 되고, 서버에 없는 트리를 저장됐다고 믿는다.
+    if (phase === SYNC_GONE) return state;
+
     switch (event) {
         case 'edit':
             // error 는 유지한다 — 실패 사실과 미저장 사실이 둘 다 아직 유효하다.
@@ -44,6 +54,10 @@ export function nextSyncState(state, event) {
         case 'saved':
             if (phase !== SYNC_SAVING) return state;
             return { phase: SYNC_SAVED, failures: 0 };
+
+        // 프로젝트 자체가 없어졌다 — 폴링이 목록에서 사라진 것을 보고 알린다.
+        case 'gone':
+            return { phase: SYNC_GONE, failures };
 
         case 'failed':
             return { phase: SYNC_ERROR, failures: failures + 1 };
@@ -86,6 +100,15 @@ export function describeSyncState(state) {
                 label: '저장 실패',
                 hint: '변경분이 이 브라우저에만 있습니다. 자동으로 다시 시도합니다 — 눌러서 즉시 재시도.',
                 canRetry: true,
+            };
+        case SYNC_GONE:
+            // 재시도 버튼을 주지 않는다 — 대상이 없으므로 몇 번을 눌러도 404 다.
+            return {
+                tone: 'error',
+                label: '프로젝트 삭제됨',
+                hint: '이 프로젝트가 다른 곳에서 삭제되었습니다. 화면의 내용은 이 브라우저에만 있습니다 — 눌러서 새 프로젝트로 저장하세요.',
+                canRetry: false,
+                canRecover: true,
             };
         default:
             return { tone: 'quiet', label: '저장됨', hint: '서버에 저장되었습니다.', canRetry: false };

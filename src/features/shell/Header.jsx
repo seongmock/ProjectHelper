@@ -8,7 +8,7 @@ import './Header.css';
 function Header({
     darkMode, onToggleDarkMode, onExport, onImport, canUndo, canRedo, onUndo, onRedo,
     onOpenPromptGuide, onOpenProjectManager, projectName,
-    syncState, onRetrySave,
+    syncState, onRetrySave, onRecoverProject,
 }) {
     return (
         <header className="header">
@@ -17,7 +17,7 @@ function Header({
                     {/* 화면의 주제는 앱이 아니라 이 프로젝트다 — h1 은 프로젝트 이름이 갖는다 */}
                     <h1 className="header-title" title={projectName || ''}>{projectName || '\u2026'}</h1>
                     {/* 저장 상태는 "어느 프로젝트의" 상태다 — 프로젝트 이름 옆이 읽는 순서에 맞다 */}
-                    {syncState && <SyncIndicator state={syncState} onRetry={onRetrySave} />}
+                    {syncState && <SyncIndicator state={syncState} onRetry={onRetrySave} onRecover={onRecoverProject} />}
                 </div>
 
                 <div className="header-right flex items-center gap-sm">

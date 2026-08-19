@@ -111,8 +111,10 @@ function App() {
         isLoading,
         projects,
         activeProjectId,
+        activeProjectName,
         syncState,
         retrySave,
+        recoverDeletedProject,
         switchProject,
         createProject,
         renameProject,
@@ -333,8 +335,6 @@ function App() {
         io, switchProject,
     ]);
 
-    const activeProjectName = projects.find(p => p.id === activeProjectId)?.name;
-
     return (
         <div className="app">
             <ProjectRail
@@ -363,6 +363,7 @@ function App() {
                     projectName={activeProjectName}
                     syncState={syncState}
                     onRetrySave={retrySave}
+                    onRecoverProject={recoverDeletedProject}
                 />
 
                 <Toolbar

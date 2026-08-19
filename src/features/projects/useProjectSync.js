@@ -16,7 +16,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { storage } from '../../utils/storage';
 import { migrateTaskData } from '../../utils/dataModel';
 import {
-    initialSyncState, nextSyncState, hasUnsavedEdits, retryDelay, SYNC_ERROR,
+    initialSyncState, nextSyncState, hasUnsavedEdits, retryDelay, SYNC_ERROR, SYNC_GONE,
 } from './syncStatus';
 
 const ACTIVE_PROJECT_KEY = 'project-timeline-active-project';
@@ -85,6 +85,9 @@ export function useProjectSync({ tasks, setTasks, setTasksSilent, resetTasks, ap
         // 같은 트리를 두 번 보내면 늦은 쪽이 낡은 If-Match 로 409 를 받아 "외부에서
         // 변경되었습니다" 라는 거짓 안내가 뜬다.
         if (savingRef.current) return null;
+        // 프로젝트가 삭제됐으면 보낼 곳이 없다 — 404 를 반복해 봐야 로그만 쌓이고,
+        // 그 실패가 상태를 error 로 되돌려 '삭제됨' 안내를 지운다.
+        if (syncRef.current.phase === SYNC_GONE) return null;
         savingRef.current = true;
         emitSync('saving');
         try {
@@ -179,8 +182,12 @@ export function useProjectSync({ tasks, setTasks, setTasksSilent, resetTasks, ap
     // 목록 갱신. 폴링 effect 가 의존성으로 참조하므로 그보다 위에 있어야 한다.
     const refreshProjects = useCallback(async () => {
         try {
-            setProjects(await storage.listProjects());
-        } catch { /* 오프라인 — 기존 목록 유지 */ }
+            const list = await storage.listProjects();
+            setProjects(list);
+            return list;
+        } catch {
+            return null; // 오프라인 — 기존 목록 유지. **삭제로 오해하면 안 된다.**
+        }
     }, []);
 
     // ── 리비전 폴링 ──────────────────────────────────
@@ -194,7 +201,18 @@ export function useProjectSync({ tasks, setTasks, setTasksSilent, resetTasks, ap
             // 좌측 레일은 상시로 떠 있어서 "여는 순간"이 없다 — 갱신하지 않으면 AI가 REST로
             // 만든 프로젝트가 새로고침 전까지 영영 보이지 않는다. 아래의 미저장 편집 가드보다
             // 앞에 둔다: 목록은 이 프로젝트의 편집 상태와 무관하다.
-            refreshProjects();
+            // 목록에서 **활성 프로젝트가 사라졌으면** 다른 사람이 지운 것이다. 이 판정이
+            // 없으면 화면은 이유 없는 '저장 실패'만 반복하고(404 는 재시도해도 낫지 않는다),
+            // 사용자는 무슨 일이 일어났는지도, 화면의 트리가 서버에 없다는 것도 알 수 없다.
+            // 오프라인(null)은 삭제가 아니다 — 목록을 받았을 때만 판정한다.
+            const list = await refreshProjects();
+            if (list && list.length > 0 && !list.some(p => p.id === activeProjectId)) {
+                if (syncRef.current.phase !== SYNC_GONE) {
+                    emitSync('gone');
+                    toast.error('이 프로젝트가 다른 곳에서 삭제되었습니다. 화면의 내용은 아직 이 브라우저에만 있습니다.');
+                }
+                return;
+            }
             // 미저장 편집이 있으면 재로드를 미룬다. 여기서 덮어쓰면 그 편집이 조용히
             // 사라지고(재로드는 skipNextSave 를 세워 저장 에코까지 막는다) 사용자는
             // 무엇을 잃었는지도 알 수 없다. 곧 자동저장이 돌고, 정말 충돌이면 409 가
@@ -205,7 +223,7 @@ export function useProjectSync({ tasks, setTasks, setTasksSilent, resetTasks, ap
             if (rev != null && known != null && rev !== known) await reloadFromServer();
         }, REVISION_POLL_MS);
         return () => clearInterval(id);
-    }, [isLoading, reloadFromServer, refreshProjects, activeProjectId]);
+    }, [isLoading, reloadFromServer, refreshProjects, activeProjectId, emitSync, toast]);
 
     // ── 프로젝트 전환 ────────────────────────────────
     // 순서가 중요하다:
@@ -221,7 +239,9 @@ export function useProjectSync({ tasks, setTasks, setTasksSilent, resetTasks, ap
         clearTimeout(saveTimerRef.current);
         setIsLoading(true);
         try {
-            if (hasUnsavedEdits(syncRef.current)) {
+            // 삭제된 프로젝트에는 flush 하지 않는다 — 404 가 뻔하고, 그 실패 토스트가
+            // 정작 중요한 '삭제됨' 안내를 밀어낸다.
+            if (hasUnsavedEdits(syncRef.current) && syncRef.current.phase !== SYNC_GONE) {
                 // attemptSave 를 쓰지 않는다 — 그쪽은 409 면 **떠나려는 프로젝트**를
                 // 다시 로드한다. 여기서는 곧 새 프로젝트로 갈아탈 트리다.
                 emitSync('saving');
@@ -255,6 +275,17 @@ export function useProjectSync({ tasks, setTasks, setTasksSilent, resetTasks, ap
             isSwitchingRef.current = false;
         }
     }, [activeProjectId, tasks, toast, resetTasks, onProjectSwitched]);
+
+    // 활성 프로젝트의 이름은 **사라진 뒤에도** 들고 있는다. 목록에서만 뽑으면 다른 사람이
+    // 지운 순간 헤더 제목이 '…' 로 바뀌어, 사용자는 자기가 무엇을 보고 있는지조차 잃는다.
+    const [activeProjectName, setActiveProjectName] = useState('');
+    const activeProjectNameRef = useRef('');
+    useEffect(() => {
+        const found = projects.find(p => p.id === activeProjectId);
+        if (!found) return;
+        activeProjectNameRef.current = found.name;
+        setActiveProjectName(found.name);
+    }, [projects, activeProjectId]);
 
     // ── 프로젝트 CRUD ────────────────────────────────
     const createProject = useCallback(async (name) => {
@@ -295,6 +326,29 @@ export function useProjectSync({ tasks, setTasks, setTasksSilent, resetTasks, ap
         }
     }, [projects, activeProjectId, switchProject, toast]);
 
+    // 삭제된 프로젝트의 화면 내용을 **새 프로젝트로** 옮긴다. 삭제를 되돌리는 것이 아니다 —
+    // 서버의 그 프로젝트는 이미 없다. 자동으로 하지 않는 이유: 사용자가 모르는 사이에
+    // 프로젝트가 하나 늘어나 있으면 그것대로 혼란이고, 지운 사람의 의도와도 충돌한다.
+    const recoverDeletedProject = useCallback(async () => {
+        if (syncRef.current.phase !== SYNC_GONE) return;
+        const stranded = tasksRef.current;       // 전환하면 트리가 갈리므로 **먼저** 붙든다
+        const name = `${activeProjectNameRef.current || '프로젝트'} (복구)`;
+        let created;
+        try {
+            created = await storage.createProject(name);
+        } catch {
+            toast.error('복구용 프로젝트를 만들지 못했습니다.');
+            return;
+        }
+        await refreshProjects();
+        await switchProject(created.id);
+        // 전환은 새 프로젝트(빈 트리)를 싣고 저장 에코 방지 플래그를 세운다. 그것을 내려야
+        // 되찾은 트리가 실제로 서버에 저장된다 — 안 내리면 다음 편집 때까지 미저장으로 남는다.
+        skipNextSaveRef.current = false;
+        resetTasks(stranded);
+        toast.success(`'${name}' 프로젝트로 옮겼습니다.`);
+    }, [refreshProjects, switchProject, resetTasks, toast]);
+
     // 인디케이터 클릭 = 즉시 재시도. 백오프가 60초까지 벌어지면 서버가 돌아온 것을
     // 사용자가 먼저 아는 경우가 있다 — 그때 기다리게 할 이유가 없다.
     const retrySave = useCallback(() => {
@@ -306,8 +360,10 @@ export function useProjectSync({ tasks, setTasks, setTasksSilent, resetTasks, ap
         isLoading,
         projects,
         activeProjectId,
+        activeProjectName,
         syncState,
         retrySave,
+        recoverDeletedProject,
         switchProject,
         createProject,
         renameProject,

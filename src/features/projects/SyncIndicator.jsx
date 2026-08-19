@@ -14,8 +14,8 @@ const ICONS = {
     error: CloudAlert,
 };
 
-function SyncIndicator({ state, onRetry }) {
-    const { tone, label, hint, canRetry } = describeSyncState(state);
+function SyncIndicator({ state, onRetry, onRecover }) {
+    const { tone, label, hint, canRetry, canRecover } = describeSyncState(state);
     const Icon = ICONS[tone];
 
     // 색만으로 구분하지 않는다 — 아이콘·텍스트·title 이 함께 상태를 말한다(실사 §5.3).
@@ -26,14 +26,16 @@ function SyncIndicator({ state, onRetry }) {
         </>
     );
 
-    if (canRetry) {
+    // 누를 수 있는 상태는 둘이고 하는 일이 다르다: 실패는 재시도, 삭제됨은 새 프로젝트로
+    // 옮기기. 같은 버튼에 같은 동작을 붙이면 삭제된 프로젝트에 404 를 다시 던지게 된다.
+    if (canRetry || canRecover) {
         return (
             <button
                 type="button"
                 className={`sync-indicator sync-${tone}`}
-                onClick={onRetry}
+                onClick={canRecover ? onRecover : onRetry}
                 title={hint}
-                aria-label={`${label} — 눌러서 즉시 재시도`}
+                aria-label={canRecover ? `${label} — 눌러서 새 프로젝트로 저장` : `${label} — 눌러서 즉시 재시도`}
                 data-sync-state={state.phase}
                 data-testid="sync-indicator"
             >

@@ -6,7 +6,7 @@
 import { describe, it, expect } from 'vitest';
 import {
     initialSyncState, nextSyncState, hasUnsavedEdits, retryDelay, describeSyncState,
-    SYNC_SAVED, SYNC_PENDING, SYNC_SAVING, SYNC_ERROR,
+    SYNC_SAVED, SYNC_PENDING, SYNC_SAVING, SYNC_ERROR, SYNC_GONE,
 } from '../../src/features/projects/syncStatus';
 
 const at = (phase, failures = 0) => ({ phase, failures });
@@ -103,10 +103,39 @@ describe('describeSyncState', () => {
     });
 
     it('색 말고도 구분할 것을 준다 — 모든 상태가 라벨과 설명을 갖는다', () => {
-        for (const phase of [SYNC_SAVED, SYNC_PENDING, SYNC_SAVING, SYNC_ERROR]) {
+        for (const phase of [SYNC_SAVED, SYNC_PENDING, SYNC_SAVING, SYNC_ERROR, SYNC_GONE]) {
             const d = describeSyncState(at(phase));
             expect(d.label).toBeTruthy();
             expect(d.hint).toBeTruthy();
         }
+    });
+});
+
+// 프로젝트가 통째로 사라진 경우. 이것을 error 로 묶어 두면 화면은 '저장 실패'만 말하고
+// 재시도는 404 를 향해 영원히 백오프한다 — 무슨 일이 일어났는지도, 무엇을 해야 하는지도
+// 알 수 없는 상태가 된다.
+describe('삭제된 프로젝트 (gone)', () => {
+    it('어느 상태에서든 gone 으로 간다', () => {
+        for (const phase of [SYNC_SAVED, SYNC_PENDING, SYNC_SAVING, SYNC_ERROR]) {
+            expect(nextSyncState(at(phase, 3), 'gone').phase).toBe(SYNC_GONE);
+        }
+    });
+
+    it('gone 은 흡수 상태다 — 늦게 온 응답이 저장됨으로 되돌리지 못한다', () => {
+        const gone = nextSyncState(at(SYNC_SAVING), 'gone');
+        for (const event of ['edit', 'saving', 'saved', 'failed', 'conflict']) {
+            expect(nextSyncState(gone, event)).toBe(gone);
+        }
+    });
+
+    it('미저장으로 센다 — 화면의 트리는 아직 이 브라우저에만 있다', () => {
+        expect(hasUnsavedEdits(at(SYNC_GONE))).toBe(true);
+    });
+
+    it('재시도가 아니라 복구를 제안한다 — 대상이 없으므로 다시 보내도 404 다', () => {
+        const d = describeSyncState(at(SYNC_GONE, 2));
+        expect(d.canRetry).toBe(false);
+        expect(d.canRecover).toBe(true);
+        expect(describeSyncState(at(SYNC_ERROR, 1)).canRecover).toBeFalsy();
     });
 });

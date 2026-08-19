@@ -227,3 +227,42 @@ test('버전 삭제는 무엇을 지우는지 보여 준 채로 한 번 더 묻�
     await expect(page.getByTestId('pm-version-row').filter({ hasText: '지울 버전' })).toHaveCount(0);
     await page.keyboard.press('Escape');
 });
+
+// 다른 사람(또는 AI)이 지금 편집 중인 프로젝트를 지우면, 예전에는 화면이 이유 없는
+// '저장 실패'만 반복했다 — 재시도는 404 를 향해 60초까지 백오프하고, 편집분은
+// localStorage 에만 남고, 무슨 일이 일어났는지 알 방법이 없었다. 이제는 폴링이 목록에서
+// 사라진 것을 보고 **삭제됐다고 말하고**, 화면의 트리를 새 프로젝트로 옮길 길을 준다.
+test('편집 중인 프로젝트가 외부에서 삭제되면 — 이름을 말하고 새 프로젝트로 구해 낸다', async ({ page, request }) => {
+    test.setTimeout(60_000); // 리비전 폴링 1주기(10초)를 기다려야 한다
+
+    await createProjectViaUI(page, '지워질 프로젝트');
+    await page.getByTitle('표 뷰').click();
+    await page.getByTitle('새 작업 추가 (Ctrl+N)').click();
+    const row = page.locator('.task-row', { hasText: '새 작업' }).first();
+    await row.locator('.task-name').dblclick();
+    await page.locator('input.name-input').fill('구조될 작업');
+    await page.locator('input.name-input').press('Enter');
+    await expect(page.getByTestId('sync-indicator')).toHaveAttribute('data-sync-state', 'saved');
+
+    const { projects } = await (await request.get('/api/projects')).json();
+    const target = projects.find(p => p.name === '지워질 프로젝트');
+    expect((await request.delete(`/api/projects/${target.id}`)).ok()).toBe(true);
+
+    // 폴링이 알아차린다. 재시도 버튼이 아니라 복구 버튼이어야 한다 — 대상이 없으므로
+    // 몇 번을 눌러도 404 다.
+    const indicator = page.getByTestId('sync-indicator');
+    await expect(indicator).toHaveAttribute('data-sync-state', 'gone', { timeout: 20_000 });
+    await expect(indicator).toContainText('프로젝트 삭제됨');
+    await expect(page.locator('.toast')).toContainText('삭제되었습니다');
+
+    // 누르면 화면의 트리가 새 프로젝트로 넘어간다 — 지워진 이름을 달고.
+    await indicator.click();
+    await expect(page.locator('.header-title')).toContainText('지워질 프로젝트 (복구)');
+    await expect(page.getByText('구조될 작업').first()).toBeVisible();
+
+    // 그리고 실제로 서버에 저장된다 — 저장되지 않으면 새로고침 한 번에 다시 사라진다.
+    await expect(page.getByTestId('sync-indicator')).toHaveAttribute('data-sync-state', 'saved');
+    await page.reload();
+    await expect(page.getByText('데이터 불러오는 중')).toHaveCount(0);
+    await expect(page.getByText('구조될 작업').first()).toBeVisible();
+});

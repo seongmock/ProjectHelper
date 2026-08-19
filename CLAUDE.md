@@ -25,9 +25,9 @@ npm run dev          # Vite dev server, http://localhost:5173, hot-reload
 npm run dev:api      # Express API server (PORT env, default 3000)
 npm run build        # Production build → dist/
 npm run lint         # ESLint 9 (flat config)
-npm run test:unit    # Vitest — 도메인 순수함수 + XSS 회귀 (453건)
+npm run test:unit    # Vitest — 도메인 순수함수 + XSS 회귀 (463건)
 npm run test:server  # node:test — 검증·서비스·저장소 내구성·감사 로그·의존성 정합성 (128건)
-npm run test:e2e     # Playwright E2E 94건 (API·dev 서버 자동 기동)
+npm run test:e2e     # Playwright E2E 96건 (API·dev 서버 자동 기동)
 npm run verify       # 위 전부 + 빌드 — 변경 후 이것을 돌려라
 ```
 
@@ -45,8 +45,8 @@ npx playwright test -g "프로젝트"                   # by test-title substrin
 npx playwright test --headed --debug                # watch it / step through
 ```
 
-**변경 후에는 `npm run verify`** — 합격 기준은 lint 0 error · unit 453/453 · server 128/128 ·
-빌드 성공 · **E2E 94/94 (skip 0)**.
+**변경 후에는 `npm run verify`** — 합격 기준은 lint 0 error · unit 463/463 · server 128/128 ·
+빌드 성공 · **E2E 96/96 (skip 0)**.
 
 `playwright.config.js` 는 **API 서버와 dev 서버를 모두 자동 기동**하며, API는
 `PH_DATA_DIR=.tmp-e2e-data` 로 격리된다. 예전에는 API 서버를 수동으로 띄우지 않으면 8건이
@@ -174,7 +174,7 @@ localStorage-only:
   request per keystroke/drag. Settings changes call `storage.saveSettings` directly.
 - **A failed `saveData` is surfaced and retried — it is not just logged.**
   `features/projects/syncStatus.js` owns the whole judgement (pure): the phase machine
-  (`nextSyncState`: saved/pending/saving/error), the backoff (`retryDelay`, 2s→60s), and the
+  (`nextSyncState`: saved/pending/saving/error/gone), the backoff (`retryDelay`, 2s→60s), and the
   display wording (`describeSyncState`). `useProjectSync` wires it and `SyncIndicator` (header,
   next to the project name) draws it — colour **plus** icon **plus** text, and the error state
   is a button that retries immediately. Three consequences hang off `hasUnsavedEdits()`:
@@ -183,6 +183,21 @@ localStorage-only:
   project-switch flush keeps the dirty state and toasts. Sync state resets per project on
   switch. `savingRef` prevents the debounce and retry timers from double-sending (the late one
   would get a stale `If-Match` → 409 → a bogus "changed externally" toast).
+- **"The project you are editing was deleted" is its own state — retrying it is worse than
+  useless.** Another user (or an AI over REST) can delete the active project while a tab has it
+  open. Every save then 404s, and folding that into `error` meant the screen said *"저장 실패"*
+  forever while the backoff crawled to 60s against a target that will never come back — the
+  user's tree lived only in localStorage and nothing on screen said why. `SYNC_GONE` is
+  therefore **absorbing** (a late response can't flip it back to "saved", which would claim a
+  tree the server does not have), `attemptSave` returns early in it, and the switch-flush skips
+  it. Detection rides the revision poll's project-list refresh — *the list is the evidence*, and
+  only when it comes back non-empty (`storage.listProjects()` returning `null` means offline,
+  which must never be read as a deletion). `describeSyncState` answers `canRecover` instead of
+  `canRetry`, and the one action offered — `recoverDeletedProject` — copies the **on-screen**
+  tree into a new `<name> (복구)` project. It grabs `tasksRef` *before* switching (the switch
+  loads the new project's empty tree) and clears `skipNextSaveRef` *after* `resetTasks`, or the
+  rescued tree sits unsaved until the next keystroke. Nothing is auto-created or auto-switched:
+  which project the work belongs in is the user's call.
 - **Revision-based sync with external (AI) writers**: every server mutation bumps a revision
   counter (`server/data/meta.json`). The browser sends `If-Match: <revision>` on save — a 409
   means an external writer (AI) changed data first, and the app reloads server state
