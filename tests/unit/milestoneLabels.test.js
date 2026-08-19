@@ -207,3 +207,20 @@ describe('milestoneLabelStyle — 네 변을 모두 지정한다', () => {
         expect(milestoneLabelStyle(undefined).bottom).toBe('100%');
     });
 });
+
+// 층은 세로 겹침을 없애기 위한 것이다 — 간격이 라벨보다 좁으면 층을 나눠 놓고도 겹친다.
+// 실측: 앱 22px, 내보낸 HTML 20px (padding 2px×2 + 줄높이). 브라우저에서 재어 확인했다.
+describe('LABEL_TIER_STEP 은 실제 라벨 높이보다 넓다', () => {
+    const MEASURED_LABEL_HEIGHT = 22;
+
+    it('층 간격이 라벨 높이 이상이다', () => {
+        expect(LABEL_TIER_STEP).toBeGreaterThanOrEqual(MEASURED_LABEL_HEIGHT);
+    });
+
+    it('이웃한 두 층의 라벨 상자가 서로 닿지 않는다', () => {
+        const t0 = LABEL_BASE_OFFSET;
+        const t1 = LABEL_BASE_OFFSET + LABEL_TIER_STEP;
+        // 0층 라벨의 바깥 끝 ↔ 1층 라벨의 안쪽 끝
+        expect(t1 - (t0 + MEASURED_LABEL_HEIGHT)).toBeGreaterThan(0);
+    });
+});

@@ -136,17 +136,5 @@ export const itemAnchor = (item, edge, dateRange, totalDays, contentWidth, rowHe
     };
 };
 
-// 선행 → 후행 경로. 뒤로 가야 하는 경우(후행이 선행보다 왼쪽) 우회 경로를 만든다.
-export const dependencyPath = (startX, startY, endX, endY) => {
-    if (startX < endX - 40) {
-        const midX = startX + 20;
-        return `M ${startX} ${startY} L ${midX} ${startY} L ${midX} ${endY} L ${endX} ${endY}`;
-    }
-    if (startY === endY && startX < endX) {
-        return `M ${startX} ${startY} L ${endX} ${endY}`; // 같은 행 · 정방향 → 직선
-    }
-    const backX = startX + 10;
-    const forwardX = endX - 30;
-    const midY = (startY + endY) / 2;
-    return `M ${startX} ${startY} L ${backX} ${startY} L ${backX} ${midY} L ${forwardX} ${midY} L ${forwardX} ${endY} L ${endX} ${endY}`;
-};
+// 화살표 경로는 내보내기와 공유하는 순수 모듈에 있다 — 여기서는 다시 내보내기만 한다.
+export { dependencyPath } from './dependencyPath.js';

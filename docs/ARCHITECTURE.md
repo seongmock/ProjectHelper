@@ -102,7 +102,7 @@ Docker Compose 3서비스: Caddy(443, `/api/*` → api, 나머지 → 정적 프
 |---|---|
 | 번들 >500kB 경고 | html2canvas가 대부분 — dynamic import로 분리 가능 (미적용) |
 | TimelineView 1497줄 | 렌더+드래그+캡처+연결선이 한 파일 — 기능 분리 여지 |
-| htmlExporter의 뷰 로직 중복 | 날짜 윈도우 패딩이 뷰(±14d)와 export(-14/+21d)로 불일치 — 통합 시 화면 변경이라 보류 |
+| htmlExporter의 뷰 로직 중복 | 2026-08-19 일부 해소 — 순수 모듈 소스를 `?raw` 로 내보낸 스크립트에 **심어서** 공유한다(`milestoneLabels.js`, `dependencyPath.js`). 남은 불일치: 날짜 윈도우 패딩이 뷰(±14d)와 export(-14/+21d)로 다름 — 통합 시 화면 변경이라 보류 |
 | 마일스톤 도형 3중 구현 | TaskRow(글리프)·TimelineBar(SVG)·exporter가 각각 — 시각 차이 있어 통합 보류 |
 | TableView 날짜 컬럼 | task.startDate(레거시)를 편집 — timeRanges와 desync (설계 결정 필요) |
 | undo 히스토리 | 드래그 시 expand/collapse가 히스토리에 2엔트리 추가 (라이트한 불편) |

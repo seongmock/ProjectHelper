@@ -2,6 +2,18 @@ import { dateUtils } from '../../utils/dateUtils';
 import { getTaskStatus } from '../../utils/taskTree';
 import { STATUS_STYLES, getStatusColor } from '../../themes/index.js';
 
+// 라벨 배치는 **앱과 같은 코드**를 쓴다. 내보낸 HTML 은 정적 산출물이라, 배치 규칙을 여기에
+// 다시 적으면 반드시 낡는다 — 실제로 낡아 있었다: 앱은 층(tier)을 늘려 겹침을 없애는데
+// 내보내기는 top/bottom/right 세 칸만 시도하고 넷째부터 'top' 으로 되돌려 그냥 겹쳤다.
+// 그래서 순수 모듈의 **소스를 그대로 심는다**. 컴포넌트는 심을 수 없지만(내보내기 결과는
+// 자립형 <div> 하나여야 한다) 순수함수는 심을 수 있다.
+import milestoneLabelsSource from '../timeline/milestoneLabels.js?raw';
+import dependencyPathSource from '../timeline/dependencyPath.js?raw';
+
+// ESM 소스를 <script> 안의 평범한 선언으로 바꾼다. export 키워드만 떼면 되고, 심는 값은
+// 템플릿 리터럴의 **보간값**이라 백틱이나 치환 구문을 다시 이스케이프하면 오히려 깨진다.
+const inlineModuleSource = (src) => src.replace(/^export /gm, '');
+
 /**
  * Export project data to a single self-contained HTML file.
  * @param {Array} tasks - List of tasks
@@ -559,6 +571,26 @@ ${statusMode ? legendHtml() : ''}
                 .replace(/'/g, '&#39;');
         }
 
+        // ---8<--- milestoneLabels.js (앱과 같은 소스, export 만 제거) ---8<---
+${inlineModuleSource(milestoneLabelsSource)}
+        // ---8<--- /milestoneLabels.js ---8<---
+
+        // ---8<--- dependencyPath.js (앱과 같은 소스, export 만 제거) ---8<---
+${inlineModuleSource(dependencyPathSource)}
+        // ---8<--- /dependencyPath.js ---8<---
+
+        // 배치 결과(React 스타일 객체)를 인라인 CSS 로 바꾼다. undefined 는 "지정 안 함"이므로
+        // 건너뛴다 — 'max-width: undefined' 는 선언 하나를 통째로 무효로 만든다.
+        function styleToCss(style) {
+            return Object.keys(style || {})
+                .filter(function(key) { return style[key] !== undefined && style[key] !== null; })
+                .map(function(key) {
+                    var prop = key.replace(/[A-Z]/g, function(c) { return '-' + c.toLowerCase(); });
+                    return prop + ': ' + style[key] + ';';
+                })
+                .join(' ');
+        }
+
         const ZOOM_LEVEL = ${zoomLevel};
         const TIME_SCALE = '${settings.timeScale || 'monthly'}';
         const CHART_THEME = '${settings.chartTheme || 'default'}';
@@ -763,7 +795,9 @@ ${statusMode ? legendHtml() : ''}
             // Read Row Height from CSS to ensure sync
             const rowHeightCss = getComputedStyle(root).getPropertyValue('--row-height').trim();
             const ROW_HEIGHT = parseInt(rowHeightCss, 10) || 40;
-            const PADDING_TOP = 24;
+            // 첫 행 위로도 라벨이 층을 쌓는다 — 여백이 없으면 tier 1 이 컨테이너 위로
+            // 잘려 나간다(라벨 20px + 기준 4px + 층 24px).
+            const PADDING_TOP = 52;
 
             DATA.forEach(function(task, index) {
                 var rowTop = (index * ROW_HEIGHT) + PADDING_TOP; 
@@ -904,80 +938,28 @@ ${statusMode ? legendHtml() : ''}
                 }
 
                 if (task.milestones) {
-                    var placedMilestones = []; 
-
-                    // Sort milestones by X position to handle collisions correctly
-                    var preparedMilestones = task.milestones.map(function(m) {
+                    // 배치는 앱과 **같은 순수함수**가 한다(placeMilestoneLabels). 그 좌표계는 컨테이너
+                    // px 이고 이 렌더는 퍼센트로 그리므로, contentWidth 로 환산해서 넘긴다.
+                    var shownMilestones = [];
+                    task.milestones.forEach(function(m) {
                         var date = parseDate(m.date);
                         var leftPerc = getPosPercent(date, startDate, totalDays);
-                        // Approximate width: Char count * 14 + 10px
-                        var widthPx = (m.label.length * 14) + 10;
-                        var widthPerc = (widthPx / contentWidth) * 100;
-                        return { m: m, leftPerc: leftPerc, widthPerc: widthPerc, date: date };
-                    }).sort(function(a, b) { return a.leftPerc - b.leftPerc; });
-
-                    preparedMilestones.forEach(function(item) {
-                        var m = item.m;
-                        var leftPerc = item.leftPerc;
-                        var widthPerc = item.widthPerc;
-                        var date = item.date;
-
+                        // 축 밖의 마일스톤도 의존성 화살표의 끝점이 될 수 있다 — 좌표는 항상 남긴다.
                         coordMap.set(m.id, { x: leftPerc, y: rowCenter, right: leftPerc, left: leftPerc, type: 'milestone' });
-
                         if (date < startDate || date > maxDate) return;
-                        
-                        // Collision Detection
-                        var checkCollision = function(start, end, type) {
-                             return placedMilestones.some(function(p) {
-                                 if (p.type !== type) return false;
-                                 return (start < p.end && end > p.start);
-                             });
-                        };
+                        shownMilestones.push({
+                            id: m.id, m: m, date: date, leftPerc: leftPerc,
+                            x: (leftPerc / 100) * contentWidth,
+                            label: m.label, labelPosition: m.labelPosition
+                        });
+                    });
 
-                        var pos = 'top';
-                        // Determine manual or auto position
-                        if (m.labelPosition && m.labelPosition !== 'auto') {
-                             pos = m.labelPosition;
-                        } else {
-                            // Auto: Top -> Bottom -> Right -> Top
-                            var halfW = widthPerc / 2;
-                            var topStart = leftPerc - halfW;
-                            var topEnd = leftPerc + halfW;
-                            
-                            if (!checkCollision(topStart, topEnd, 'top')) {
-                                pos = 'top';
-                            } else {
-                                var bottomStart = leftPerc - halfW;
-                                var bottomEnd = leftPerc + halfW;
-                                if (!checkCollision(bottomStart, bottomEnd, 'bottom')) {
-                                     pos = 'bottom';
-                                } else {
-                                     var tenPxPerc = (10 / contentWidth) * 100;
-                                     var rightStart = leftPerc + tenPxPerc;
-                                     var rightEnd = rightStart + widthPerc;
-                                     if (!checkCollision(rightStart, rightEnd, 'right')) {
-                                          pos = 'right';
-                                     } else {
-                                          pos = 'top'; // Fallback
-                                     }
-                                }
-                            }
-                        }
-                        // Register Occupied
-                        var occupiedStart = 0, occupiedEnd = 0;
-                        if (pos === 'right') {
-                             var tenPxPerc = (10 / contentWidth) * 100;
-                             occupiedStart = leftPerc + tenPxPerc;
-                             occupiedEnd = occupiedStart + widthPerc;
-                        } else if (pos === 'left') {
-                             var tenPxPerc = (10 / contentWidth) * 100;
-                             occupiedEnd = leftPerc - tenPxPerc;
-                             occupiedStart = occupiedEnd - widthPerc;
-                        } else {
-                             occupiedStart = leftPerc - (widthPerc/2);
-                             occupiedEnd = leftPerc + (widthPerc/2);
-                        }
-                        placedMilestones.push({ start: occupiedStart, end: occupiedEnd, type: pos });
+                    var placements = placeMilestoneLabels(shownMilestones, contentWidth);
+
+                    shownMilestones.forEach(function(item) {
+                        var m = item.m;
+                        var date = item.date;
+                        var leftPerc = item.leftPerc;
 
                         var color = m.color || '#e67e22';
                         var shape = m.shape || 'diamond';
@@ -994,17 +976,12 @@ ${statusMode ? legendHtml() : ''}
                         else if (shape === 'flag') shapeHtml = '<svg class="shape-icon" width="20" height="20" viewBox="0 0 24 24" style="' + svgStyle + '"><path d="M14.4 6L14 4H5V21H7V14H12L12.4 16H22V6H14.4Z" fill="' + color + '" stroke="white" stroke-width="2" stroke-linejoin="round" /></svg>';
                         else shapeHtml = '<div class="shape-icon shape-div" style="background-color: ' + color + ';"></div>';
 
-                        // Match Label Style from TimelineBar.jsx with override logic for 'top/bottom/left/right'
-                        var labelStyle = '';
-                        if (pos === 'top') labelStyle = 'bottom: 100%; left: 50%; transform: translateX(-50%); margin-bottom: 4px;';
-                        else if (pos === 'left') labelStyle = 'right: 100%; top: 50%; transform: translateY(-50%); margin-right: 8px;';
-                        else if (pos === 'right') labelStyle = 'left: 100%; top: 50%; transform: translateY(-50%); margin-left: 8px;';
-                        else labelStyle = 'top: 100%; left: 50%; transform: translateX(-50%); margin-top: 4px;'; // bottom
+                        var labelStyle = styleToCss(milestoneLabelStyle(placements.get(m.id)));
 
                         // Shape wrapper classes
                         var shapeClasses = 'milestone-shape';
                         if (shape === 'diamond') shapeClasses += ' diamond';
-                        
+
                         html += '<div class="milestone-marker" style="left: ' + leftPerc + '%; top: ' + rowCenter + 'px;" title="' + esc(m.label) + ' (' + formatDate(date) + ')">' +
                             '<div class="' + shapeClasses + '">' + shapeHtml + '</div>' +
                             '<div class="milestone-label" style="' + labelStyle + '">' + esc(m.label) + '</div>' +
@@ -1058,20 +1035,8 @@ ${statusMode ? legendHtml() : ''}
                         endX -= 12; // 10px + 2px buffer
                     }
                     
-                     let path = '';
-                    const midX = startX + 20;
-                    
-                    if (startX < endX - 40) {
-                        path = \`M \${startX} \${startY} L \${midX} \${startY} L \${midX} \${endY} L \${endX} \${endY}\`;
-                    } else if (Math.abs(startY - endY) < 1 && startX < endX) {
-                        // Same row, forward direction -> Straight Line
-                        path = \`M \${startX} \${startY} L \${endX} \${endY}\`;
-                    } else {
-                        const backX = startX + 10;
-                        const forwardX = endX - 30;
-                        const midY = (startY + endY) / 2;
-                        path = \`M \${startX} \${startY} L \${backX} \${startY} L \${backX} \${midY} L \${forwardX} \${midY} L \${forwardX} \${endY} L \${endX} \${endY}\`;
-                    }
+                    // 경로는 앱과 같은 순수함수가 그린다(dependencyPath) — 여기서 다시 적으면 어긋난다.
+                    const path = dependencyPath(startX, startY, endX, endY);
                     // Match color with TimelineView (#999)
                     pathHtml += \`<path d="\${path}" class="dependency-line" marker-end="url(#arrowhead-${listId})" style="stroke: #999; stroke-width: 2px; stroke-dasharray: 4 2; opacity: 1.0; fill: none;" />\`;
                 });

@@ -17,7 +17,10 @@
 // 안 들어가면 maxWidth 로 줄여 말줄임표에 맡긴다.
 
 export const LABEL_GAP = 8;        // 마커와 좌/우 라벨 사이 간격
-export const LABEL_TIER_STEP = 16; // 층 간격(px) — 라벨 높이(약 15px)보다 살짝 넓게
+export const LABEL_TIER_STEP = 24; // 층 간격(px) — 라벨 높이보다 넓어야 한다.
+//   16px 이던 시절엔 층을 나눠 놓고도 라벨끼리 겹쳤다. 실측 높이는 앱 22px,
+//   내보낸 HTML 20px(padding 2px×2 + 줄높이) 이므로 24 는 둘 다 2px 이상 띄운다.
+//   "층으로 피한다"는 규칙이 그 차이만큼 거짓이었다.
 export const LABEL_BASE_OFFSET = 4;// 0층과 마커 사이
 export const LABEL_CHAR_WIDTH = 7; // font-size-xs 기준 한 글자 평균 폭(한글은 더 넓다)
 export const LABEL_PADDING = 12;   // .milestone-label 의 좌우 padding 합(2 × 6px)

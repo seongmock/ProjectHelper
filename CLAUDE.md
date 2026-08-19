@@ -25,7 +25,7 @@ npm run dev          # Vite dev server, http://localhost:5173, hot-reload
 npm run dev:api      # Express API server (PORT env, default 3000)
 npm run build        # Production build → dist/
 npm run lint         # ESLint 9 (flat config)
-npm run test:unit    # Vitest — 도메인 순수함수 + XSS 회귀 (444건)
+npm run test:unit    # Vitest — 도메인 순수함수 + XSS 회귀 (453건)
 npm run test:server  # node:test — 검증·서비스·저장소 내구성·감사 로그·의존성 정합성 (128건)
 npm run test:e2e     # Playwright E2E 92건 (API·dev 서버 자동 기동)
 npm run verify       # 위 전부 + 빌드 — 변경 후 이것을 돌려라
@@ -45,7 +45,7 @@ npx playwright test -g "프로젝트"                   # by test-title substrin
 npx playwright test --headed --debug                # watch it / step through
 ```
 
-**변경 후에는 `npm run verify`** — 합격 기준은 lint 0 error · unit 444/444 · server 128/128 ·
+**변경 후에는 `npm run verify`** — 합격 기준은 lint 0 error · unit 453/453 · server 128/128 ·
 빌드 성공 · **E2E 92/92 (skip 0)**.
 
 `playwright.config.js` 는 **API 서버와 dev 서버를 모두 자동 기동**하며, API는
@@ -444,7 +444,19 @@ Dependencies now live at the range level.
   (`TimelineView`'s `tasks`, i.e. `filteredTasks`), not `allTasks`: reviving search-filtered
   tasks on an ancestor row would invert "show me only these". A connection is a fact; a filter is
   a request.
-- `htmlExporter.js` generates a **self-contained interactive HTML** export of the timeline.
+- **`htmlExporter.js` re-implements the gantt render — so anything it can share, it shares by
+  embedding the source, not by copying it.** The export must stay a self-contained `<div>`
+  fragment (it is pasted into a Confluence HTML macro), so React components can't be reused;
+  pure modules can. `import x from '../timeline/foo.js?raw'` + `inlineModuleSource()` (strips the
+  `export` keywords) drops the module's **own source** into the exported `<script>`, between
+  `// ---8<---` markers. Two modules ride that path today: `milestoneLabels.js` (label placement)
+  and `dependencyPath.js` — the latter exists as a separate, **import-free** file for exactly this
+  reason, and `timelineGeometry.js` merely re-exports it. What this buys is not tidiness: the
+  copies had already drifted (the export tried three label slots and then just overlapped, while
+  the app stacks tiers). `tests/unit/htmlExporter.test.js` **evaluates the embedded source and
+  compares its output against the imported module** — a "contains the string" check would pass on
+  a copy — and asserts the emitted `<script>` parses at all, because one bad escape turns the
+  whole export into a blank chart that still looks fine.
 
 ### Tree-update invariants (critical for correctness)
 
