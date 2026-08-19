@@ -28,6 +28,14 @@
     white-space: nowrap;
 }
 
+/* 오른쪽 버튼군의 툴팁은 오른쪽 끝에 맞춘다. 가운데 정렬(left:50% + translateX(-50%))은
+   맨 오른쪽 버튼(테마 변경)에서 툴팁 절반이 화면 밖으로 나가 잘렸다. */
+.header-right .tooltip::after {
+    left: auto;
+    right: 0;
+    transform: none;
+}
+
 .header-left,
 .header-right {
     display: flex;

@@ -79,7 +79,7 @@ npx playwright test
 npm run lint
 ```
 
-**합격 기준**: lint 0 error · unit 381/381 · server 128/128 · 빌드 성공 · **E2E 80/80(skip 0)**.
+**합격 기준**: lint 0 error · unit 434/434 · server 128/128 · 빌드 성공 · **E2E 90/90(skip 0)**.
 
 > ⚠️ 예전에는 API 서버를 수동으로 띄우지 않으면 `19 passed / 1 failed / 8 skipped`가 났다.
 > 지금은 config 가 자동 기동하지만 원칙은 그대로다 — skip이 1건이라도 있으면 그 테스트는

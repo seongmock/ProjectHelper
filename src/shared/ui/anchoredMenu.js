@@ -46,3 +46,30 @@ export function placeAnchoredMenu(trigger, menu, viewport, options = {}) {
         placement: flipUp ? 'above' : 'below',
     };
 }
+
+// 커서를 따라다니는 툴팁(shared/ui/Tooltip)의 좌표. 메뉴와 달리 기준이 점이라 뒤집기가
+// "반대쪽으로 미러링"이 된다.
+//
+// 예전에는 그냥 `left: x + 10; top: y + 10` 이었다 — 화면 오른쪽이나 아래쪽 끝에서 마우스를
+// 올리면 툴팁이 뷰포트를 넘어가 **내용의 절반 이상이 잘렸다.** 타임라인은 가로로 길어서
+// 오른쪽 끝의 바를 확인하는 일이 드물지 않다.
+export const CURSOR_GAP = 10;
+
+export function placeCursorTooltip(cursor, size, viewport, options = {}) {
+    const gap = options.gap ?? CURSOR_GAP;
+    const margin = options.margin ?? MENU_MARGIN;
+    const width = Math.max(0, size.width || 0);
+    const height = Math.max(0, size.height || 0);
+
+    // 커서 오른쪽/아래가 기본. 안 들어가면 반대쪽으로 넘기고, 그래도 안 되면 여백에 붙인다
+    // (툴팁이 화면보다 큰 경우 — 붙여 두는 편이 잘려 사라지는 것보다 낫다).
+    let left = cursor.x + gap;
+    if (left + width > viewport.width - margin) left = cursor.x - gap - width;
+    if (left < margin) left = margin;
+
+    let top = cursor.y + gap;
+    if (top + height > viewport.height - margin) top = cursor.y - gap - height;
+    if (top < margin) top = margin;
+
+    return { top: Math.round(top), left: Math.round(left) };
+}

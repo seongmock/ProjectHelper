@@ -128,3 +128,113 @@ test.describe('팝업/메뉴 전수 검증', () => {
         expect(errors, errors.join('\n')).toEqual([]);
     });
 });
+
+// ── 잘리는 텍스트 전수 검사 ───────────────────────────────────────────────
+// 라벨과 툴팁은 "옆이나 위에 걸려서" 잘린다. 잘린 텍스트는 틀린 텍스트보다 나쁘다 —
+// 사용자는 잘린 줄 모르고 남은 절반을 읽는다. 배치 규칙 자체는 순수함수의 단위테스트가
+// 고정하고(milestoneLabels / anchoredMenu), 여기서는 **실제로 그려진 사각형**을 본다.
+
+// 마일스톤을 잔뜩 붙인 데이터를 심는다. 축의 양 끝(왼쪽/오른쪽 잘림)과 한 지점에 몰린
+// 여섯 개(겹침)를 동시에 만든다.
+async function seedMilestones(page, request) {
+    await page.waitForTimeout(2500); // 앱의 초기 자동 저장(1.5s 디바운스)이 끝난 뒤에 덮어쓴다
+    const { data } = await (await request.get('/api/data')).json();
+    const target = data.find(t => (t.timeRanges || []).length > 0);
+    const range = target.timeRanges[0];
+    const mid = range.startDate;
+    target.milestones = [
+        { id: 'ms-left', date: range.startDate, label: '맨 왼쪽 마일스톤', color: '#e74c3c', shape: 'diamond' },
+        { id: 'ms-right', date: range.endDate, label: '맨 오른쪽 마일스톤', color: '#e74c3c', shape: 'diamond' },
+        ...Array.from({ length: 6 }, (_, i) => ({
+            id: `ms-crowd-${i}`, date: mid, label: `몰린 마일스톤 ${i}`, color: '#4a90e2', shape: 'circle',
+        })),
+    ];
+    expect((await request.post('/api/data', { data })).ok()).toBe(true);
+    await page.reload();
+    await expect(page.getByText('데이터 불러오는 중')).toHaveCount(0);
+    await expect(page.locator('.milestone-label').first()).toBeVisible();
+}
+
+test.describe('잘리는 텍스트 전수 검사', () => {
+    test('마일스톤 라벨은 차트 밖으로 나가지 않는다', async ({ page, request }) => {
+        await seedMilestones(page, request);
+
+        const problems = await page.evaluate(() => {
+            const content = document.querySelector('.timeline-content').getBoundingClientRect();
+            const bad = [];
+            for (const el of document.querySelectorAll('.milestone-label')) {
+                const r = el.getBoundingClientRect();
+                const text = el.textContent;
+                // 2px 는 서브픽셀·테두리 반올림 몫
+                if (r.left < content.left - 2) bad.push(`"${text}" 왼쪽으로 ${Math.round(content.left - r.left)}px 넘쳤다`);
+                if (r.right > content.right + 2) bad.push(`"${text}" 오른쪽으로 ${Math.round(r.right - content.right)}px 넘쳤다`);
+                if (r.width <= 0) bad.push(`"${text}" 폭이 0 이다`);
+            }
+            return bad;
+        });
+        expect(problems, problems.join(' / ')).toEqual([]);
+    });
+
+    test('자동 배치된 마일스톤 라벨은 서로 겹치지 않는다', async ({ page, request }) => {
+        await seedMilestones(page, request);
+        // 검사할 라벨이 없으면 이 테스트는 아무것도 보증하지 않는다 — 심은 8개는 최소한 있어야 한다
+        expect(await page.locator('.milestone-label').count()).toBeGreaterThanOrEqual(8);
+
+        // 같은 칸(position + tier)에 놓인 라벨끼리만 겹칠 수 있다. 여섯 개를 한 날짜에
+        // 몰아 두었으므로, 예전 구현(칸이 셋)에서는 반드시 겹쳤다.
+        const problems = await page.evaluate(() => {
+            const labels = [...document.querySelectorAll('.milestone-label')].map(el => ({
+                text: el.textContent,
+                slot: `${el.dataset.labelPosition}:${el.dataset.labelTier}`,
+                r: el.getBoundingClientRect(),
+            }));
+            const bad = [];
+            for (let i = 0; i < labels.length; i++) {
+                for (let j = i + 1; j < labels.length; j++) {
+                    const a = labels[i], b = labels[j];
+                    if (a.slot !== b.slot) continue;
+                    if (a.r.left < b.r.right && a.r.right > b.r.left) {
+                        bad.push(`"${a.text}" 와 "${b.text}" 가 ${a.slot} 에서 겹쳤다`);
+                    }
+                }
+            }
+            return bad;
+        });
+        expect(problems, problems.join(' / ')).toEqual([]);
+    });
+
+    // 헤더 버튼의 CSS 툴팁(`.tooltip::after`)은 실제 요소가 아니라 의사 요소라서 사각형을
+    // 직접 못 잡는다 — 부모 사각형에 계산된 top/left 를 더해 재구성한다.
+    test('헤더 버튼의 CSS 툴팁이 화면 밖으로 나가지 않는다', async ({ page }) => {
+        await expect(page.locator('.tooltip[data-tooltip]')).not.toHaveCount(0);
+        const problems = await page.evaluate(() => {
+            const bad = [];
+            for (const el of document.querySelectorAll('.tooltip[data-tooltip]')) {
+                const host = el.getBoundingClientRect();
+                const cs = getComputedStyle(el, '::after');
+                const box = {
+                    left: host.left + parseFloat(cs.left),
+                    top: host.top + parseFloat(cs.top),
+                    width: parseFloat(cs.width),
+                    height: parseFloat(cs.height),
+                };
+                const label = el.dataset.tooltip;
+                if (!Number.isFinite(box.left) || !Number.isFinite(box.top)) {
+                    bad.push(`"${label}" 툴팁 좌표를 읽을 수 없다 (${cs.left}, ${cs.top})`);
+                    continue;
+                }
+                // 위로 띄우면 헤더가 화면 맨 위라서 음수 y 로 사라졌다 — 그것이 이 검사의 이유다.
+                if (box.top < 0) bad.push(`"${label}" 툴팁이 화면 위로 ${Math.round(-box.top)}px 잘렸다`);
+                if (box.left < 0) bad.push(`"${label}" 툴팁이 왼쪽으로 ${Math.round(-box.left)}px 잘렸다`);
+                if (box.left + box.width > window.innerWidth) {
+                    bad.push(`"${label}" 툴팁이 오른쪽으로 ${Math.round(box.left + box.width - window.innerWidth)}px 잘렸다`);
+                }
+                if (box.top + box.height > window.innerHeight) {
+                    bad.push(`"${label}" 툴팁이 아래로 잘렸다`);
+                }
+            }
+            return bad;
+        });
+        expect(problems, problems.join(' / ')).toEqual([]);
+    });
+});

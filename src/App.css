@@ -352,12 +352,16 @@ input[type="color"] {
   position: relative;
 }
 
+/* **아래에 띄운다.** 이 클래스를 쓰는 버튼은 전부 헤더에 있고 헤더는 화면 맨 위에
+   붙어 있어서, bottom: 100% 로 위에 띄우면 툴팁이 뷰포트 밖(음수 y)으로 나가 **한 번도
+   보이지 않았다**. 잘리는 텍스트를 훑다가 찾은 것 — 아무도 못 봤으니 신고도 없었다. */
 .tooltip::after {
   content: attr(data-tooltip);
   position: absolute;
-  bottom: 100%;
+  top: 100%;
   left: 50%;
   transform: translateX(-50%);
+  z-index: var(--z-tooltip);
   padding: var(--spacing-xs) var(--spacing-sm);
   background-color: var(--color-text-primary);
   color: var(--color-bg-primary);
@@ -367,7 +371,7 @@ input[type="color"] {
   opacity: 0;
   pointer-events: none;
   transition: opacity var(--transition-fast);
-  margin-bottom: var(--spacing-xs);
+  margin-top: var(--spacing-xs);
 }
 
 .tooltip:hover::after {

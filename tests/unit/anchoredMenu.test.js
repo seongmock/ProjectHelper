@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { placeAnchoredMenu, MENU_GAP, MENU_MARGIN, MENU_MIN_HEIGHT } from '../../src/shared/ui/anchoredMenu.js';
+import {
+    placeAnchoredMenu, placeCursorTooltip,
+    MENU_GAP, MENU_MARGIN, MENU_MIN_HEIGHT, CURSOR_GAP,
+} from '../../src/shared/ui/anchoredMenu.js';
 
 const VIEWPORT = { width: 1280, height: 800 };
 
@@ -87,5 +90,44 @@ describe('placeAnchoredMenu — 좌표는 항상 정수', () => {
         expect(Number.isInteger(pos.top)).toBe(true);
         expect(Number.isInteger(pos.left)).toBe(true);
         expect(Number.isInteger(pos.maxHeight)).toBe(true);
+    });
+});
+
+describe('placeCursorTooltip — 커서를 따라가지만 화면을 넘지 않는다', () => {
+    const SIZE = { width: 200, height: 60 };
+
+    it('여유가 있으면 커서 오른쪽 아래에 붙인다', () => {
+        const pos = placeCursorTooltip({ x: 400, y: 300 }, SIZE, VIEWPORT);
+        expect(pos).toEqual({ left: 400 + CURSOR_GAP, top: 300 + CURSOR_GAP });
+    });
+
+    it('오른쪽 끝에서는 커서 왼쪽으로 넘긴다', () => {
+        const pos = placeCursorTooltip({ x: VIEWPORT.width - 20, y: 300 }, SIZE, VIEWPORT);
+        expect(pos.left).toBe(VIEWPORT.width - 20 - CURSOR_GAP - SIZE.width);
+        expect(pos.left + SIZE.width).toBeLessThan(VIEWPORT.width);
+    });
+
+    it('아래쪽 끝에서는 커서 위로 넘긴다', () => {
+        const pos = placeCursorTooltip({ x: 400, y: VIEWPORT.height - 10 }, SIZE, VIEWPORT);
+        expect(pos.top).toBe(VIEWPORT.height - 10 - CURSOR_GAP - SIZE.height);
+        expect(pos.top + SIZE.height).toBeLessThan(VIEWPORT.height);
+    });
+
+    it('오른쪽 아래 모서리에서는 양쪽 모두 넘긴다', () => {
+        const pos = placeCursorTooltip(
+            { x: VIEWPORT.width - 5, y: VIEWPORT.height - 5 }, SIZE, VIEWPORT);
+        expect(pos.left + SIZE.width).toBeLessThan(VIEWPORT.width);
+        expect(pos.top + SIZE.height).toBeLessThan(VIEWPORT.height);
+    });
+
+    it('툴팁이 화면보다 크면 여백에 붙인다 (음수 좌표로 사라지지 않게)', () => {
+        const pos = placeCursorTooltip({ x: 10, y: 10 }, { width: 3000, height: 2000 }, VIEWPORT);
+        expect(pos.left).toBe(MENU_MARGIN);
+        expect(pos.top).toBe(MENU_MARGIN);
+    });
+
+    it('크기를 아직 재지 못했으면(0) 그냥 커서 옆에 둔다', () => {
+        const pos = placeCursorTooltip({ x: 400, y: 300 }, { width: 0, height: 0 }, VIEWPORT);
+        expect(pos).toEqual({ left: 410, top: 310 });
     });
 });

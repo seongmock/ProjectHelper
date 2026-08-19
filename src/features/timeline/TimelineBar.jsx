@@ -3,6 +3,7 @@ import { dateUtils } from '../../utils/dateUtils';
 import { isTaskOverdue, getTaskStatus } from '../../utils/taskTree';
 import { getStatusColor } from '../../themes/index.js';
 import { rollupSegmentTitle, rollupMilestoneTitle } from './rollupBars';
+import { placeMilestoneLabels, milestoneLabelStyle } from './milestoneLabels';
 import Tooltip from '../../shared/ui/Tooltip';
 import './TimelineBar.css';
 
@@ -302,86 +303,25 @@ function TimelineBar({
     }, [draggingMilestone, milestoneDragStart, containerWidth, totalDays, task.id, onMilestoneDragEnd, onMilestoneDragMove, draggedMilestoneDate, onGuideMove, snapEnabled, startDate]);
 
 
-    // Render Milestones (Same as before)
+    // 라벨 배치는 milestoneLabels.js 가 판정한다(순수 — 단위테스트가 규칙을 고정한다).
+    // 화면에 보이는 것만 넘긴다: 축 범위를 벗어난 마일스톤은 그려지지 않으므로 자리를
+    // 차지하지도 않아야 한다.
     const renderMilestones = () => {
         if (!task.milestones || task.milestones.length === 0) return null;
 
-        const preparedMilestones = task.milestones
+        const visible = task.milestones
             .filter(m => {
                 const d = new Date(m.date);
                 return d >= new Date(startDate) && d <= new Date(endDate);
             })
-            .map(m => {
-                const daysFromStart = dateUtils.getDaysBetween(startDate, m.date);
-                const x = (daysFromStart / totalDays) * containerWidth;
-                const width = (m.label.length * 14) + 10;
-                return { ...m, x, width };
-            })
-            .sort((a, b) => a.x - b.x);
+            .map(m => ({
+                id: m.id,
+                label: m.label,
+                labelPosition: m.labelPosition,
+                x: (dateUtils.getDaysBetween(startDate, m.date) / totalDays) * containerWidth,
+            }));
 
-        const occupied = [];
-        const preparedMap = preparedMilestones.map(m => {
-            // Reserve Manual Positions
-            if (m.labelPosition && m.labelPosition !== 'auto') {
-                let start, end;
-                if (m.labelPosition === 'right') {
-                    start = m.x + 10;
-                    end = m.x + 10 + m.width;
-                } else if (m.labelPosition === 'left') {
-                    start = m.x - 10 - m.width;
-                    end = m.x - 10;
-                } else {
-                    start = m.x - (m.width / 2);
-                    end = m.x + (m.width / 2);
-                }
-                occupied.push({ start, end, type: m.labelPosition, id: m.id });
-                return { ...m, finalLabelPos: m.labelPosition };
-            }
-            return m;
-        });
-
-        const checkCollision = (start, end, type) => {
-            return occupied.some(item => {
-                if (item.type !== type) return false;
-                return (start < item.end && end > item.start);
-            });
-        };
-
-        const resolvedPositions = {};
-
-        preparedMap.forEach(m => {
-            if (m.finalLabelPos) {
-                resolvedPositions[m.id] = m.finalLabelPos;
-                return;
-            }
-
-            const topStart = m.x - (m.width / 2);
-            const topEnd = m.x + (m.width / 2);
-            if (!checkCollision(topStart, topEnd, 'top')) {
-                resolvedPositions[m.id] = 'top';
-                occupied.push({ start: topStart, end: topEnd, type: 'top', id: m.id });
-                return;
-            }
-
-            const bottomStart = m.x - (m.width / 2);
-            const bottomEnd = m.x + (m.width / 2);
-            if (!checkCollision(bottomStart, bottomEnd, 'bottom')) {
-                resolvedPositions[m.id] = 'bottom';
-                occupied.push({ start: bottomStart, end: bottomEnd, type: 'bottom', id: m.id });
-                return;
-            }
-
-            const rightStart = m.x + 10;
-            const rightEnd = m.x + 10 + m.width;
-            if (!checkCollision(rightStart, rightEnd, 'right')) {
-                resolvedPositions[m.id] = 'right';
-                occupied.push({ start: rightStart, end: rightEnd, type: 'right', id: m.id });
-                return;
-            }
-
-            resolvedPositions[m.id] = 'top';
-            occupied.push({ start: topStart, end: topEnd, type: 'top', id: m.id });
-        });
+        const placements = placeMilestoneLabels(visible, containerWidth);
 
         return task.milestones.map((milestone) => {
             const currentDate = (draggingMilestone === milestone.id && draggedMilestoneDate)
@@ -397,7 +337,6 @@ function TimelineBar({
             const position = (daysFromStart / totalDays) * containerWidth;
 
             const shape = milestone.shape || 'diamond';
-            const finalLabelPos = resolvedPositions[milestone.id] || 'top';
 
             let shapeElement;
             const baseStyle = {
@@ -431,13 +370,8 @@ function TimelineBar({
                 }
             };
 
-            let labelStyle = {};
-            switch (finalLabelPos) {
-                case 'top': labelStyle = { bottom: '100%', left: '50%', transform: 'translateX(-50%)', marginBottom: '4px' }; break;
-                case 'left': labelStyle = { right: '100%', top: '50%', transform: 'translateY(-50%)', marginRight: '8px' }; break;
-                case 'right': labelStyle = { left: '100%', top: '50%', transform: 'translateY(-50%)', marginLeft: '8px' }; break;
-                case 'bottom': default: labelStyle = { top: '100%', left: '50%', transform: 'translateX(-50%)', marginTop: '4px' }; break;
-            }
+            const placement = placements.get(milestone.id) ?? { position: 'top', tier: 0, shiftX: 0, maxWidth: null };
+            const labelStyle = milestoneLabelStyle(placement);
 
             return (
                 <div
@@ -498,7 +432,13 @@ function TimelineBar({
                             </div>
                         )}
                     </div>
-                    <span className="milestone-label" style={labelStyle}>{milestone.label}</span>
+                    <span
+                        className="milestone-label"
+                        style={labelStyle}
+                        data-label-position={placement.position}
+                        data-label-tier={placement.tier}
+                        title={milestone.label}
+                    >{milestone.label}</span>
                 </div>
             );
         });

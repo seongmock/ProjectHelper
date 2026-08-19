@@ -25,9 +25,9 @@ npm run dev          # Vite dev server, http://localhost:5173, hot-reload
 npm run dev:api      # Express API server (PORT env, default 3000)
 npm run build        # Production build → dist/
 npm run lint         # ESLint 9 (flat config)
-npm run test:unit    # Vitest — 도메인 순수함수 + XSS 회귀 (381건)
+npm run test:unit    # Vitest — 도메인 순수함수 + XSS 회귀 (434건)
 npm run test:server  # node:test — 검증·서비스·저장소 내구성·감사 로그·의존성 정합성 (128건)
-npm run test:e2e     # Playwright E2E 80건 (API·dev 서버 자동 기동)
+npm run test:e2e     # Playwright E2E 90건 (API·dev 서버 자동 기동)
 npm run verify       # 위 전부 + 빌드 — 변경 후 이것을 돌려라
 ```
 
@@ -45,8 +45,8 @@ npx playwright test -g "프로젝트"                   # by test-title substrin
 npx playwright test --headed --debug                # watch it / step through
 ```
 
-**변경 후에는 `npm run verify`** — 합격 기준은 lint 0 error · unit 381/381 · server 128/128 ·
-빌드 성공 · **E2E 80/80 (skip 0)**.
+**변경 후에는 `npm run verify`** — 합격 기준은 lint 0 error · unit 434/434 · server 128/128 ·
+빌드 성공 · **E2E 90/90 (skip 0)**.
 
 `playwright.config.js` 는 **API 서버와 dev 서버를 모두 자동 기동**하며, API는
 `PH_DATA_DIR=.tmp-e2e-data` 로 격리된다. 예전에는 API 서버를 수동으로 띄우지 않으면 8건이
@@ -333,6 +333,34 @@ Dependencies now live at the range level.
   focus can just grab it in its own effect (the palette input does); Modal only steps in if
   focus is still outside the dialog. A child that wants `Tab` for itself calls
   `preventDefault()` and the trap stands down.
+- **An anchored dropdown is portaled to `document.body` and placed by `shared/ui/anchoredMenu.js`.**
+  A `z-index` on a descendant of `.header` (sticky, z 100) or `.toolbar` (z 90) is compared
+  *inside that ancestor's stacking context*, so `z-index: 500` still lost to the timeline's
+  milestone markers (z 200) — a bigger number can never fix it. `useAnchoredMenu` measures the
+  trigger and the menu and feeds the pure `placeAnchoredMenu`, which clamps horizontally, flips
+  above **only** when the menu doesn't fit below *and* above is roomier, and returns a
+  `maxHeight` so a long menu scrolls instead of running off screen. Every overlay layer takes
+  its number from the ladder in `App.css` (`--z-dropdown` 9000 → `--z-modal` 10000 →
+  `--z-toast` 10500 → `--z-tooltip` 11000); don't write a literal.
+- **A `var(--x)` that nothing defines is not a fallback — it is `initial`.** `background:
+  var(--color-bg)` with no such token computes to *transparent*, which is why two menus were
+  see-through while lint and the build stayed green. `tests/unit/cssTokens.test.js` scans every
+  `var(--x)` without a fallback in `src/**` against the tokens defined in the same file set;
+  runtime-injected names go in its `RUNTIME_INJECTED` allowlist.
+- **Milestone labels: auto never overlaps, manual may — but nothing is ever clipped.**
+  `features/timeline/milestoneLabels.js` (pure) places every visible marker's label:
+  a hand-picked `labelPosition` reserves its slot first and auto placements route around it,
+  so overlap is reachable *only* by asking for it (and manual-vs-manual is left alone —
+  both are the user's choice). Auto packing uses unbounded top/bottom **tiers**; the old
+  three-slot rotation (top → bottom → right) guaranteed a collision from the fourth label on.
+  Clipping is a separate rule that applies to manual placements too: every label is shifted
+  into `[0, containerWidth]` and, if it is wider than the container, capped with `maxWidth` +
+  ellipsis. `milestoneLabelStyle` always emits **all four** of top/bottom/left/right — leaving
+  the CSS's `top: -24px; left: 50%` half-overridden made the abspos box stretch between the two
+  sides. Label px and container px differ by `MARKER_SCALE` (the marker's `scale(0.8)`).
+  `tests/e2e/overlay-audit.spec.js` re-checks both classes on the rendered rectangles: menus
+  (opaque · on screen · `elementFromPoint` hits them) and text (labels inside
+  `.timeline-content`, `.tooltip::after` inside the viewport).
 - **Window-level keyboard policy lives in `src/shared/keyboard.js`** — both `window` keydown
   listeners (global shortcuts in `App.jsx`, selected-task keys in `useTaskKeyboard`) get their
   guards from it, because a guard that exists in two places gets fixed in one. The pure
