@@ -36,6 +36,9 @@ services:
       # 앞단(Caddy basicauth·SSO)이 신원을 보증할 때만 1. 켜지 않으면 X-Auth-User 는 무시된다 —
       # 켜 두고 앞단이 없으면 아무나 헤더 한 줄로 관리자가 된다.
       PH_TRUST_PROXY_AUTH: "${PH_TRUST_PROXY_AUTH:-0}"
+      # 저장 엔진. 비어 있으면 JSON 파일(기본). sqlite 로 바꾸기 전에 반드시
+      # `docker exec project-helper-api node scripts/migrate-store.js --to sqlite --write` 를 먼저 돌린다.
+      PH_STORE: "${PH_STORE:-}"
     volumes:
       - api_data:/app/data
     healthcheck:

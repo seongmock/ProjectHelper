@@ -51,20 +51,35 @@ const rotateBackups = (filepath) => {
         const from = backupPath(filepath, i);
         if (fs.existsSync(from)) fs.renameSync(from, backupPath(filepath, i + 1));
     }
-    fs.copyFileSync(filepath, backupPath(filepath, 1));
 };
 
 // 백업을 뜰지 판단. 시간 경과 외에, 데이터가 급격히 줄어드는 '파괴적' 쓰기는
 // 간격과 무관하게 무조건 보존한다.
+// 판단은 **직전 트리의 크기**로 한다 — 예전에는 data.json 의 존재 여부로 "첫 쓰기인가"를
+// 물었지만, 트리가 파일에 없는 엔진(sqliteStore)에서는 그 질문이 항상 '첫 쓰기'가 되어
+// 백업이 영영 돌지 않는다. 잃을 것이 없다는 조건은 크기가 0이라는 것이지 파일이 없다는
+// 것이 아니다.
 const shouldBackup = (filepath, prevCount, nextCount) => {
-    if (!fs.existsSync(filepath)) return false;
+    if (prevCount === 0) return false;
     const newest = backupPath(filepath, 1);
     if (!fs.existsSync(newest)) return true;
 
-    const destructive = prevCount > 0 && nextCount < prevCount / 2;
-    if (destructive) return true;
+    if (nextCount < prevCount / 2) return true; // 파괴적 쓰기
 
     return Date.now() - fs.statSync(newest).mtimeMs > BACKUP_INTERVAL_MS;
+};
+
+// 세대 백업 한 번 = 판단 + 회전 + 직전 트리 보존.
+// **직전 트리를 인자로 받는다** — 파일을 복사하지 않는다. 그래야 트리가 파일에 있든
+// SQLite 행에 있든 같은 안전망을 쓴다(lib/sqliteStore.js). 백업만은 어느 엔진에서도
+// 평범한 JSON 파일이어야 한다: 복구하는 사람은 대개 급하고, 그때 필요한 것은
+// 조회 도구가 아니라 `cp` 다.
+const generationBackup = (dataFile, prevTasks, nextCount) => {
+    const prev = Array.isArray(prevTasks) ? prevTasks : [];
+    if (!shouldBackup(dataFile, prev.length, nextCount)) return false;
+    rotateBackups(dataFile);
+    writeJsonAtomic(backupPath(dataFile, 1), prev);
+    return true;
 };
 
 const readJsonSafe = (filepath) => {
@@ -87,7 +102,7 @@ const countNodes = (tasks) =>
 
 // ctx 는 감사 로그에 남길 호출자 정보다 — { actor, op }.
 // HTTP 경로에서는 index.js 미들웨어가 주입하고, 스크립트/내부 호출은 기본값을 쓴다.
-const getProjectStore = (pid, ctx = {}) => {
+const jsonProjectStore = (pid, ctx = {}) => {
     if (!isValidPid(pid)) throw new Error(`invalid project id: ${pid}`);
     const dir = projectDir(pid);
     const dataFile = path.join(dir, 'data.json');
@@ -127,9 +142,7 @@ const getProjectStore = (pid, ctx = {}) => {
         }
         ensureDir();
         const before = readTasks();
-        if (shouldBackup(dataFile, before.length, tasks.length)) {
-            rotateBackups(dataFile);
-        }
+        generationBackup(dataFile, before, tasks.length);
         writeJsonAtomic(dataFile, tasks);
         const meta = bumpRevision();
 
@@ -174,9 +187,25 @@ const getProjectStore = (pid, ctx = {}) => {
     };
 };
 
+// 저장 엔진 선택 — 기본은 위의 JSON 파일 저장소다.
+// PH_STORE=sqlite 면 같은 인터페이스의 SQLite 백엔드로 위임한다(lib/sqliteStore.js).
+// 지연 require 인 이유는 순환 참조다: sqliteStore 가 이 모듈의 경로/백업 헬퍼를 쓴다.
+// 판단은 호출 시점에 읽는다 — 테스트가 한 프로세스 안에서 두 엔진을 비교할 수 있어야 한다.
+let sqlite = null;
+const getProjectStore = (pid, ctx = {}) => {
+    if (process.env.PH_STORE === 'sqlite') {
+        sqlite = sqlite || require('./sqliteStore');
+        return sqlite.getProjectStore(pid, ctx);
+    }
+    return jsonProjectStore(pid, ctx);
+};
+
 module.exports = {
     getProjectStore,
+    jsonProjectStore,
     isValidPid,
+    generationBackup,
+    countNodes,
     projectDir,
     readJsonSafe,
     writeJsonAtomic,
