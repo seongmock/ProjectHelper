@@ -15,9 +15,13 @@ before(() => {
     tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ph-store-test-'));
     const libDir = path.join(tmpRoot, 'lib');
     fs.mkdirSync(libDir, { recursive: true });
-    // store.js 가 require 하는 형제 모듈까지 함께 복사해야 로드된다
-    for (const name of ['store.js', 'eventLog.js', 'logger.js']) {
-        fs.copyFileSync(path.join(__dirname, '..', 'lib', name), path.join(libDir, name));
+    // lib 전체를 복사한다 — 예전에는 필요한 모듈 이름을 손으로 열거했고,
+    // 그 목록에 없는 모듈이 하나 추가되는 순간(logger→metrics) 저장소 테스트 10건이
+    // 전부 MODULE_NOT_FOUND 로 죽었다. 목록을 손으로 관리하지 않는다.
+    for (const name of fs.readdirSync(path.join(__dirname, '..', 'lib'))) {
+        if (name.endsWith('.js')) {
+            fs.copyFileSync(path.join(__dirname, '..', 'lib', name), path.join(libDir, name));
+        }
     }
     store = require(path.join(libDir, 'store.js'));
 });

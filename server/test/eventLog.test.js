@@ -14,8 +14,11 @@ before(() => {
     tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ph-eventlog-test-'));
     const libDir = path.join(tmpRoot, 'lib');
     fs.mkdirSync(libDir, { recursive: true });
-    for (const name of ['store.js', 'eventLog.js', 'logger.js']) {
-        fs.copyFileSync(path.join(__dirname, '..', 'lib', name), path.join(libDir, name));
+    // lib 전체를 복사한다 — 이름 목록을 손으로 관리하면 새 모듈 하나에 테스트가 통째로 죽는다.
+    for (const name of fs.readdirSync(path.join(__dirname, '..', 'lib'))) {
+        if (name.endsWith('.js')) {
+            fs.copyFileSync(path.join(__dirname, '..', 'lib', name), path.join(libDir, name));
+        }
     }
     store = require(path.join(libDir, 'store.js'));
     eventLog = require(path.join(libDir, 'eventLog.js'));
