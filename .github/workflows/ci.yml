@@ -24,14 +24,24 @@ jobs:
       - name: Lint
         run: npm run lint
 
-      - name: Unit tests (도메인 순수함수 + XSS 회귀)
-        run: npm run test:unit
+      # 커버리지 임계값은 vitest.config.js 에 있다 — 도메인 순수 모듈에만 건다.
+      # JSON 리포터를 함께 켜는 것은 아래 개수 게이트가 읽을 숫자 때문이다.
+      - name: Unit tests + coverage gate
+        run: npx vitest run --coverage --reporter=default --reporter=json --outputFile=unit-results.json
+
+      - name: Assert unit test count floor
+        run: node scripts/assert-test-floor.mjs unit "$(node -p "require('./unit-results.json').numTotalTests")"
 
       - name: Install API server dependencies
         run: npm ci --prefix server
 
       - name: Server tests (검증 로직 + 저장소 내구성)
-        run: npm run test:server
+        run: |
+          set -o pipefail
+          npm run test:server | tee server-results.txt
+
+      - name: Assert server test count floor
+        run: node scripts/assert-test-floor.mjs server "$(sed -n 's/^# pass \([0-9]*\)$/\1/p' server-results.txt | tail -1)"
 
       - name: Build
         run: npm run build
@@ -41,6 +51,53 @@ jobs:
         run: npm audit --audit-level=high
       - name: Audit (server)
         run: npm audit --audit-level=high --prefix server
+
+  # 배포 설정 검사 — 이 두 파일은 **배포 순간에만** 파싱된다.
+  #
+  # Caddyfile 오타 하나면 caddy 컨테이너가 뜨지 않고, 그때는 사이트 전체가 내려간 뒤다.
+  # 여기서 보는 것은 문법만이 아니다: `default_sni` 가 빠지면 IP 로 접속한 브라우저가
+  # (SNI 를 보내지 않으므로) 컨테이너 IP 이름의 인증서를 받아 거절한다 — 스크립트로는
+  # 보이지 않는 결함이라 2026-08 에 실제로 사이트가 열리지 않았다. `/api/health` 예외가
+  # 정확 일치인지도 함께 본다. 매처가 `/api/*` 로 넓어지면 타임라인 데이터가 통째로 열린다.
+  config-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Validate Caddyfile
+        run: |
+          docker run --rm -v "$PWD/Caddyfile:/etc/caddy/Caddyfile:ro" caddy:2-alpine \
+            caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+
+      - name: Assert Caddyfile invariants
+        run: |
+          grep -q '^\s*default_sni' Caddyfile \
+            || { echo "::error::default_sni 가 없다 — IP 주소로 접속하면 인증서 이름이 틀려 브라우저가 거절한다"; exit 1; }
+          # 주석은 뺀다 — 인증이 꺼져 있는 지금 되살리는 방법이 주석으로 적혀 있다.
+          live=$(grep -vE '^[[:space:]]*#' Caddyfile)
+          if echo "$live" | grep -q 'not path /api/health'; then
+            echo "$live" | grep -qE 'not path /api/health[*/]' \
+              && { echo "::error::인증 예외가 /api/health 정확 일치보다 넓다 — 데이터 경로가 열린다"; exit 1; }
+          fi
+          echo "$live" | grep -qE '@needs_auth not path /api/\*' \
+            && { echo "::error::인증 예외가 /api/* 다 — 타임라인 데이터 전체가 열린다"; exit 1; }
+          true
+
+      - name: Validate compose files
+        run: |
+          docker compose -f docker-compose.yml config -q
+          docker compose -f docker-compose.yml -f docker-compose.dev.yml config -q
+
+      # 이미지에 들어가야 할 런타임 디렉토리가 Dockerfile COPY 목록에 있는지.
+      # docker-smoke 가 부팅으로 잡아 주지만, 그건 '부팅에 필요한 것'만 잡는다 —
+      # 예컨대 아직 아무 라우트도 부르지 않는 새 디렉토리는 조용히 빠진 채 통과한다.
+      - name: Assert server runtime directories are copied
+        run: |
+          for dir in lib routes services scripts; do
+            grep -qE "^COPY .*\\b$dir\\b" server/Dockerfile \
+              || { echo "::error::server/Dockerfile 에 $dir/ COPY 가 없다 — 컨테이너에서 MODULE_NOT_FOUND 로 죽는다"; exit 1; }
+          done
 
   # 이미지 부팅 스모크 — '이미지 안에 무엇이 들어갔는지'를 보는 유일한 게이트.
   #
@@ -135,12 +192,14 @@ jobs:
 
       # playwright.config.js 가 API 서버와 vite dev 서버를 모두 기동한다.
       # (예전에는 API 서버를 수동으로 띄웠고, 누락되면 8건이 조용히 skip 됐다)
-      - name: Run E2E tests (28건, skip 0 이어야 한다)
+      # 개수는 scripts/assert-test-floor.mjs 가 들고 있다 — 이름에 적어 두면 낡는다.
+      - name: Run E2E tests (skip 0 이어야 한다)
         run: npx playwright test --reporter=list,json
         env:
           PLAYWRIGHT_JSON_OUTPUT_NAME: pw-results.json
 
       # skip 된 테스트는 아무것도 검증하지 않은 것이다 — 실패로 간주한다.
+      # 개수 바닥도 여기서 함께 본다: skip 을 지우는 가장 쉬운 방법이 테스트를 지우는 것이다.
       - name: Assert no tests were skipped
         run: |
           SKIPPED=$(node -e "
@@ -160,6 +219,7 @@ jobs:
             echo "::error::E2E 테스트 ${SKIPPED}건이 skip 되었다. API 서버 기동을 확인하라."
             exit 1
           fi
+          node scripts/assert-test-floor.mjs e2e "$(node -p "require('./pw-results.json').stats.expected")"
 
       - name: Upload test results on failure
         if: failure()

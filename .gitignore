@@ -51,3 +51,9 @@ backups/
 # rotate-password.sh 가 교체마다 남기는 세대 백업 — 옛 bcrypt 해시가 들어 있다
 .env.bak.*
 .tmp-e2e-data/
+
+# health-watch.sh 의 상태·로그 (연속 실패 카운터)
+.health/
+
+# 커버리지 리포트 (test:coverage 산출물)
+coverage/
