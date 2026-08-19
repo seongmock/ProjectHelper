@@ -1,5 +1,6 @@
 // v1.1 기능 테스트 — 진행률, 지연 표시, 표 날짜 편집 동기화, 드래그 undo 정합성
 import { test, expect } from '@playwright/test';
+import { captureHeight } from '../../src/features/timeline/captureGeometry.js';
 
 test.beforeEach(async ({ page, request }) => {
     await request.post('/api/data', { data: [] }).catch(() => {});
@@ -1068,5 +1069,34 @@ test.describe('타임라인 위쪽 여백', () => {
         // 조건부 skip 을 두지 않는다 — CI 는 skip 을 불합격으로 센다
         expect(y.count).toBeGreaterThan(0);
         expect(y.top).toBeGreaterThanOrEqual(y.contentTop);
+    });
+});
+
+test.describe('PNG 캡처 높이', () => {
+    // 캡처 높이는 DOM 이 아니라 데이터로 계산된다(useTimelineCapture) — 그래서 레이아웃이
+    // 바뀌면 조용히 어긋난다. 실제로 첫 행 위 라벨 여백이 생기자 마지막 행이 통째로 잘렸다.
+    // **앱과 같은 함수**에 실측 입력을 넣어, 그림이 마지막 행 바닥까지 덮는지 본다.
+    test('계산된 높이가 마지막 행 바닥까지 덮는다', async ({ page }) => {
+        const m = await page.evaluate(() => {
+            const cap = document.querySelector('.timeline-container');
+            const content = cap.querySelector('.timeline-content');
+            const rows = [...content.querySelectorAll('.timeline-row')];
+            const capTop = cap.getBoundingClientRect().top;
+            const header = cap.querySelector('.timeline-header');
+            return {
+                headerHeight: header.offsetHeight,
+                contentPadTop: parseFloat(getComputedStyle(content).paddingTop) || 0,
+                rowCount: rows.length,
+                rowHeight: rows[0] ? rows[0].getBoundingClientRect().height : 0,
+                scrollHeight: cap.scrollHeight,
+                lastRowBottom: rows.length
+                    ? rows[rows.length - 1].getBoundingClientRect().bottom - capTop
+                    : 0,
+            };
+        });
+
+        expect(m.rowCount).toBeGreaterThan(0);
+        expect(m.contentPadTop).toBeGreaterThan(0);   // 여백이 사라졌으면 이 검사는 무의미하다
+        expect(captureHeight(m)).toBeGreaterThanOrEqual(m.lastRowBottom);
     });
 });

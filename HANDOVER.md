@@ -79,7 +79,7 @@ npx playwright test
 npm run lint
 ```
 
-**합격 기준**: lint 0 error · unit 453/453 · server 128/128 · 빌드 성공 · **E2E 94/94(skip 0)**.
+**합격 기준**: lint 0 error · unit 459/459 · server 128/128 · 빌드 성공 · **E2E 95/95(skip 0)**.
 
 > ⚠️ 예전에는 API 서버를 수동으로 띄우지 않으면 `19 passed / 1 failed / 8 skipped`가 났다.
 > 지금은 config 가 자동 기동하지만 원칙은 그대로다 — skip이 1건이라도 있으면 그 테스트는
@@ -1759,3 +1759,36 @@ server **128/128** · 빌드 OK · **E2E 92/92(skip 0)**. 새 테스트의 성�
 **검증**: `npm run verify` — lint 0 error(경고 17) · unit 453/453 · server 128/128 · 빌드 OK ·
 **E2E 94/94(skip 0)**(+2: 세 높이 정렬, 첫 행 라벨이 헤더 아래에 있는지). 조건부 `test.skip`
 은 쓰지 않았다 — CI 는 skip 을 불합격으로 센다.
+
+### 2026-08-19 캡처가 마지막 행을 잘라 내던 것 — 그리고 미러 규약을 검사하는 것이 없던 것
+
+앞 작업(위쪽 여백 42px)이 **PNG 캡처를 깨뜨렸다.** 같은 세션에서 코드를 훑다 찾았다.
+
+**무엇이 잘못돼 있었나.** `useTimelineCapture` 는 캡처 높이를 DOM 이 아니라 데이터로
+계산한다 — 캡처 직전에 컨테이너의 `overflow`/`height` 를 덮어쓰기 때문에 그 순간의 실측은
+의미가 없다. 그 대가로 **레이아웃이 바뀌면 계산이 조용히 낡는다**. 실제로 낡았다:
+`.timeline-content` 에 42px 여백이 생겼는데 높이는 여전히 `헤더 + 행수 × 행높이` 였다.
+브라우저에서 재 보니 계산값 430px, 마지막 행 바닥 472px — 여백(42px)이 행 높이(40px)보다
+커서 **마지막 행이 통째로 그림에서 사라졌다**. 클립보드로 복사해 붙여 넣는 것이 이 앱의
+주된 산출 경로 중 하나라, 조용히 한 행이 빠진 그림이 그대로 문서에 들어갔을 것이다.
+
+**무엇을 했나.** 판정을 순수 모듈 `features/timeline/captureGeometry.js`(`captureHeight`)로
+꺼내고 여백을 더했다. 계산만 고치면 **다음 레이아웃 변경에서 똑같이 재발**하므로, E2E 가
+같은 함수에 *실측* DOM 입력(헤더 높이·여백·행수·행높이)을 넣어 결과가 마지막 행 바닥을
+덮는지 본다. 여백을 0 으로 되돌려 실패하는 것을 확인했다(430 < 472). 빈 차트일 때
+실측 스크롤 높이로 물러서던 분기는 `contentHeight <= headerHeight + 5` 에서 뜻이 같은
+`rowCount === 0` 으로 바꿨다 — 여백을 더하면 앞의 식은 더 이상 "행이 없다"를 뜻하지 않는다.
+
+**곁들여: client/server 미러를 검사하는 것이 없었다.** `server/lib/taskTree.js` 는
+`src/utils/taskTree.js` 의 부분 포팅이고 "겹치는 함수는 동작이 같아야 한다"는 규약이
+CLAUDE.md 에 문장으로만 있었다. 무작위 트리 300개(역전된 기간·순환·끊어진 참조 포함)로
+`findDependencyIssues`/`wouldCreateDependencyCycle`/`pruneDependencies` 를 양쪽에서 돌려
+비교하는 `tests/unit/taskTreeMirror.test.js` 를 세웠다. 두 가지를 조심했다: Map/Set 은
+`JSON.stringify` 로 전부 `{}` 가 되므로 직렬화기를 따로 두었고(안 그러면 검사가 텅 빈다),
+"문제 없음"만 비교하면 아무것도 증명하지 못하므로 순환·겹침·끊어진 참조가 실제로
+검출됐는지도 함께 단언한다. 서버 쪽 `recalcTaskBounds` 에 드리프트를 심어 실패하는 것을
+확인했다. **지금 시점의 드리프트는 0 이다** — 이름 하나만 어긋나 있다(서버의
+`recalcTaskBounds` 는 클라이언트의 `recalcTaskBoundsSafe` 미러다). 이 계열이 갈리면
+화면에는 아무 표시가 없고 **앱은 괜찮다는데 서버가 400 으로 저장을 거부하는** 상태가 된다.
+
+검증: lint 0 error(경고 17) · unit 459/459 · server 128/128 · 빌드 OK · E2E 95/95(skip 0).

@@ -454,6 +454,16 @@ Dependencies now live at the range level.
   header. 42px covers tier 1 (marker half 10 + base 4 + tier 24 + label 22 − row half 20);
   tier 2 and beyond still encroach, which needs five or more labels colliding at once.
   `features.spec.js` measures the three-way alignment, since that is what silently breaks.
+- **The PNG capture computes its height from data, so every layout change has to be told about
+  it.** `useTimelineCapture` deliberately doesn't measure the live DOM — it overwrites the
+  container's `overflow`/`height` to unroll the scroll area first, so a measurement taken then
+  is meaningless. The price is that the arithmetic silently goes stale: the moment
+  `--timeline-label-headroom` put 42px of padding above the first row, html2canvas was still
+  handed `header + rows × rowHeight` and **cropped the last row out of the image entirely**
+  (42px padding > 40px row). The judgement now lives in the pure
+  `features/timeline/captureGeometry.js` (`captureHeight`), and `features.spec.js` feeds it
+  **measured** DOM inputs and asserts the result covers the last row's bottom — fixing only the
+  arithmetic would let the next layout change do the same thing.
 - **`htmlExporter.js` re-implements the gantt render — so anything it can share, it shares by
   embedding the source, not by copying it.** The export must stay a self-contained `<div>`
   fragment (it is pasted into a Confluence HTML macro), so React components can't be reused;
@@ -477,3 +487,11 @@ pure helpers in **`src/utils/taskTree.js`** (`updateTaskInTree`, `deleteFromTree
 `JSON.parse(JSON.stringify(...))`. `filteredTasks` in `App.jsx` is a `useMemo` **value** —
 reference it as `filteredTasks`, not `filteredTasks()`. If you change a taskTree.js
 signature, update its CJS counterpart `server/lib/taskTree.js` too.
+
+**`tests/unit/taskTreeMirror.test.js` is what enforces "behavior-compatible"** — it runs both
+implementations over 300 random trees (reversed ranges, cycles, dangling refs included) and
+compares `findDependencyIssues` / `wouldCreateDependencyCycle` / `pruneDependencies` output.
+The rule used to live only in prose. Drift there is invisible in the UI and lands as *the app
+says the edit is fine, the server rejects the write with 400*. Note the two files disagree on
+one **name**: the server's `recalcTaskBounds` mirrors the client's `recalcTaskBoundsSafe`
+(NaN-tolerant, empty string when unknown), not the client's same-named function.

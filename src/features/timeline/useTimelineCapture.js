@@ -4,6 +4,7 @@
 // overflow/높이를 임시로 풀어 전체를 펼쳤다가 원래대로 되돌린다. 되돌리기가 빠지면
 // 화면이 깨진 채로 남으므로 스타일 백업/복구가 이 함수의 절반을 차지한다.
 import { useCallback } from 'react';
+import { captureHeight } from './captureGeometry';
 
 // 임시로 style 프로퍼티를 덮어쓰고, 되돌리는 함수를 반환한다
 const overrideStyle = (el, patch) => {
@@ -41,13 +42,24 @@ export function useTimelineCapture({
                 rowCount = timelineContent.querySelectorAll('.timeline-bar').length;
             }
 
-            // 여백 없이 딱 맞춘다. 헤더만 잡히는 경우만 최소 높이를 보정한다.
-            let contentHeight = headerHeight + rowCount * rowHeight;
-            if (contentHeight <= headerHeight + 5) {
-                contentHeight = Math.max(contentHeight, timelineScrollRef.current.scrollHeight);
-            } else {
-                contentHeight = Math.max(contentHeight, headerHeight + 50);
-            }
+            // 행은 .timeline-content 의 위쪽 여백(--timeline-label-headroom) **아래**에서
+            // 시작한다. 그 여백은 첫 행 위로 층을 쌓는 마일스톤 라벨의 자리라 그림에 반드시
+            // 들어가야 하고, 높이 계산에서 빠뜨리면 딱 그만큼 **마지막 행이 잘려 나간다**
+            // (실측: 여백 42px = 행 하나보다 크다). 여백은 CSS 상수여서 캡처 중 우리가
+            // 덮어쓰는 스타일과 무관하다 — 그래서 이 값만은 실측해서 읽는다.
+            const contentPadTop = timelineContent
+                ? parseFloat(getComputedStyle(timelineContent).paddingTop) || 0
+                : 0;
+
+            // 여백 없이 딱 맞춘다. 판정은 순수함수에 있다 — E2E 가 같은 함수에 실측
+            // 입력을 넣어 마지막 행까지 덮는지 확인한다.
+            const contentHeight = captureHeight({
+                headerHeight,
+                contentPadTop,
+                rowCount,
+                rowHeight,
+                scrollHeight: timelineScrollRef.current?.scrollHeight,
+            });
 
             restores.push(overrideStyle(captureContainer, {
                 width: 'max-content',
