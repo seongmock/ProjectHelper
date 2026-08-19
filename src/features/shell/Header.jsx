@@ -1,12 +1,12 @@
-import { Bot, Save, Undo2, Redo2, Upload, Download, Sun, Moon, ChartNoAxesGantt } from 'lucide-react';
+import { Bot, FolderCog, Undo2, Redo2, Upload, Download, Sun, Moon, ChartNoAxesGantt } from 'lucide-react';
 import ProjectSwitcher from '../projects/ProjectSwitcher';
 import SyncIndicator from '../projects/SyncIndicator';
 import './Header.css';
 
 function Header({
     darkMode, onToggleDarkMode, onExport, onImport, canUndo, canRedo, onUndo, onRedo,
-    onOpenPromptGuide, onOpenSnapshots, snapEnabled, onToggleSnap,
-    projects, activeProjectId, onSwitchProject, onCreateProject, onRenameProject, onDeleteProject, onOpenProjectList,
+    onOpenPromptGuide, onOpenProjectManager, snapEnabled, onToggleSnap,
+    projects, activeProjectId, onSwitchProject, onCreateProject, onManageProjects, onOpenProjectList,
     syncState, onRetrySave,
 }) {
     return (
@@ -22,9 +22,8 @@ function Header({
                         activeProjectId={activeProjectId}
                         onSwitch={onSwitchProject}
                         onCreate={onCreateProject}
-                        onRename={onRenameProject}
-                        onDelete={onDeleteProject}
                         onOpen={onOpenProjectList}
+                        onManage={onManageProjects}
                     />
                     {/* 저장 상태는 "어느 프로젝트의" 상태다 — 프로젝트 이름 옆이 읽는 순서에 맞다 */}
                     {syncState && <SyncIndicator state={syncState} onRetry={onRetrySave} />}
@@ -43,11 +42,11 @@ function Header({
                         </button>
                         <button
                             className="icon tooltip"
-                            onClick={onOpenSnapshots}
-                            data-tooltip="프로젝트 저장/불러오기 목록"
-                            title="스냅샷 관리"
+                            onClick={onOpenProjectManager}
+                            data-tooltip="프로젝트·버전 관리"
+                            title="프로젝트 관리"
                         >
-                            <Save size={18} aria-hidden="true" />
+                            <FolderCog size={18} aria-hidden="true" />
                         </button>
 
                         <div className="divider-vertical" style={{ width: '1px', height: '16px', background: 'var(--color-border)', margin: 'auto 4px' }}></div>

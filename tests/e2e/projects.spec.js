@@ -23,6 +23,18 @@ const openSwitcher = async (page) => {
     await expect(page.locator('.project-switcher-menu')).toBeVisible();
 };
 
+// 관리(이름 변경·삭제)는 드롭다운이 아니라 프로젝트 관리 모달에 있다 — 되돌릴 수 없는
+// 동작을 hover 로만 보이는 아이콘 + 브라우저 confirm 으로 처리하던 것을 옮겼다.
+const openManager = async (page, tab = 'projects') => {
+    if (tab === 'projects') {
+        await page.getByTestId('project-switcher').click();
+        await page.getByTestId('project-switcher-manage').click();
+    } else {
+        await page.getByTitle('프로젝트 관리').click();
+    }
+    await expect(page.getByTestId(`pm-panel-${tab}`)).toBeVisible();
+};
+
 const createProjectViaUI = async (page, name) => {
     await openSwitcher(page);
     await page.getByRole('button', { name: '새 프로젝트' }).click();
@@ -74,13 +86,13 @@ test('전환 후 Ctrl+Z가 이전 프로젝트 상태를 복원하지 않음 (�
 
 test('프로젝트 이름 변경 → 새로고침 후에도 유지', async ({ page }) => {
     await createProjectViaUI(page, '이름변경 대상');
-    await openSwitcher(page);
-    const item = page.locator('.project-switcher-item', { hasText: '이름변경 대상' });
-    await item.hover();
-    await item.getByTitle('이름 변경').click();
-    await page.locator('.project-switcher-input').fill('변경된 이름');
-    await page.locator('.project-switcher-input').press('Enter');
+    await openManager(page);
+    const row = page.getByTestId('pm-project-row').filter({ hasText: '이름변경 대상' });
+    await row.getByTitle('이름 변경').click();
+    await page.getByTestId('pm-project-rename-input').fill('변경된 이름');
+    await page.getByTestId('pm-project-rename-input').press('Enter');
     await expect(page.getByTestId('project-switcher')).toContainText('변경된 이름');
+    await page.keyboard.press('Escape');
 
     await page.reload();
     await expect(page.getByText('데이터 불러오는 중')).toHaveCount(0);
@@ -89,20 +101,21 @@ test('프로젝트 이름 변경 → 새로고침 후에도 유지', async ({ pa
 
 test('삭제 가드: 마지막 프로젝트 삭제 불가 + 활성 프로젝트 삭제 시 자동 전환', async ({ page }) => {
     // 프로젝트 1개(default)일 때 삭제 버튼 비활성
-    await openSwitcher(page);
-    const defaultItem = page.locator('.project-switcher-item', { hasText: '기본 프로젝트' });
-    await defaultItem.hover();
-    await expect(defaultItem.locator('button[title*="삭제"]')).toBeDisabled();
+    await openManager(page);
+    const defaultRow = page.getByTestId('pm-project-row').filter({ hasText: '기본 프로젝트' });
+    await expect(defaultRow.locator('button[title*="삭제"]')).toBeDisabled();
     await page.keyboard.press('Escape');
 
-    // B 생성(활성) 후 삭제 → default로 자동 전환
+    // B 생성(활성) 후 삭제 → default로 자동 전환.
+    // 확인은 브라우저 dialog 가 아니라 행 안에서 받는다 — 무엇을 지우는지 화면에 남는다.
     await createProjectViaUI(page, '삭제될 프로젝트');
-    page.on('dialog', (d) => d.accept());
-    await openSwitcher(page);
-    const target = page.locator('.project-switcher-item', { hasText: '삭제될 프로젝트' });
-    await target.hover();
-    await target.getByTitle('삭제').click();
+    await openManager(page);
+    const target = page.getByTestId('pm-project-row').filter({ hasText: '삭제될 프로젝트' });
+    await target.locator('button[title="삭제"]').click();
+    await expect(target.getByTestId('pm-confirm')).toContainText('되돌릴 수 없다');
+    await target.getByTestId('pm-confirm-yes').click();
     await expect(page.getByTestId('project-switcher')).toContainText('기본 프로젝트');
+    await page.keyboard.press('Escape');
 });
 
 test('AI가 REST로 만든 프로젝트+계획 → 드롭다운에서 전환해 확인', async ({ page, request }) => {
@@ -118,4 +131,70 @@ test('AI가 REST로 만든 프로젝트+계획 → 드롭다운에서 전환해 
     await page.locator('.project-switcher-item-name', { hasText: 'AI 프로젝트' }).click();
     await expect(page.getByText('데이터 불러오는 중')).toHaveCount(0);
     await expect(page.getByText('AI가 만든 계획').first()).toBeVisible();
+});
+
+// 버전(스냅샷)은 "프로젝트"가 아니라 **현재 프로젝트의 시점 사본**이다. 예전 모달은 둘을
+// 같은 이름으로 불러서(''X' 프로젝트를 덮어쓰시겠습니까?') 헤더의 `+ 새 프로젝트` 와
+// 구별되지 않았다 — 그래서 같은 모달의 다른 탭으로 세우고 문구를 갈랐다.
+test('버전 탭: 현재 상태를 저장하고 그 시점으로 복원한다', async ({ page, request }) => {
+    // 이전 테스트가 남긴 버전을 지운다 (스냅샷은 data 초기화에 딸려 오지 않는다)
+    const { data: existing } = await (await request.get('/api/snapshots')).json();
+    for (const s of existing || []) {
+        await request.delete(`/api/snapshots/${s.id}`);
+    }
+
+    await page.getByTitle('표 뷰').click();
+    await page.getByTitle('새 작업 추가 (Ctrl+N)').click();
+    const row = page.locator('.task-row', { hasText: '새 작업' }).first();
+    await row.locator('.task-name').dblclick();
+    await page.locator('input.name-input').fill('저장 시점 작업');
+    await page.locator('input.name-input').press('Enter');
+    await page.waitForTimeout(2000); // 자동 저장 디바운스
+
+    await openManager(page, 'versions');
+    await expect(page.getByTestId('pm-panel-versions')).toContainText('기본 프로젝트');
+    await page.getByTestId('pm-version-name-input').fill('v1');
+    await page.getByRole('button', { name: '현재 상태 저장' }).click();
+    await expect(page.getByTestId('pm-version-row').filter({ hasText: 'v1' })).toBeVisible();
+    await page.keyboard.press('Escape');
+
+    // 저장 이후의 변경 — 복원하면 이것이 사라져야 한다
+    await page.getByTitle('새 작업 추가 (Ctrl+N)').click();
+    await expect(page.locator('.task-row', { hasText: '새 작업' })).toHaveCount(1);
+
+    await openManager(page, 'versions');
+    const version = page.getByTestId('pm-version-row').filter({ hasText: 'v1' });
+    await version.getByRole('button', { name: '복원' }).click();
+    await expect(version.getByTestId('pm-confirm')).toContainText('사라진다');
+    await version.getByTestId('pm-confirm-yes').click();
+
+    // 복원은 모달을 닫는다 — 되돌린 결과를 볼 수 없으면 복원했는지 알 수 없다
+    await expect(page.getByTestId('pm-panel-versions')).toHaveCount(0);
+    await expect(page.locator('.task-row', { hasText: '저장 시점 작업' })).toHaveCount(1);
+    await expect(page.locator('.task-row', { hasText: '새 작업' })).toHaveCount(0);
+});
+
+test('버전 삭제는 무엇을 지우는지 보여 준 채로 한 번 더 묻는다', async ({ page, request }) => {
+    const { data: existing } = await (await request.get('/api/snapshots')).json();
+    for (const s of existing || []) {
+        await request.delete(`/api/snapshots/${s.id}`);
+    }
+
+    await openManager(page, 'versions');
+    await page.getByTestId('pm-version-name-input').fill('지울 버전');
+    await page.getByRole('button', { name: '현재 상태 저장' }).click();
+    const version = page.getByTestId('pm-version-row').filter({ hasText: '지울 버전' });
+    await expect(version).toBeVisible();
+
+    await version.locator('button[title="삭제"]').click();
+    await expect(version.getByTestId('pm-confirm')).toContainText('지울 버전');
+
+    // 취소하면 남는다 — 확인 줄이 곧 삭제가 되면 안 된다
+    await version.getByRole('button', { name: '취소' }).click();
+    await expect(version).toBeVisible();
+
+    await version.locator('button[title="삭제"]').click();
+    await version.getByTestId('pm-confirm-yes').click();
+    await expect(page.getByTestId('pm-version-row').filter({ hasText: '지울 버전' })).toHaveCount(0);
+    await page.keyboard.press('Escape');
 });

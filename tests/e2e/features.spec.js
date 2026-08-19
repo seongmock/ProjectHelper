@@ -747,7 +747,7 @@ test.describe('모달 포커스 관리 (접근성)', () => {
     // 실사 §5.3. 판정 규칙은 focusTrap 단위테스트가 고정하고, 여기서는 실제 DOM 에서
     // 세 가지가 성립하는지만 본다: 안으로 들어간다 · 안에서 돈다 · 원래 자리로 돌아온다.
     // 검사 대상은 공용 Modal 껍데기다(모달 5종이 전부 이것을 쓴다).
-    const trigger = (page) => page.getByTitle('스냅샷 관리');
+    const trigger = (page) => page.getByTitle('프로젝트 관리');
 
     test('열면 포커스가 안으로 들어가고 닫으면 열었던 버튼으로 돌아온다', async ({ page }) => {
         await trigger(page).click();
@@ -844,7 +844,7 @@ test.describe('전역 단축키 가드', () => {
 
         // 모달이 화면의 주인일 때 뒤에서 트리가 바뀌면, 사용자는 무엇이 바뀌었는지 볼 수
         // 없는 채로 그 트리를 스냅샷에 덮어쓰게 된다.
-        await page.getByTitle('스냅샷 관리').click();
+        await page.getByTitle('프로젝트 관리').click();
         await expect(page.locator('.modal-overlay')).toBeVisible();
 
         await page.keyboard.press('Control+n'); // 추가되면 안 된다

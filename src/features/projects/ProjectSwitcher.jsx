@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Folder, ChevronDown, Check, Pencil, Trash2, Plus } from 'lucide-react';
+import { Folder, ChevronDown, Check, Plus, Settings2 } from 'lucide-react';
 import { useAnchoredMenu } from '../../shared/ui/useAnchoredMenu';
 import './ProjectSwitcher.css';
 
@@ -8,18 +8,20 @@ const MENU_FALLBACK = { width: 260, height: 280 };
 
 // 프로젝트 전환 드롭다운 — Header 좌측에 배치
 // 목록 갱신은 열 때마다 onOpen(refetch) — AI가 REST로 만든 프로젝트도 열면 보인다
+//
+// **여기는 전환하는 곳이지 관리하는 곳이 아니다.** 이름 변경과 삭제는 프로젝트 관리
+// 모달로 옮겼다. 되돌릴 수 없는 삭제가 hover 로만 드러나는 아이콘 뒤에 있었고, 확인은
+// 브라우저 confirm 이라 "무엇을 지우는지"가 화면에서 사라진 채로 물었다. 자주 하는 일
+// (전환·생성)만 남기고, 나머지는 `프로젝트 관리…` 한 줄로 넘긴다.
 function ProjectSwitcher({
     projects,
     activeProjectId,
     onSwitch,
     onCreate,
-    onRename,
-    onDelete,
     onOpen,
+    onManage,
 }) {
     const [isOpen, setIsOpen] = useState(false);
-    const [editingId, setEditingId] = useState(null);
-    const [editName, setEditName] = useState('');
     const [creating, setCreating] = useState(false);
     const [newName, setNewName] = useState('');
     const rootRef = useRef(null);
@@ -42,14 +44,12 @@ function ProjectSwitcher({
             const inMenu = menuRef.current?.contains(e.target);
             if (!inRoot && !inMenu) {
                 setIsOpen(false);
-                setEditingId(null);
                 setCreating(false);
             }
         };
         const handleKeyDown = (e) => {
             if (e.key !== 'Escape') return;
-            if (editingId) setEditingId(null);
-            else if (creating) setCreating(false);
+            if (creating) setCreating(false);
             else setIsOpen(false);
         };
         document.addEventListener('mousedown', handleMouseDown);
@@ -58,7 +58,7 @@ function ProjectSwitcher({
             document.removeEventListener('mousedown', handleMouseDown);
             document.removeEventListener('keydown', handleKeyDown);
         };
-    }, [isOpen, editingId, creating]);
+    }, [isOpen, creating]);
 
     const toggleOpen = () => {
         const next = !isOpen;
@@ -73,18 +73,6 @@ function ProjectSwitcher({
         setNewName('');
         setCreating(false);
         setIsOpen(false);
-    };
-
-    const submitRename = (pid) => {
-        const name = editName.trim();
-        if (name) onRename(pid, name);
-        setEditingId(null);
-    };
-
-    const confirmDelete = (project) => {
-        if (window.confirm(`'${project.name}' 프로젝트를 삭제하시겠습니까?\n모든 작업이 사라집니다.`)) {
-            onDelete(project.id);
-        }
     };
 
     return (
@@ -118,45 +106,18 @@ function ProjectSwitcher({
                             key={project.id}
                             className={`project-switcher-item ${project.id === activeProjectId ? 'active' : ''}`}
                         >
-                            {editingId === project.id ? (
-                                <input
-                                    className="project-switcher-input"
-                                    value={editName}
-                                    autoFocus
-                                    onChange={(e) => setEditName(e.target.value)}
-                                    onKeyDown={(e) => e.key === 'Enter' && submitRename(project.id)}
-                                    onClick={(e) => e.stopPropagation()}
-                                />
-                            ) : (
-                                <>
-                                    <span
-                                        className="project-switcher-item-name"
-                                        onClick={() => {
-                                            setIsOpen(false);
-                                            onSwitch(project.id);
-                                        }}
-                                    >
-                                        <span className="project-switcher-check">
-                                            {project.id === activeProjectId && <Check size={14} aria-hidden="true" />}
-                                        </span>
-                                        {project.name}
-                                    </span>
-                                    <span className="project-switcher-actions">
-                                        <button
-                                            title="이름 변경"
-                                            onClick={() => {
-                                                setEditingId(project.id);
-                                                setEditName(project.name);
-                                            }}
-                                        ><Pencil size={14} aria-hidden="true" /></button>
-                                        <button
-                                            title={projects.length === 1 ? '마지막 프로젝트는 삭제 불가' : '삭제'}
-                                            disabled={projects.length === 1}
-                                            onClick={() => confirmDelete(project)}
-                                        ><Trash2 size={14} aria-hidden="true" /></button>
-                                    </span>
-                                </>
-                            )}
+                            <span
+                                className="project-switcher-item-name"
+                                onClick={() => {
+                                    setIsOpen(false);
+                                    onSwitch(project.id);
+                                }}
+                            >
+                                <span className="project-switcher-check">
+                                    {project.id === activeProjectId && <Check size={14} aria-hidden="true" />}
+                                </span>
+                                {project.name}
+                            </span>
                         </div>
                     ))}
 
@@ -176,6 +137,17 @@ function ProjectSwitcher({
                                 <span>새 프로젝트</span>
                             </button>
                         )}
+                        <button
+                            className="project-switcher-manage"
+                            data-testid="project-switcher-manage"
+                            onClick={() => {
+                                setIsOpen(false);
+                                onManage?.();
+                            }}
+                        >
+                            <Settings2 size={14} aria-hidden="true" />
+                            <span>프로젝트 관리…</span>
+                        </button>
                     </div>
                 </div>,
                 document.body

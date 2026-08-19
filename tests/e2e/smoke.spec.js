@@ -442,13 +442,18 @@ test.describe('가져오기 / 내보내기', () => {
     });
 });
 
-test.describe('저장 / 불러오기 모달', () => {
-    test('스냅샷 모달 열림 + 목록 렌더', async ({ page }) => {
-        await page.getByTitle('스냅샷 관리').click();
-        await expect(page.getByText('프로젝트 저장/불러오기')).toBeVisible();
-        await expect(page.getByText('저장된 목록')).toBeVisible();
+test.describe('프로젝트 관리 모달', () => {
+    test('버전 탭으로 열리고 프로젝트 탭으로 오갈 수 있다', async ({ page }) => {
+        // 헤더 버튼은 "지금 프로젝트의 버전"을 원하는 자리다 — 버전 탭으로 연다.
+        await page.getByTitle('프로젝트 관리').click();
+        await expect(page.getByTestId('pm-panel-versions')).toBeVisible();
+        await expect(page.getByTestId('pm-version-list')).toBeVisible();
+
+        await page.getByTestId('pm-tab-projects').click();
+        await expect(page.getByTestId('pm-project-list')).toBeVisible();
+
         await page.locator('.modal-footer').getByRole('button', { name: '닫기' }).click();
-        await expect(page.getByText('프로젝트 저장/불러오기')).toHaveCount(0);
+        await expect(page.getByTestId('pm-panel-projects')).toHaveCount(0);
     });
 });
 
@@ -474,8 +479,8 @@ test.describe('모달 공통 동작', () => {
         await expect(page.locator('.modal-overlay')).toHaveCount(0);
     });
 
-    test('스냅샷 모달도 Escape 로 닫힌다', async ({ page }) => {
-        await page.getByTitle('스냅샷 관리').click();
+    test('프로젝트 관리 모달도 Escape 로 닫힌다', async ({ page }) => {
+        await page.getByTitle('프로젝트 관리').click();
         await expect(page.getByRole('dialog')).toBeVisible();
         await page.keyboard.press('Escape');
         await expect(page.locator('.modal-overlay')).toHaveCount(0);

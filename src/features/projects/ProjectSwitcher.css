@@ -79,39 +79,10 @@
     white-space: nowrap;
 }
 
-.project-switcher-actions {
-    display: none;
-    gap: 2px;
-}
-
-.project-switcher-item:hover .project-switcher-actions {
-    display: inline-flex;
-}
-
 /* 체크 유무로 이름이 밀리지 않도록 자리를 고정한다 */
 .project-switcher-check {
     display: inline-flex;
     flex: 0 0 14px;
-}
-
-.project-switcher-actions button {
-    display: inline-flex;
-    align-items: center;
-    border: none;
-    background: none;
-    cursor: pointer;
-    font-size: 12px;
-    padding: 2px 4px;
-    border-radius: 4px;
-}
-
-.project-switcher-actions button:hover:not(:disabled) {
-    background: var(--color-border);
-}
-
-.project-switcher-actions button:disabled {
-    opacity: 0.35;
-    cursor: not-allowed;
 }
 
 .project-switcher-footer {
@@ -120,7 +91,8 @@
     padding-top: 4px;
 }
 
-.project-switcher-add {
+.project-switcher-add,
+.project-switcher-manage {
     width: 100%;
     display: flex;
     align-items: center;
@@ -135,7 +107,8 @@
     border-radius: 5px;
 }
 
-.project-switcher-add:hover {
+.project-switcher-add:hover,
+.project-switcher-manage:hover {
     background: var(--color-bg-secondary);
     color: var(--color-primary);
 }

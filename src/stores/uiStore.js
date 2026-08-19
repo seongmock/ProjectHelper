@@ -45,9 +45,12 @@ export const useUiStore = create((set) => ({
     openPromptGuide: () => set({ isPromptGuideOpen: true }),
     closePromptGuide: () => set({ isPromptGuideOpen: false }),
 
-    isSnapshotsOpen: false,
-    openSnapshots: () => set({ isSnapshotsOpen: true }),
-    closeSnapshots: () => set({ isSnapshotsOpen: false }),
+    // 프로젝트 관리 모달은 열려 있는 탭 자체를 상태로 갖는다 — 여는 지점이 둘이고
+    // (헤더 버튼은 버전, 전환 드롭다운은 프로젝트) 각자 다른 탭을 원한다. 별도의
+    // isOpen 을 두면 "열렸는데 탭이 안 맞는" 상태가 생긴다.
+    projectManagerTab: null, // null | 'projects' | 'versions'
+    openProjectManager: (tab = 'projects') => set({ projectManagerTab: tab }),
+    closeProjectManager: () => set({ projectManagerTab: null }),
 
     // 'IMPORT' | 'EXPORT' | null. customExportData 는 스냅샷을 내보낼 때만 채워진다.
     ieModalMode: null,

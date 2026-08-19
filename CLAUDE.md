@@ -27,7 +27,7 @@ npm run build        # Production build → dist/
 npm run lint         # ESLint 9 (flat config)
 npm run test:unit    # Vitest — 도메인 순수함수 + XSS 회귀 (434건)
 npm run test:server  # node:test — 검증·서비스·저장소 내구성·감사 로그·의존성 정합성 (128건)
-npm run test:e2e     # Playwright E2E 90건 (API·dev 서버 자동 기동)
+npm run test:e2e     # Playwright E2E 92건 (API·dev 서버 자동 기동)
 npm run verify       # 위 전부 + 빌드 — 변경 후 이것을 돌려라
 ```
 
@@ -46,7 +46,7 @@ npx playwright test --headed --debug                # watch it / step through
 ```
 
 **변경 후에는 `npm run verify`** — 합격 기준은 lint 0 error · unit 434/434 · server 128/128 ·
-빌드 성공 · **E2E 90/90 (skip 0)**.
+빌드 성공 · **E2E 92/92 (skip 0)**.
 
 `playwright.config.js` 는 **API 서버와 dev 서버를 모두 자동 기동**하며, API는
 `PH_DATA_DIR=.tmp-e2e-data` 로 격리된다. 예전에는 API 서버를 수동으로 띄우지 않으면 8건이
@@ -361,6 +361,17 @@ Dependencies now live at the range level.
   `tests/e2e/overlay-audit.spec.js` re-checks both classes on the rendered rectangles: menus
   (opaque · on screen · `elementFromPoint` hits them) and text (labels inside
   `.timeline-content`, `.tooltip::after` inside the viewport).
+- **프로젝트와 버전(스냅샷)은 `features/projects/ProjectManagerModal.jsx` 한 곳에서 관리한다.**
+  예전 저장/불러오기 모달은 스냅샷을 *"프로젝트"* 라고 불렀고(`'X' 프로젝트를 덮어쓰시겠습니까?`),
+  헤더에는 진짜 프로젝트를 만드는 `+ 새 프로젝트` 가 따로 있어서 같은 이름의 다른 개념이 둘
+  있었다 — 하나는 독립된 저장소, 다른 하나는 **활성 프로젝트의 시점 사본**이다. 이제 한 모달의
+  두 탭이고(`pm-tab-projects` / `pm-tab-versions`), 버전 탭은 항상 활성 프로젝트 이름을 달고
+  나온다. 여는 탭 자체가 `uiStore.projectManagerTab` 상태다 — 헤더 버튼은 `'versions'`,
+  전환 드롭다운의 `프로젝트 관리…` 는 `'projects'` 로 열기 때문에, 별도의 `isOpen` 을 두면
+  "열렸는데 탭이 안 맞는" 상태가 생긴다. 드롭다운(`ProjectSwitcher`)은 **전환과 생성만** 한다;
+  이름 변경·삭제는 모달로 옮겼다. 확인은 `window.confirm` 이 아니라 행 안의 확인 줄
+  (`pm-confirm`)에서 받는다 — 브라우저 확인창은 Modal 의 포커스 가두기 밖에서 뜨고 무엇을
+  지우는지 화면에서 지워 버린다.
 - **Window-level keyboard policy lives in `src/shared/keyboard.js`** — both `window` keydown
   listeners (global shortcuts in `App.jsx`, selected-task keys in `useTaskKeyboard`) get their
   guards from it, because a guard that exists in two places gets fixed in one. The pure

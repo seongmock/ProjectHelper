@@ -178,7 +178,7 @@ export const buildCommands = ({
     cmds.push({ id: 'file:export', group: '파일', label: '내보내기 (JSON)', shortcut: 'Ctrl+S', run: h.exportFile });
     cmds.push({ id: 'file:import', group: '파일', label: '가져오기', keywords: 'import json', run: h.importFile });
     cmds.push({ id: 'file:html', group: '파일', label: 'HTML 코드 복사', keywords: 'export 위키 embed', run: h.exportHtml });
-    cmds.push({ id: 'file:snapshots', group: '파일', label: '스냅샷 저장/불러오기', keywords: 'snapshot 백업', run: h.openSnapshots });
+    cmds.push({ id: 'file:projects', group: '파일', label: '프로젝트·버전 관리', keywords: 'snapshot 스냅샷 백업 project 버전', run: () => h.openProjectManager('versions') });
     cmds.push({ id: 'file:guide', group: '파일', label: 'AI 프롬프트 가이드', keywords: 'ai prompt', run: h.openPromptGuide });
 
     // ── 프로젝트 ─────────────────────────────────────

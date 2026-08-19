@@ -109,7 +109,7 @@ describe('buildCommands', () => {
         setViewMode: vi.fn(), setSetting: vi.fn(), toggleSetting: vi.fn(),
         zoomIn: vi.fn(), zoomOut: vi.fn(), copyImage: vi.fn(),
         exportFile: vi.fn(), importFile: vi.fn(), exportHtml: vi.fn(),
-        openSnapshots: vi.fn(), openPromptGuide: vi.fn(), switchProject: vi.fn(),
+        openProjectManager: vi.fn(), openPromptGuide: vi.fn(), switchProject: vi.fn(),
     });
 
     const build = (over = {}, h = handlers()) => buildCommands({

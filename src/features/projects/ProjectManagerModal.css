@@ -1,0 +1,224 @@
+/* 프로젝트 관리 모달 — 프로젝트 탭과 버전 탭이 같은 행 구조를 공유한다.
+   두 탭이 다르게 생기면 "같은 방식으로 관리한다"는 말이 화면에서 무너진다. */
+
+.pm-tabs {
+    display: flex;
+    gap: 4px;
+    border-bottom: 1px solid var(--color-border);
+    margin-bottom: 16px;
+}
+
+.pm-tab {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    border: none;
+    background: none;
+    color: var(--color-text-secondary);
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+}
+
+.pm-tab:hover {
+    color: var(--color-text-primary);
+}
+
+.pm-tab.is-active {
+    color: var(--color-primary);
+    border-bottom-color: var(--color-primary);
+}
+
+.pm-hint {
+    margin: 0 0 12px;
+    font-size: 12px;
+    line-height: 1.6;
+    color: var(--color-text-secondary);
+}
+
+.pm-list {
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    max-height: 320px;
+    overflow-y: auto;
+}
+
+.pm-empty {
+    padding: 24px;
+    text-align: center;
+    color: var(--color-text-secondary);
+    font-size: 13px;
+}
+
+.pm-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.pm-row:last-child {
+    border-bottom: none;
+}
+
+.pm-row.is-active {
+    background: var(--color-bg-secondary);
+}
+
+.pm-row-main {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+    flex: 1;
+}
+
+.pm-row-name {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 600;
+    font-size: 14px;
+    /* 긴 이름이 버튼을 밀어내는 대신 여기서 줄어든다 */
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.pm-active-check {
+    color: var(--color-primary);
+    flex-shrink: 0;
+}
+
+.pm-row-meta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--color-text-secondary);
+}
+
+.pm-badge {
+    padding: 1px 6px;
+    border-radius: 10px;
+    background: var(--color-primary);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.pm-row-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+/* 행 안의 버튼은 모달 푸터 버튼보다 작다 — 목록이 버튼으로 뒤덮이지 않게 */
+.pm-row-actions .secondary-button,
+.pm-confirm .secondary-button,
+.pm-confirm .primary-button,
+.pm-confirm .danger-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 5px 10px;
+    font-size: 12px;
+}
+
+.icon-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    background: var(--color-bg-primary);
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.icon-button:hover:not(:disabled) {
+    background: var(--color-bg-secondary);
+    color: var(--color-text-primary);
+}
+
+.icon-button:disabled,
+.pm-row-actions .secondary-button:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.icon-button.danger:hover:not(:disabled) {
+    background: var(--color-danger);
+    border-color: var(--color-danger);
+    color: #fff;
+}
+
+.danger-button {
+    background-color: var(--color-danger);
+    color: #fff;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 500;
+}
+
+.danger-button:hover {
+    filter: brightness(0.92);
+}
+
+/* 확인 줄은 행 안에서 자리를 이어받는다 — 브라우저 확인창과 달리 무엇을 지우는지가
+   같은 화면에 남아 있다 */
+.pm-confirm {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.pm-confirm-text {
+    font-size: 12px;
+    color: var(--color-text-primary);
+}
+
+.pm-create {
+    display: flex;
+    gap: 8px;
+    margin: 12px 0 4px;
+}
+
+.pm-create .primary-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    font-size: 13px;
+    white-space: nowrap;
+}
+
+.pm-input {
+    flex: 1;
+    min-width: 0;
+    padding: 8px 10px;
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    background: var(--color-bg-primary);
+    color: var(--color-text-primary);
+    font-size: 13px;
+}
+
+.pm-input:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 2px var(--color-primary-transparent);
+}

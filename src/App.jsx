@@ -23,7 +23,7 @@ import TableView from './features/table/TableView';
 import TimelineView from './features/timeline/TimelineView';
 import PromptGuideModal from './features/io/PromptGuideModal';
 import ImportExportModal from './features/io/ImportExportModal';
-import SaveLoadModal from './features/io/SaveLoadModal';
+import ProjectManagerModal from './features/projects/ProjectManagerModal';
 import MilestoneQuickAdd from './features/timeline/MilestoneQuickAdd';
 import InspectorPanel from './features/tasks/InspectorPanel';
 import CommandPalette from './features/shell/CommandPalette';
@@ -72,7 +72,7 @@ function App() {
     const openMilestoneAdd = useUiStore(s => s.openMilestoneAdd);
     const closeMilestoneAdd = useUiStore(s => s.closeMilestoneAdd);
     const isPromptGuideOpen = useUiStore(s => s.isPromptGuideOpen);
-    const isSnapshotsOpen = useUiStore(s => s.isSnapshotsOpen);
+    const projectManagerTab = useUiStore(s => s.projectManagerTab);
     const ieModalMode = useUiStore(s => s.ieModalMode);
     const customExportData = useUiStore(s => s.customExportData);
     const isPaletteOpen = useUiStore(s => s.isPaletteOpen);
@@ -320,7 +320,7 @@ function App() {
             exportFile: io.exportToFile,
             importFile: ui.openImport,
             exportHtml: io.exportToHtml,
-            openSnapshots: ui.openSnapshots,
+            openProjectManager: ui.openProjectManager,
             openPromptGuide: ui.openPromptGuide,
             switchProject,
         },
@@ -343,13 +343,12 @@ function App() {
                 onUndo={undo}
                 onRedo={redo}
                 onOpenPromptGuide={ui.openPromptGuide}
-                onOpenSnapshots={ui.openSnapshots}
+                onOpenProjectManager={() => ui.openProjectManager('versions')}
                 projects={projects}
                 activeProjectId={activeProjectId}
                 onSwitchProject={switchProject}
                 onCreateProject={createProject}
-                onRenameProject={renameProject}
-                onDeleteProject={deleteProject}
+                onManageProjects={() => ui.openProjectManager('projects')}
                 onOpenProjectList={refreshProjects}
                 syncState={syncState}
                 onRetrySave={retrySave}
@@ -515,11 +514,19 @@ function App() {
                 toast={toast}
             />
 
-            <SaveLoadModal
-                isOpen={isSnapshotsOpen}
-                onClose={ui.closeSnapshots}
-                onLoad={(data) => io.processImportedData(data, false)}
+            <ProjectManagerModal
+                isOpen={!!projectManagerTab}
+                initialTab={projectManagerTab || 'projects'}
+                onClose={ui.closeProjectManager}
+                projects={projects}
+                activeProjectId={activeProjectId}
+                onSwitchProject={switchProject}
+                onCreateProject={createProject}
+                onRenameProject={renameProject}
+                onDeleteProject={deleteProject}
+                onRefreshProjects={refreshProjects}
                 currentData={tasks}
+                onLoadSnapshot={(data) => io.processImportedData(data, false)}
                 onExportSnapshot={io.exportSnapshot}
                 toast={toast}
             />
