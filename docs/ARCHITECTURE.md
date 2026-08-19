@@ -24,6 +24,8 @@
 │   index.js          — 블롭 /api/data + settings/snapshots (하위호환)     │
 │   routes/tasks.js   — 작업 단위 CRUD (AI 연동용, 검증 + If-Match/409)    │
 │   lib/store.js      — 원자적 쓰기(tmp+rename) + 리비전 증가              │
+│   lib/sqliteStore.js — PH_STORE=sqlite 일 때의 대체 엔진 (기본은 JSON)   │
+│   lib/metrics.js     — 운영 지표 카운터 (GET /api/metrics)               │
 │   lib/taskTree.js   — src/utils/taskTree.js의 CJS 미러                   │
 │   lib/validate.js   — 경량 필드 검증 (외부 의존성 없음)                  │
 │   데이터: server/data/{data,meta,settings,snapshots}.json               │

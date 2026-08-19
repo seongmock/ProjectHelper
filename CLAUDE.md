@@ -25,8 +25,9 @@ npm run dev          # Vite dev server, http://localhost:5173, hot-reload
 npm run dev:api      # Express API server (PORT env, default 3000)
 npm run build        # Production build → dist/
 npm run lint         # ESLint 9 (flat config)
-npm run test:unit    # Vitest — 도메인 순수함수 + XSS 회귀 (474건)
-npm run test:server  # node:test — 검증·서비스·저장소 내구성·감사 로그·의존성·인증 (158건)
+npm run test:unit    # Vitest — 도메인 순수함수 + XSS 회귀 (580건)
+npm run test:coverage # 위 + 커버리지 게이트 (vitest.config.js 의 임계값 — CI 와 같은 조건)
+npm run test:server  # node:test — 검증·서비스·저장소·레지스트리·감사·의존성·인증·메트릭 (267건)
 npm run test:e2e     # Playwright E2E 105건 (API·dev 서버 자동 기동)
 npm run verify       # 위 전부 + 빌드 — 변경 후 이것을 돌려라
 ```
@@ -45,8 +46,13 @@ npx playwright test -g "프로젝트"                   # by test-title substrin
 npx playwright test --headed --debug                # watch it / step through
 ```
 
-**변경 후에는 `npm run verify`** — 합격 기준은 lint 0 error · unit 474/474 · server 158/158 ·
+**변경 후에는 `npm run verify`** — 합격 기준은 lint 0 error · unit 580/580 · server 267/267 ·
 빌드 성공 · **E2E 105/105 (skip 0)**.
+
+**테스트는 지워서 초록불을 만들 수 있다** — 그래서 CI 에 개수 바닥(`scripts/assert-test-floor.mjs`,
+unit/server/e2e 별)과 커버리지 임계값(`vitest.config.js`)이 함께 걸려 있다. 숫자를 낮추는 커밋은
+그 자체로 리뷰 대상이다. 커버리지는 도메인 순수 모듈에만 건다(`.jsx` 와 `use*.js` 는 제외 —
+그리는 코드와 훅은 E2E 가 본다).
 
 `playwright.config.js` 는 **API 서버와 dev 서버를 모두 자동 기동**하며, API는
 `PH_DATA_DIR=.tmp-e2e-data` 로 격리된다. 예전에는 API 서버를 수동으로 띄우지 않으면 8건이
@@ -71,6 +77,14 @@ cp .env.example .env       # 최초 1회 — BASIC_AUTH_USER / BASIC_AUTH_HASH (
 ./start_server.sh --dev    # hot-reload 오버레이 (docker-compose.dev.yml)
 ./scripts/verify-deploy.sh # 배포 후 검증 34건 — 자격증명 없이 전부 검사한다 (아래 참조)
 ```
+
+**운영 지표는 `GET /api/metrics` 하나다** (JSON, `?format=prometheus` 로 노출 형식만 바꾼다):
+가동시간·요청수·상태 클래스별 건수·평균/최대 지연·마지막 변경 시각. 계측 지점은
+`requestLogger` **한 곳뿐이다** — 둘로 나누면 한쪽이 새 라우트를 놓친다. 프로젝트 이름이나
+사용자 같은 식별 정보는 싣지 않고, `/api/health` 와 달리 **인증 예외가 아니다**(enforced 모드에서
+viewer 필요). 카운터는 재시작하면 0으로 돌아간다 — 재시작 자체가 보여야 하기 때문이다.
+알림은 `scripts/health-watch.sh`(크론 5분, `--install-cron`): 연속 실패가 문턱에 **닿는 순간
+한 번만** 알리고, 복구할 때 한 번 더 알린다(계속 울리면 아무도 보지 않는다).
 
 `start_server.sh` 는 **배포 전에 자동으로 데이터 백업을 수행하고, 실패하면 배포를 중단한다.**
 API 컨테이너는 non-root(uid 1000)로 실행되므로, non-root 전환 전에 만들어진 볼륨 파일의
@@ -240,7 +254,23 @@ cleanup button and `GET .../dependency-issues` still surface them.
 no import): it reissues task **and** time-range **and** milestone ids, then relinks every
 `dependencies` entry through the old→new map, dropping refs that point outside the imported
 bundle. Skipping either half cross-links the copy's arrows onto the originals.
-No database. Auth is Caddy basicauth; the authenticated user is forwarded as `X-Auth-User` and
+**The storage engine is swappable, and JSON files are the default on purpose.** `PH_STORE=sqlite`
+makes `store.getProjectStore` delegate to `lib/sqliteStore.js` (Node 22's built-in `node:sqlite`,
+so no native build to survive the Docker image), which keeps the tree as one JSON text column and
+moves the tree + revision in **one transaction** — that is the whole point, because the JSON store
+reads-then-rewrites the file and two writes that overlap inside the server let the later one
+clobber the earlier (`If-Match` only judges the *browser's* view). Three things deliberately stay
+files under both engines: the **audit log** (`events.jsonl` — an append-only file *is* the design;
+inside the same transaction as the writes it audits, one bad write could erase its own trace), the
+**generation backups** (`data.json.bak.N` — whoever is restoring is in a hurry and needs `cp`, not
+a query tool), and the **registry** (`projects.json`). Switching engines is a human act, never a
+config default: `node server/scripts/migrate-store.js --to sqlite` (dry run) then `--write`, which
+preserves revisions, never deletes the source, and re-reads to compare. Flipping the env var
+without migrating gives you an empty store with the old data still sitting next to it.
+`tests/…/sqliteStore.test.js`'s **mirror test** runs one scripted sequence through both engines and
+compares tree/revision/snapshots/audit at every step — same reason `taskTreeMirror.test.js` exists.
+
+Auth is Caddy basicauth; the authenticated user is forwarded as `X-Auth-User` and
 recorded (owner/createdBy) but not yet enforced.
 
 **Frontend project switching** (App.jsx `handleSwitchProject`) is order-sensitive: cancel
