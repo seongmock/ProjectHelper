@@ -24,6 +24,7 @@ import TimelineView from './features/timeline/TimelineView';
 import PromptGuideModal from './features/io/PromptGuideModal';
 import ImportExportModal from './features/io/ImportExportModal';
 import ProjectManagerModal from './features/projects/ProjectManagerModal';
+import ProjectRail from './features/projects/ProjectRail';
 import MilestoneQuickAdd from './features/timeline/MilestoneQuickAdd';
 import InspectorPanel from './features/tasks/InspectorPanel';
 import CommandPalette from './features/shell/CommandPalette';
@@ -51,6 +52,7 @@ function App() {
     const chartTheme = useSettingsStore(s => s.chartTheme);
     const colorMode = useSettingsStore(s => s.colorMode);
     const showInspector = useSettingsStore(s => s.showInspector);
+    const railExpanded = useSettingsStore(s => s.railExpanded);
     const darkMode = useSettingsStore(s => s.darkMode);
     const setSetting = useSettingsStore(s => s.setSetting);
     const toggleSetting = useSettingsStore(s => s.toggleSetting);
@@ -331,162 +333,172 @@ function App() {
         io, switchProject,
     ]);
 
+    const activeProjectName = projects.find(p => p.id === activeProjectId)?.name;
+
     return (
         <div className="app">
-            <Header
-                darkMode={darkMode}
-                onToggleDarkMode={() => toggleSetting('darkMode')}
-                onExport={() => ui.openExport()}
-                onImport={ui.openImport}
-                canUndo={canUndo}
-                canRedo={canRedo}
-                onUndo={undo}
-                onRedo={redo}
-                onOpenPromptGuide={ui.openPromptGuide}
-                onOpenProjectManager={() => ui.openProjectManager('versions')}
+            <ProjectRail
                 projects={projects}
                 activeProjectId={activeProjectId}
-                onSwitchProject={switchProject}
-                onCreateProject={createProject}
-                onManageProjects={() => ui.openProjectManager('projects')}
-                onOpenProjectList={refreshProjects}
-                syncState={syncState}
-                onRetrySave={retrySave}
+                expanded={railExpanded}
+                onToggleExpanded={() => toggleSetting('railExpanded')}
+                onSwitch={switchProject}
+                // 만들기는 관리 모달의 입력란 하나뿐이다 — 레일에 두 번째 입력을 두면
+                // 같은 일을 하는 UI 가 다시 둘이 된다
+                onCreate={() => ui.openProjectManager('projects')}
             />
 
-            <Toolbar
-                viewMode={viewMode}
-                onViewModeChange={setViewMode}
-                timeScale={timeScale}
-                onTimeScaleChange={(v) => setSetting({ timeScale: v })}
-                searchQuery={searchQuery}
-                onSearchChange={setSearchQuery}
-                onAddTask={() => handleAddTask()}
-                // 타임라인 컨트롤
-                zoomLevel={zoomLevel}
-                onZoomIn={() => setSetting({ zoomLevel: zoomLevel + 0.1 })}
-                onZoomOut={() => setSetting({ zoomLevel: Math.max(zoomLevel - 0.1, 0.1) })}
-                showToday={showToday}
-                onToggleToday={() => toggleSetting('showToday')}
-                isCompact={isCompact}
-                onToggleCompact={() => toggleSetting('isCompact')}
-                showTaskNames={showTaskNames}
-                onToggleTaskNames={() => toggleSetting('showTaskNames')}
-                onCopyImage={() => timelineRef.current?.copyToClipboard()}
-                snapEnabled={snapEnabled}
-                onToggleSnap={() => toggleSetting('snapEnabled')}
-                onHtmlExport={io.exportToHtml}
-                showBarLabels={showBarLabels}
-                onToggleBarLabels={() => toggleSetting('showBarLabels')}
-                showBarDates={showBarDates}
-                onToggleBarDates={() => toggleSetting('showBarDates')}
-                chartTheme={chartTheme}
-                onThemeChange={(v) => setSetting({ chartTheme: v })}
-                colorMode={colorMode}
-                onColorModeChange={(v) => setSetting({ colorMode: v })}
-                showInspector={showInspector}
-                onToggleInspector={() => toggleSetting('showInspector')}
-                onOpenPalette={ui.openPalette}
-            />
+            <div className="app-shell">
+                <Header
+                    darkMode={darkMode}
+                    onToggleDarkMode={() => toggleSetting('darkMode')}
+                    onExport={() => ui.openExport()}
+                    onImport={ui.openImport}
+                    canUndo={canUndo}
+                    canRedo={canRedo}
+                    onUndo={undo}
+                    onRedo={redo}
+                    onOpenPromptGuide={ui.openPromptGuide}
+                    onOpenProjectManager={() => ui.openProjectManager('versions')}
+                    projectName={activeProjectName}
+                    syncState={syncState}
+                    onRetrySave={retrySave}
+                />
 
-            <div className="main-content">
-                {isLoading ? (
-                    <div className="app-loading">
-                        <span>⏳</span> 데이터 불러오는 중...
-                    </div>
-                ) : (
-                    <>
-                        {viewMode === 'table' && (
-                            <TableView
-                                tasks={filteredTasks}
-                                selectedTaskId={selectedTaskId}
-                                onSelectTask={setSelectedTaskId}
-                                onUpdateTask={actions.updateTask}
-                                onUpdateTaskSilent={actions.updateTaskSilent}
-                                onUpdateTasks={actions.updateTasks}
-                                onToggleExpand={handleToggleExpand}
-                                onDeleteTask={actions.deleteTask}
-                                onAddTask={handleAddTask}
-                                onReorderTasks={actions.reorderTasks}
-                                onIndentTask={handleIndentTask}
-                                onOutdentTask={actions.outdent}
-                                onMoveTask={handleMoveTask}
-                                onContextMenu={handleContextMenu}
-                                onOpenMilestones={handleOpenMilestones}
-                                onOpenDependencies={handleOpenDependencies}
-                                // 그리는 것은 filteredTasks 지만 연결은 전체 트리를 봐야
-                                // 한다 — 타임라인 화살표·인스펙터와 같은 이유다.
-                                allTasks={tasks}
-                                dependencyIssues={dependencyIssues}
-                                isSearching={isSearching}
-                            />
-                        )}
+                <Toolbar
+                    viewMode={viewMode}
+                    onViewModeChange={setViewMode}
+                    timeScale={timeScale}
+                    onTimeScaleChange={(v) => setSetting({ timeScale: v })}
+                    searchQuery={searchQuery}
+                    onSearchChange={setSearchQuery}
+                    onAddTask={() => handleAddTask()}
+                    // 타임라인 컨트롤
+                    zoomLevel={zoomLevel}
+                    onZoomIn={() => setSetting({ zoomLevel: zoomLevel + 0.1 })}
+                    onZoomOut={() => setSetting({ zoomLevel: Math.max(zoomLevel - 0.1, 0.1) })}
+                    showToday={showToday}
+                    onToggleToday={() => toggleSetting('showToday')}
+                    isCompact={isCompact}
+                    onToggleCompact={() => toggleSetting('isCompact')}
+                    showTaskNames={showTaskNames}
+                    onToggleTaskNames={() => toggleSetting('showTaskNames')}
+                    onCopyImage={() => timelineRef.current?.copyToClipboard()}
+                    snapEnabled={snapEnabled}
+                    onToggleSnap={() => toggleSetting('snapEnabled')}
+                    onHtmlExport={io.exportToHtml}
+                    showBarLabels={showBarLabels}
+                    onToggleBarLabels={() => toggleSetting('showBarLabels')}
+                    showBarDates={showBarDates}
+                    onToggleBarDates={() => toggleSetting('showBarDates')}
+                    chartTheme={chartTheme}
+                    onThemeChange={(v) => setSetting({ chartTheme: v })}
+                    colorMode={colorMode}
+                    onColorModeChange={(v) => setSetting({ colorMode: v })}
+                    showInspector={showInspector}
+                    onToggleInspector={() => toggleSetting('showInspector')}
+                    onOpenPalette={ui.openPalette}
+                />
 
-                        {viewMode === 'timeline' && (
-                            <TimelineView
-                                ref={timelineRef}
-                                tasks={filteredTasks}
-                                selectedTaskId={selectedTaskId}
-                                onSelectTask={setSelectedTaskId}
-                                onUpdateTask={actions.updateTask}
-                                onUpdateTaskSilent={actions.updateTaskSilent}
-                                onUpdateTasks={actions.updateTasks}
-                                onDeleteTask={actions.deleteTask}
-                                onAddTask={handleAddTask}
-                                onMoveTask={handleMoveTask}
-                                onIndentTask={handleIndentTask}
-                                onOutdentTask={actions.outdent}
-                                onContextMenu={handleContextMenu}
-                                onMilestoneContextMenu={handleMilestoneContextMenu}
-                                // 접기는 표와 같은 게이트를 쓴다 — 검색 중 여부에 따라
-                                // 기록 위치가 다르고, 그 판단은 handleToggleExpand 에만 있다
-                                onToggleExpand={handleToggleExpand}
-                                timeScale={timeScale}
-                                zoomLevel={zoomLevel}
-                                showToday={showToday}
-                                isCompact={isCompact}
-                                showTaskNames={showTaskNames}
-                                snapEnabled={snapEnabled}
-                                showBarLabels={showBarLabels}
-                                showBarDates={showBarDates}
-                                onOpenMilestoneAdd={openMilestoneAdd}
-                                toast={toast}
-                                chartTheme={chartTheme}
-                                colorMode={colorMode}
-                                darkMode={darkMode}
-                                dependencyIssues={dependencyIssues}
-                                // 그리는 것은 filteredTasks 지만, 의존성 간선은 전체 트리를
-                                // 봐야 한다 — 상대가 필터 밖이라고 연결이 없어지지 않는다
-                                // (dependencyIssues 를 tasks 로 내는 것과 같은 이유).
-                                allTasks={tasks}
-                                isSearching={isSearching}
-                            />
-                        )}
+                <div className="main-content">
+                    {isLoading ? (
+                        <div className="app-loading">
+                            <span>⏳</span> 데이터 불러오는 중...
+                        </div>
+                    ) : (
+                        <>
+                            {viewMode === 'table' && (
+                                <TableView
+                                    tasks={filteredTasks}
+                                    selectedTaskId={selectedTaskId}
+                                    onSelectTask={setSelectedTaskId}
+                                    onUpdateTask={actions.updateTask}
+                                    onUpdateTaskSilent={actions.updateTaskSilent}
+                                    onUpdateTasks={actions.updateTasks}
+                                    onToggleExpand={handleToggleExpand}
+                                    onDeleteTask={actions.deleteTask}
+                                    onAddTask={handleAddTask}
+                                    onReorderTasks={actions.reorderTasks}
+                                    onIndentTask={handleIndentTask}
+                                    onOutdentTask={actions.outdent}
+                                    onMoveTask={handleMoveTask}
+                                    onContextMenu={handleContextMenu}
+                                    onOpenMilestones={handleOpenMilestones}
+                                    onOpenDependencies={handleOpenDependencies}
+                                    // 그리는 것은 filteredTasks 지만 연결은 전체 트리를 봐야
+                                    // 한다 — 타임라인 화살표·인스펙터와 같은 이유다.
+                                    allTasks={tasks}
+                                    dependencyIssues={dependencyIssues}
+                                    isSearching={isSearching}
+                                />
+                            )}
 
-                        {/* 인스펙터는 검색 필터가 아니라 전체 트리를 본다 —
-                            의존성 상대가 필터에 걸려 없어지면 앞뒤 관계가 잘못 보인다 */}
-                        {showInspector && (
-                            <InspectorPanel
-                                tasks={tasks}
-                                selectedTaskId={selectedTaskId}
-                                selectedRangeId={selectedRangeId}
-                                selectedMilestoneId={selectedMilestoneId}
-                                onUpdateTask={actions.updateTask}
-                                onSelectTask={setSelectedTaskId}
-                                onDeleteTask={actions.deleteTask}
-                                onDeleteRange={actions.deleteRange}
-                                onDeleteMilestone={actions.deleteMilestone}
-                                onAddMilestone={handleOpenMilestoneAdd}
-                                onRemoveDependency={handleRemoveDependency}
-                                dependencyIssues={dependencyIssues}
-                                // 연결은 타임라인의 명령형 핸들이 필요하다 — 표 뷰에서는 버튼을 잠근다
-                                canLink={viewMode !== 'table'}
-                                onStartLinking={(entityId) => timelineRef.current?.startLinking(entityId)}
-                                onClose={() => toggleSetting('showInspector')}
-                            />
-                        )}
-                    </>
-                )}
+                            {viewMode === 'timeline' && (
+                                <TimelineView
+                                    ref={timelineRef}
+                                    tasks={filteredTasks}
+                                    selectedTaskId={selectedTaskId}
+                                    onSelectTask={setSelectedTaskId}
+                                    onUpdateTask={actions.updateTask}
+                                    onUpdateTaskSilent={actions.updateTaskSilent}
+                                    onUpdateTasks={actions.updateTasks}
+                                    onDeleteTask={actions.deleteTask}
+                                    onAddTask={handleAddTask}
+                                    onMoveTask={handleMoveTask}
+                                    onIndentTask={handleIndentTask}
+                                    onOutdentTask={actions.outdent}
+                                    onContextMenu={handleContextMenu}
+                                    onMilestoneContextMenu={handleMilestoneContextMenu}
+                                    // 접기는 표와 같은 게이트를 쓴다 — 검색 중 여부에 따라
+                                    // 기록 위치가 다르고, 그 판단은 handleToggleExpand 에만 있다
+                                    onToggleExpand={handleToggleExpand}
+                                    timeScale={timeScale}
+                                    zoomLevel={zoomLevel}
+                                    showToday={showToday}
+                                    isCompact={isCompact}
+                                    showTaskNames={showTaskNames}
+                                    snapEnabled={snapEnabled}
+                                    showBarLabels={showBarLabels}
+                                    showBarDates={showBarDates}
+                                    onOpenMilestoneAdd={openMilestoneAdd}
+                                    toast={toast}
+                                    chartTheme={chartTheme}
+                                    colorMode={colorMode}
+                                    darkMode={darkMode}
+                                    dependencyIssues={dependencyIssues}
+                                    // 그리는 것은 filteredTasks 지만, 의존성 간선은 전체 트리를
+                                    // 봐야 한다 — 상대가 필터 밖이라고 연결이 없어지지 않는다
+                                    // (dependencyIssues 를 tasks 로 내는 것과 같은 이유).
+                                    allTasks={tasks}
+                                    isSearching={isSearching}
+                                />
+                            )}
+
+                            {/* 인스펙터는 검색 필터가 아니라 전체 트리를 본다 —
+                                의존성 상대가 필터에 걸려 없어지면 앞뒤 관계가 잘못 보인다 */}
+                            {showInspector && (
+                                <InspectorPanel
+                                    tasks={tasks}
+                                    selectedTaskId={selectedTaskId}
+                                    selectedRangeId={selectedRangeId}
+                                    selectedMilestoneId={selectedMilestoneId}
+                                    onUpdateTask={actions.updateTask}
+                                    onSelectTask={setSelectedTaskId}
+                                    onDeleteTask={actions.deleteTask}
+                                    onDeleteRange={actions.deleteRange}
+                                    onDeleteMilestone={actions.deleteMilestone}
+                                    onAddMilestone={handleOpenMilestoneAdd}
+                                    onRemoveDependency={handleRemoveDependency}
+                                    dependencyIssues={dependencyIssues}
+                                    // 연결은 타임라인의 명령형 핸들이 필요하다 — 표 뷰에서는 버튼을 잠근다
+                                    canLink={viewMode !== 'table'}
+                                    onStartLinking={(entityId) => timelineRef.current?.startLinking(entityId)}
+                                    onClose={() => toggleSetting('showInspector')}
+                                />
+                            )}
+                        </>
+                    )}
+                </div>
             </div>
 
             {milestoneModalInfo && (

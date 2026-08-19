@@ -271,7 +271,7 @@ src/
 │   │                        #   useTimelineCapture/useSidebarResize,
 │   │                        #   timelineGeometry.js, timelineMutations.js
 │   ├── tasks/               # useTaskActions (작업 CRUD 핸들러)
-│   ├── projects/            # ProjectSwitcher, useProjectSync
+│   ├── projects/            # ProjectRail, ProjectManagerModal, useProjectSync
 │   └── io/                  # ImportExportModal, SaveLoadModal, PromptGuideModal,
 │                            #   useImportExport, htmlExporter.js
 ├── shared/

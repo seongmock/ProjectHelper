@@ -15,7 +15,6 @@ import { test, expect } from '@playwright/test';
 
 // 클릭하면 떠야 하는 것들. panel 은 뜬 뒤 검사할 요소.
 const OVERLAY_TRIGGERS = [
-    { name: '프로젝트 전환', trigger: '[data-testid="project-switcher"]', panel: '.project-switcher-menu' },
     { name: '표시 옵션', trigger: 'button[title="표시 옵션"]', panel: '.display-options-menu' },
     { name: '프로젝트 관리', trigger: 'button[title="프로젝트 관리"]', panel: '.modal-content' },
     { name: '프롬프트 도우미', trigger: 'button[title="프롬프트 도우미"]', panel: '.modal-content' },
@@ -73,7 +72,9 @@ async function auditPanel(page, selector) {
 test.beforeEach(async ({ page, request }) => {
     await request.post('/api/data', { data: [] }).catch(() => {});
     await page.goto('/');
-    await expect(page.locator('.header-title')).toContainText('프로젝트 타임라인 관리');
+    // 앱 이름은 좌측 레일이, 프로젝트 이름은 컨텍스트 바가 갖는다(실사 §5.4-11 재설계)
+    await expect(page.getByTestId('project-rail')).toBeVisible();
+    await expect(page.locator('.header-title')).not.toBeEmpty();
 });
 
 test.describe('팝업/메뉴 전수 검증', () => {

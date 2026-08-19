@@ -8,7 +8,7 @@ import { join } from 'node:path';
 // 내지 않는다. "computed-value time 에 무효" 규칙에 따라 그 선언이 initial 값으로
 // 계산되고, background 의 initial 은 **transparent** 다. 즉 메뉴 배경이 조용히 사라진다.
 // (상속 속성인 color 는 initial 이 아니라 inherit 이라 더 눈에 안 띈다.)
-// ProjectSwitcher 드롭다운과 ImportExportModal 이 실제로 이 상태였고, lint·빌드·단위
+// 프로젝트 전환 드롭다운과 ImportExportModal 이 실제로 이 상태였고, lint·빌드·단위
 // 테스트 어디에도 걸리지 않았다. 이름을 대조하는 것이 유일한 자동 검사다.
 
 const SRC = new URL('../../src/', import.meta.url).pathname;
@@ -97,7 +97,7 @@ describe('z-index 계단 — 팝업 계층은 토큰으로만 쓴다', () => {
         // (타임라인 내부의 999/1000 같은 값은 자기 쌓임 문맥 안이라 여기서 보지 않는다.)
         const files = [
             'shared/ui/Modal.css', 'shared/ui/Toast.css', 'shared/ui/Tooltip.css',
-            'features/shell/DisplayOptionsMenu.css', 'features/projects/ProjectSwitcher.css',
+            'features/shell/DisplayOptionsMenu.css', 'features/projects/ProjectRail.css',
             'features/shell/Header.css', 'features/shell/Toolbar.css',
         ];
         const offenders = [];

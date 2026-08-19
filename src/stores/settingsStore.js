@@ -28,6 +28,7 @@ export const SETTING_DEFAULTS = {
     chartTheme: 'default',
     colorMode: 'task', // 'task' = 작업 색상 | 'status' = 일정 상태 색상 + 범례
     showInspector: false, // 오른쪽 인스펙터 패널 (선택된 작업 상세)
+    railExpanded: false, // 좌측 프로젝트 레일 — 접힘(아이콘만)이 기본, 펴면 이름이 붙는다
     darkMode: null, // null = 미설정 → 시스템 설정을 따른다
 };
 

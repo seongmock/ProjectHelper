@@ -60,7 +60,7 @@
      **핵심 함정**: .header(z 100)·.toolbar(z 90) 처럼 position 이 붙고 z-index 가 있는
      조상은 **쌓임 문맥**을 만들어서, 그 안의 자식이 z-index 를 얼마로 올려도 조상의
      값으로 취급된다. 그래서 드롭다운은 숫자만 올리는 게 아니라 **body 로 포털**해야 한다
-     (DisplayOptionsMenu·ProjectSwitcher 가 그 패턴이다). */
+     (DisplayOptionsMenu 가 그 패턴이다). */
   --z-timeline-bar: 20;
   --z-timeline-rollup: 30;
   --z-sticky-col: 60;
@@ -412,6 +412,17 @@ input[type="color"] {
 /* 메인 애플리케이션 레이아웃 */
 .app {
   height: 100%;
+  display: flex;
+  /* 가로 배치다: [프로젝트 레일][컨텍스트 바 + 툴바 + 캔버스].
+     레일이 화면 전체 높이를 차지해야 "프로젝트 안에 이 화면이 있다"는 계층이 읽힌다. */
+  overflow: hidden;
+}
+
+/* 레일 오른쪽 전체. min-width:0 이 없으면 타임라인의 넓은 내용이 flex 아이템을
+   밀어내서 레일이 화면 밖으로 잘려 나간다. */
+.app-shell {
+  flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;

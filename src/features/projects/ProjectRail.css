@@ -1,0 +1,149 @@
+/* 좌측 프로젝트 레일. 접힌 상태(아이콘만)가 기본이고, 펴면 이름이 붙는다.
+   폭은 두 값뿐이라 캔버스가 얼마나 좁아지는지 예측 가능하다. */
+.project-rail {
+  --rail-width: 56px;
+  flex: 0 0 var(--rail-width);
+  width: var(--rail-width);
+  display: flex;
+  flex-direction: column;
+  background-color: var(--color-bg-secondary);
+  border-right: 1px solid var(--color-border);
+  overflow: hidden;
+  transition: flex-basis var(--transition-normal), width var(--transition-normal);
+}
+
+.project-rail.is-expanded {
+  --rail-width: 208px;
+}
+
+/* 접힌 레일에서는 글자가 들어갈 자리가 없다 — 이름은 title 속성으로만 남는다 */
+.project-rail .rail-label {
+  display: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-rail.is-expanded .rail-label {
+  display: block;
+}
+
+.rail-brand {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  height: var(--header-height);
+  padding: 0 16px;
+  flex: 0 0 auto;
+  color: var(--color-primary);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.rail-brand .rail-label {
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+
+.rail-projects {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: var(--spacing-sm) 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.rail-project,
+.rail-action {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  width: 100%;
+  padding: 6px 16px;
+  border: none;
+  background: none;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--transition-fast), color var(--transition-fast);
+}
+
+.rail-project:hover,
+.rail-action:hover {
+  background-color: var(--color-bg-tertiary);
+  color: var(--color-text-primary);
+}
+
+/* 활성 표시는 색 하나로 하지 않는다 — 왼쪽 막대(위치)와 글자 굵기가 함께 말한다 */
+.rail-project.is-active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 4px;
+  bottom: 4px;
+  width: 3px;
+  border-radius: 0 2px 2px 0;
+  background-color: var(--color-primary);
+}
+
+.rail-project.is-active {
+  color: var(--color-text-primary);
+  font-weight: 600;
+}
+
+.rail-badge {
+  flex: 0 0 24px;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--border-radius);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  line-height: 1;
+  opacity: 0.72;
+  transition: opacity var(--transition-fast);
+}
+
+.rail-project.is-active .rail-badge,
+.rail-project:hover .rail-badge {
+  opacity: 1;
+}
+
+.rail-footer {
+  flex: 0 0 auto;
+  padding: var(--spacing-sm) 0;
+  border-top: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.rail-action {
+  padding: 8px 16px;
+}
+
+.rail-project:focus-visible,
+.rail-action:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: -2px;
+}
+
+/* 좁은 화면에서는 펴진 레일이 캔버스를 반쯤 먹는다 — 접힌 폭으로 고정한다 */
+@media (max-width: 768px) {
+  .project-rail,
+  .project-rail.is-expanded {
+    --rail-width: 48px;
+  }
+
+  .project-rail.is-expanded .rail-label {
+    display: none;
+  }
+}

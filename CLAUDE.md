@@ -25,7 +25,7 @@ npm run dev          # Vite dev server, http://localhost:5173, hot-reload
 npm run dev:api      # Express API server (PORT env, default 3000)
 npm run build        # Production build → dist/
 npm run lint         # ESLint 9 (flat config)
-npm run test:unit    # Vitest — 도메인 순수함수 + XSS 회귀 (434건)
+npm run test:unit    # Vitest — 도메인 순수함수 + XSS 회귀 (444건)
 npm run test:server  # node:test — 검증·서비스·저장소 내구성·감사 로그·의존성 정합성 (128건)
 npm run test:e2e     # Playwright E2E 92건 (API·dev 서버 자동 기동)
 npm run verify       # 위 전부 + 빌드 — 변경 후 이것을 돌려라
@@ -45,7 +45,7 @@ npx playwright test -g "프로젝트"                   # by test-title substrin
 npx playwright test --headed --debug                # watch it / step through
 ```
 
-**변경 후에는 `npm run verify`** — 합격 기준은 lint 0 error · unit 434/434 · server 128/128 ·
+**변경 후에는 `npm run verify`** — 합격 기준은 lint 0 error · unit 444/444 · server 128/128 ·
 빌드 성공 · **E2E 92/92 (skip 0)**.
 
 `playwright.config.js` 는 **API 서버와 dev 서버를 모두 자동 기동**하며, API는
@@ -368,10 +368,23 @@ Dependencies now live at the range level.
   두 탭이고(`pm-tab-projects` / `pm-tab-versions`), 버전 탭은 항상 활성 프로젝트 이름을 달고
   나온다. 여는 탭 자체가 `uiStore.projectManagerTab` 상태다 — 헤더 버튼은 `'versions'`,
   전환 드롭다운의 `프로젝트 관리…` 는 `'projects'` 로 열기 때문에, 별도의 `isOpen` 을 두면
-  "열렸는데 탭이 안 맞는" 상태가 생긴다. 드롭다운(`ProjectSwitcher`)은 **전환과 생성만** 한다;
-  이름 변경·삭제는 모달로 옮겼다. 확인은 `window.confirm` 이 아니라 행 안의 확인 줄
-  (`pm-confirm`)에서 받는다 — 브라우저 확인창은 Modal 의 포커스 가두기 밖에서 뜨고 무엇을
-  지우는지 화면에서 지워 버린다.
+  "열렸는데 탭이 안 맞는" 상태가 생긴다. 만들기·이름 변경·삭제는 **전부 이 모달에만** 있고
+  (입력란도 `pm-new-project-input` 하나뿐이다), 확인은 `window.confirm` 이 아니라 행 안의
+  확인 줄(`pm-confirm`)에서 받는다 — 브라우저 확인창은 Modal 의 포커스 가두기 밖에서 뜨고
+  무엇을 지우는지 화면에서 지워 버린다.
+- **셸은 [좌측 프로젝트 레일][컨텍스트 바][툴바][캔버스] 다** (`features/projects/ProjectRail.jsx`,
+  실사 §5.4-11). 예전에는 프로젝트가 헤더 드롭다운 **안에만** 있어서, 열기 전에는 다른
+  프로젝트가 있다는 사실조차 화면에 없었다 — 계층 없는 단일 화면이라 프로젝트가 늘면
+  무너진다. 레일이 목록을 상시로 들고 있으므로 전환은 클릭 하나이고, 헤더는 "이 프로젝트의
+  무엇"만 말하는 컨텍스트 바가 된다(`h1.header-title` = **프로젝트 이름**, 앱 이름은 레일
+  상단 `.rail-brand` 로 갔다 — 이 두 자리를 되돌리면 계층이 다시 사라진다). 네 가지가 규약이다:
+  ① 접힘(아이콘만, 56px)이 기본이고 폭은 `railExpanded` 설정으로 지속된다. ② 접힌 레일에는
+  이름이 들어갈 자리가 없으므로 배지 색은 **id 에서**(이름을 고쳐도 색이 안 바뀐다), 글자는
+  **이름에서** 뽑는다(`features/projects/projectRail.js`, 순수). ③ 레일은 만들지 않는다 —
+  `+` 는 관리 모달의 프로젝트 탭을 열 뿐이다. ④ **목록 갱신은 `useProjectSync` 의 리비전
+  폴링이 함께 한다.** 드롭다운은 "열 때" 다시 읽으면 됐지만 상시로 떠 있는 레일에는 그
+  순간이 없다 — 갱신하지 않으면 AI가 REST로 만든 프로젝트가 새로고침 전까지 보이지 않는다
+  (그 폴링의 미저장 편집 가드보다 **앞**에 둔다; 목록은 편집 상태와 무관하다).
 - **Window-level keyboard policy lives in `src/shared/keyboard.js`** — both `window` keydown
   listeners (global shortcuts in `App.jsx`, selected-task keys in `useTaskKeyboard`) get their
   guards from it, because a guard that exists in two places gets fixed in one. The pure

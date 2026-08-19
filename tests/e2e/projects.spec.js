@@ -18,17 +18,21 @@ test.beforeEach(async ({ page, request }) => {
     await expect(page.getByText('데이터 불러오는 중')).toHaveCount(0);
 });
 
-const openSwitcher = async (page) => {
-    await page.getByTestId('project-switcher').click();
-    await expect(page.locator('.project-switcher-menu')).toBeVisible();
+// 전환은 좌측 레일에서 한다(드롭다운은 없어졌다). 레일은 접힌 상태가 기본이라 화면에
+// 남는 것은 배지 한 글자뿐이고, 이름은 title 속성으로만 있다 — 그래서 title 로 고른다.
+const railProject = (page, name) => page.locator(`.rail-project[title="${name}"]`);
+
+const switchViaRail = async (page, name) => {
+    await railProject(page, name).click();
+    await expect(page.getByText('데이터 불러오는 중')).toHaveCount(0);
+    await expect(page.locator('.header-title')).toContainText(name);
 };
 
-// 관리(이름 변경·삭제)는 드롭다운이 아니라 프로젝트 관리 모달에 있다 — 되돌릴 수 없는
+// 관리(만들기·이름 변경·삭제)는 전부 프로젝트 관리 모달에 있다 — 되돌릴 수 없는
 // 동작을 hover 로만 보이는 아이콘 + 브라우저 confirm 으로 처리하던 것을 옮겼다.
 const openManager = async (page, tab = 'projects') => {
     if (tab === 'projects') {
-        await page.getByTestId('project-switcher').click();
-        await page.getByTestId('project-switcher-manage').click();
+        await page.getByTestId('rail-new-project').click();
     } else {
         await page.getByTitle('프로젝트 관리').click();
     }
@@ -36,11 +40,11 @@ const openManager = async (page, tab = 'projects') => {
 };
 
 const createProjectViaUI = async (page, name) => {
-    await openSwitcher(page);
-    await page.getByRole('button', { name: '새 프로젝트' }).click();
-    await page.locator('.project-switcher-input').fill(name);
-    await page.locator('.project-switcher-input').press('Enter');
-    await expect(page.getByTestId('project-switcher')).toContainText(name);
+    await openManager(page);
+    await page.getByTestId('pm-new-project-input').fill(name);
+    await page.getByTestId('pm-new-project-input').press('Enter');
+    await expect(page.locator('.header-title')).toContainText(name);
+    await page.keyboard.press('Escape');
     await expect(page.getByText('데이터 불러오는 중')).toHaveCount(0);
 };
 
@@ -65,8 +69,7 @@ test('프로젝트 간 데이터 격리 + 전환 왕복', async ({ page }) => {
     await expect(page.getByText('A전용 작업')).toHaveCount(0);
 
     // 다시 default로 → 작업 복귀
-    await openSwitcher(page);
-    await page.locator('.project-switcher-item-name', { hasText: '기본 프로젝트' }).click();
+    await switchViaRail(page, '기본 프로젝트');
     await expect(page.getByText('데이터 불러오는 중')).toHaveCount(0);
     await expect(page.getByText('A전용 작업').first()).toBeVisible();
 });
@@ -91,12 +94,12 @@ test('프로젝트 이름 변경 → 새로고침 후에도 유지', async ({ pa
     await row.getByTitle('이름 변경').click();
     await page.getByTestId('pm-project-rename-input').fill('변경된 이름');
     await page.getByTestId('pm-project-rename-input').press('Enter');
-    await expect(page.getByTestId('project-switcher')).toContainText('변경된 이름');
+    await expect(page.locator('.header-title')).toContainText('변경된 이름');
     await page.keyboard.press('Escape');
 
     await page.reload();
     await expect(page.getByText('데이터 불러오는 중')).toHaveCount(0);
-    await expect(page.getByTestId('project-switcher')).toContainText('변경된 이름');
+    await expect(page.locator('.header-title')).toContainText('변경된 이름');
 });
 
 test('삭제 가드: 마지막 프로젝트 삭제 불가 + 활성 프로젝트 삭제 시 자동 전환', async ({ page }) => {
@@ -114,11 +117,36 @@ test('삭제 가드: 마지막 프로젝트 삭제 불가 + 활성 프로젝트 
     await target.locator('button[title="삭제"]').click();
     await expect(target.getByTestId('pm-confirm')).toContainText('되돌릴 수 없다');
     await target.getByTestId('pm-confirm-yes').click();
-    await expect(page.getByTestId('project-switcher')).toContainText('기본 프로젝트');
+    await expect(page.locator('.header-title')).toContainText('기본 프로젝트');
     await page.keyboard.press('Escape');
 });
 
-test('AI가 REST로 만든 프로젝트+계획 → 드롭다운에서 전환해 확인', async ({ page, request }) => {
+test('레일: 전환은 클릭 하나, 접기/펴기는 새로고침 뒤에도 남는다', async ({ page }) => {
+    await createProjectViaUI(page, '레일 프로젝트');
+
+    // 아무것도 열지 않았는데 두 프로젝트가 모두 화면에 있다 — 레일의 존재 이유가 이것이다
+    await expect(page.getByTestId('rail-project')).toHaveCount(2);
+    await expect(railProject(page, '레일 프로젝트')).toHaveClass(/is-active/);
+
+    await switchViaRail(page, '기본 프로젝트');
+    await expect(railProject(page, '기본 프로젝트')).toHaveClass(/is-active/);
+    await expect(railProject(page, '레일 프로젝트')).not.toHaveClass(/is-active/);
+
+    // 접힌 레일에는 이름이 들어갈 자리가 없다 — 펴야 나온다
+    const name = railProject(page, '기본 프로젝트').locator('.rail-label');
+    await expect(name).toBeHidden();
+    await page.getByTestId('rail-toggle').click();
+    await expect(name).toBeVisible();
+
+    // 폭은 설정이다 — 새로고침마다 접혀 있으면 매번 다시 펴야 한다
+    await page.reload();
+    await expect(page.getByText('데이터 불러오는 중')).toHaveCount(0);
+    await expect(page.getByTestId('project-rail')).toHaveClass(/is-expanded/);
+    await page.getByTestId('rail-toggle').click(); // 설정은 전역이다 — 뒷 테스트를 위해 되돌린다
+    await expect(page.getByTestId('project-rail')).not.toHaveClass(/is-expanded/);
+});
+
+test('AI가 REST로 만든 프로젝트+계획 → 레일에서 전환해 확인', async ({ page, request }) => {
     // 외부(AI)가 프로젝트 생성 + 계획 주입
     const created = await (await request.post('/api/projects', { data: { name: 'AI 프로젝트' } })).json();
     const pid = created.project.id;
@@ -126,9 +154,10 @@ test('AI가 REST로 만든 프로젝트+계획 → 드롭다운에서 전환해 
         data: { name: 'AI가 만든 계획', startDate: '2026-08-01', endDate: '2026-08-20' },
     });
 
-    // 드롭다운 열기 → 목록 refetch로 AI 프로젝트 표시 → 전환
-    await openSwitcher(page);
-    await page.locator('.project-switcher-item-name', { hasText: 'AI 프로젝트' }).click();
+    // 레일에는 "여는 순간"이 없다 — 목록은 리비전 폴링(10초)이 함께 갱신한다.
+    // 이 대기가 곧 그 규약의 검증이다: 새로고침 없이도 나타나야 한다.
+    await expect(railProject(page, 'AI 프로젝트')).toBeVisible({ timeout: 20000 });
+    await railProject(page, 'AI 프로젝트').click();
     await expect(page.getByText('데이터 불러오는 중')).toHaveCount(0);
     await expect(page.getByText('AI가 만든 계획').first()).toBeVisible();
 });

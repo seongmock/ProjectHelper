@@ -17,15 +17,18 @@
     max-width: 100%;
 }
 
+/* 이제 여기 들어가는 것은 앱 이름이 아니라 **프로젝트 이름**이다 — 길이를 통제할 수
+   없으므로 최대 폭과 말줄임이 필요하고, 24px 은 사용자가 지은 이름에는 과하다. */
 .header-title {
-    display: flex;
-    align-items: center;
-    gap: var(--spacing-sm);
-    font-size: var(--font-size-xl);
+    display: block;
+    max-width: 32ch;
+    font-size: var(--font-size-lg);
     font-weight: 700;
     color: var(--color-text-primary);
     margin: 0;
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 /* 오른쪽 버튼군의 툴팁은 오른쪽 끝에 맞춘다. 가운데 정렬(left:50% + translateX(-50%))은

@@ -176,6 +176,13 @@ export function useProjectSync({ tasks, setTasks, setTasksSilent, resetTasks, ap
         return () => window.removeEventListener('beforeunload', handleBeforeUnload);
     }, []);
 
+    // 목록 갱신. 폴링 effect 가 의존성으로 참조하므로 그보다 위에 있어야 한다.
+    const refreshProjects = useCallback(async () => {
+        try {
+            setProjects(await storage.listProjects());
+        } catch { /* 오프라인 — 기존 목록 유지 */ }
+    }, []);
+
     // ── 리비전 폴링 ──────────────────────────────────
     // 외부(AI API)가 데이터를 변경하면 10초 내 자동 반영.
     // activeProjectId 의존: 프로젝트 전환 시 인터벌 재생성 — storage가 새 스코프를 폴링
@@ -183,6 +190,11 @@ export function useProjectSync({ tasks, setTasks, setTasksSilent, resetTasks, ap
         if (isLoading) return;
         const id = setInterval(async () => {
             if (document.hidden) return; // 백그라운드 탭은 폴링 생략
+            // 프로젝트 **목록**도 같이 읽는다. 예전에는 전환 드롭다운을 열 때 갱신했지만,
+            // 좌측 레일은 상시로 떠 있어서 "여는 순간"이 없다 — 갱신하지 않으면 AI가 REST로
+            // 만든 프로젝트가 새로고침 전까지 영영 보이지 않는다. 아래의 미저장 편집 가드보다
+            // 앞에 둔다: 목록은 이 프로젝트의 편집 상태와 무관하다.
+            refreshProjects();
             // 미저장 편집이 있으면 재로드를 미룬다. 여기서 덮어쓰면 그 편집이 조용히
             // 사라지고(재로드는 skipNextSave 를 세워 저장 에코까지 막는다) 사용자는
             // 무엇을 잃었는지도 알 수 없다. 곧 자동저장이 돌고, 정말 충돌이면 409 가
@@ -193,7 +205,7 @@ export function useProjectSync({ tasks, setTasks, setTasksSilent, resetTasks, ap
             if (rev != null && known != null && rev !== known) await reloadFromServer();
         }, REVISION_POLL_MS);
         return () => clearInterval(id);
-    }, [isLoading, reloadFromServer, activeProjectId]);
+    }, [isLoading, reloadFromServer, refreshProjects, activeProjectId]);
 
     // ── 프로젝트 전환 ────────────────────────────────
     // 순서가 중요하다:
@@ -245,12 +257,6 @@ export function useProjectSync({ tasks, setTasks, setTasksSilent, resetTasks, ap
     }, [activeProjectId, tasks, toast, resetTasks, onProjectSwitched]);
 
     // ── 프로젝트 CRUD ────────────────────────────────
-    const refreshProjects = useCallback(async () => {
-        try {
-            setProjects(await storage.listProjects());
-        } catch { /* 오프라인 — 기존 목록 유지 */ }
-    }, []);
-
     const createProject = useCallback(async (name) => {
         try {
             const p = await storage.createProject(name);

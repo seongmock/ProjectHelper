@@ -4,7 +4,9 @@ import { test, expect } from '@playwright/test';
 test.beforeEach(async ({ page, request }) => {
     await request.post('/api/data', { data: [] }).catch(() => {});
     await page.goto('/');
-    await expect(page.locator('.header-title')).toContainText('프로젝트 타임라인 관리');
+    // 앱 이름은 좌측 레일이, 프로젝트 이름은 컨텍스트 바가 갖는다(실사 §5.4-11 재설계)
+    await expect(page.getByTestId('project-rail')).toBeVisible();
+    await expect(page.locator('.header-title')).not.toBeEmpty();
     await expect(page.getByText('데이터 불러오는 중')).toHaveCount(0);
 });
 

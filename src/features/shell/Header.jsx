@@ -1,30 +1,21 @@
-import { Bot, FolderCog, Undo2, Redo2, Upload, Download, Sun, Moon, ChartNoAxesGantt } from 'lucide-react';
-import ProjectSwitcher from '../projects/ProjectSwitcher';
+import { Bot, FolderCog, Undo2, Redo2, Upload, Download, Sun, Moon } from 'lucide-react';
 import SyncIndicator from '../projects/SyncIndicator';
 import './Header.css';
 
+// 헤더는 **컨텍스트 바**다 — "어느 프로젝트인가"는 좌측 레일이 말하고, 여기는 그
+// 프로젝트의 이름과 저장 상태, 그리고 문서에 대한 동작(되돌리기·가져오기·내보내기)만
+// 말한다. 앱 이름과 프로젝트 목록은 레일로 옮겼다(실사 §5.4-11).
 function Header({
     darkMode, onToggleDarkMode, onExport, onImport, canUndo, canRedo, onUndo, onRedo,
-    onOpenPromptGuide, onOpenProjectManager, snapEnabled, onToggleSnap,
-    projects, activeProjectId, onSwitchProject, onCreateProject, onManageProjects, onOpenProjectList,
+    onOpenPromptGuide, onOpenProjectManager, projectName,
     syncState, onRetrySave,
 }) {
     return (
         <header className="header">
             <div className="header-content">
                 <div className="header-left">
-                    <h1 className="header-title">
-                        <ChartNoAxesGantt size={20} aria-hidden="true" />
-                        프로젝트 타임라인 관리
-                    </h1>
-                    <ProjectSwitcher
-                        projects={projects || []}
-                        activeProjectId={activeProjectId}
-                        onSwitch={onSwitchProject}
-                        onCreate={onCreateProject}
-                        onOpen={onOpenProjectList}
-                        onManage={onManageProjects}
-                    />
+                    {/* 화면의 주제는 앱이 아니라 이 프로젝트다 — h1 은 프로젝트 이름이 갖는다 */}
+                    <h1 className="header-title" title={projectName || ''}>{projectName || '\u2026'}</h1>
                     {/* 저장 상태는 "어느 프로젝트의" 상태다 — 프로젝트 이름 옆이 읽는 순서에 맞다 */}
                     {syncState && <SyncIndicator state={syncState} onRetry={onRetrySave} />}
                 </div>

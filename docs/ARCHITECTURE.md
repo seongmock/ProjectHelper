@@ -66,7 +66,7 @@ server/data/
 - 라우팅: `/api/projects/:pid/{tasks,data,revision,snapshots}` (스코프) + `/api/{tasks,data,...}` (default 프로젝트 별칭 — 하위호환). 같은 라우터를 두 곳에 마운트하고 미들웨어가 `req.projectStore`를 주입.
 - 부팅 시 레거시 단일 `data.json` → `projects/default/`로 멱등 마이그레이션 (`registry.ensureLayout`).
 - 프로젝트 삭제는 `_trash/`로 이동 (안전망), 마지막 프로젝트는 삭제 불가(400).
-- 프론트: 헤더 ProjectSwitcher 드롭다운. 전환 시퀀스는 (1) 디바운스 동기 취소 → (2) dirty면 이전 프로젝트 flush → (3) 스코프 전환(epoch++ — 늦은 응답 무효화) → (4) 새 데이터 로드 + **undo 히스토리 리셋**(`useUndoRedo.reset`) 순서 — 이 순서가 프로젝트 간 데이터 오염을 막는다.
+- 프론트: 좌측 프로젝트 레일(`ProjectRail`) — 목록이 상시로 보이고 클릭 하나로 전환된다(2026-08-19, 실사 §5.4-11. 그전에는 헤더 드롭다운이었다). 전환 시퀀스는 (1) 디바운스 동기 취소 → (2) dirty면 이전 프로젝트 flush → (3) 스코프 전환(epoch++ — 늦은 응답 무효화) → (4) 새 데이터 로드 + **undo 히스토리 리셋**(`useUndoRedo.reset`) 순서 — 이 순서가 프로젝트 간 데이터 오염을 막는다.
 - localStorage 캐시 키도 프로젝트별(`project-timeline-data:<pid>`).
 
 ### 멀티유저 대비 (기록만, 강제 없음)
