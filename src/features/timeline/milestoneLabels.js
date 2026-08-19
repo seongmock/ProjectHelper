@@ -32,6 +32,37 @@ export const MARKER_SCALE = 0.8;
 
 export const LABEL_POSITIONS = ['top', 'bottom', 'left', 'right'];
 
+// 라벨이 마커 위로 얼마나 올라가는가 — 첫 행 위에 비워 둘 여백이 이 값에서 나온다.
+// 실측값이라 상수로 둔다: 마커는 20px(반높이 10), 라벨 높이 22px, 행 높이 40px(반 20).
+export const MARKER_HALF = 10;
+export const LABEL_HEIGHT = 22;
+export const ROW_HALF = 20;
+export const HEADROOM_MARGIN = 2; // 헤더 경계에 딱 붙지 않도록
+// 1층까지 덮는 기본값. `.timeline-container` 의 `--timeline-label-headroom` 과 같은 수이고,
+// 여기서는 **바닥값**이다 — 라벨이 적다고 여백이 줄었다 늘었다 하면 마일스톤을 하나 옮길
+// 때마다 화면 전체가 위아래로 뛴다. 늘어나기만 한다.
+export const HEADROOM_FLOOR = 42;
+
+/**
+ * 배치 결과가 요구하는 위쪽 여백(px). `--timeline-label-headroom` 이 이 값이 된다.
+ *
+ * 여백이 상수 42px 이던 동안은 **1층까지만** 덮었다 — 라벨 다섯 개가 한 지점에서 겹치면
+ * 2층이 생기고, 그 라벨은 sticky 한 날짜 헤더 밑으로 들어가 글자가 잘렸다. 층은 위로
+ * 무한히 쌓이도록 만들어 놓고(겹침 회피) 그 위에 자리는 한 층만 비워 둔 셈이라,
+ * "auto 는 겹치지 않는다"를 지킬수록 헤더를 더 침범하는 모순이 있었다.
+ * 아래(bottom)·좌우 라벨은 위로 올라가지 않으므로 top 층만 센다.
+ */
+export function labelHeadroom(placements) {
+    let maxTier = -1;
+    for (const p of (placements?.values?.() ?? [])) {
+        if (p.position === 'top') maxTier = Math.max(maxTier, p.tier ?? 0);
+    }
+    const needed = maxTier < 0 ? 0
+        : MARKER_HALF + LABEL_BASE_OFFSET + maxTier * LABEL_TIER_STEP
+            + LABEL_HEIGHT - ROW_HALF + HEADROOM_MARGIN;
+    return Math.max(HEADROOM_FLOOR, needed);
+}
+
 // 한글은 라틴 문자보다 넓다. 정확한 측정은 DOM 이 필요하고(그러면 순수함수가 아니다),
 // 배치 판정에는 **넉넉한 추정**이 안전하다 — 좁게 잡으면 겹치지 않는다고 판단한 뒤 겹친다.
 export function estimateLabelWidth(label) {

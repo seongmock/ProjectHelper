@@ -561,7 +561,7 @@ ${statusMode ? legendCss(listId) : ''}
     <div class="gantt-body">
         <div class="task-list-column">
             <div class="header-cell">작업명</div>
-            <div class="task-list-content qs-tasks-${listId}" style="padding-top: 24px;">
+            <div class="task-list-content qs-tasks-${listId}" style="padding-top: 52px;">
                 <!-- Tasks injected here -->
             </div>
         </div>
@@ -856,9 +856,24 @@ ${inlineModuleSource(dependencyStyleSource)}
             // Read Row Height from CSS to ensure sync
             const rowHeightCss = getComputedStyle(root).getPropertyValue('--row-height').trim();
             const ROW_HEIGHT = parseInt(rowHeightCss, 10) || 40;
-            // 첫 행 위로도 라벨이 층을 쌓는다 — 여백이 없으면 tier 1 이 컨테이너 위로
-            // 잘려 나간다(라벨 20px + 기준 4px + 층 24px).
-            const PADDING_TOP = 52;
+            // 첫 행 위로도 라벨이 층을 쌓는다 — 여백이 없으면 컨테이너 위로 잘려 나간다.
+            // 몇 층까지 쌓이는지는 데이터가 정하므로(같은 지점에 다섯 개면 2층) 상수 52px 은
+            // **바닥값**이고, 그 위로 필요한 만큼은 앱과 **같은 규칙**이 정한다(labelHeadroom).
+            // 작업명 열도 같은 값만큼 내려야 이름과 막대가 같은 높이에 온다.
+            var firstRowItems = [];
+            if (DATA[0] && DATA[0].milestones) {
+                DATA[0].milestones.forEach(function(m) {
+                    var d = parseDate(m.date);
+                    if (d < startDate || d > maxDate) return;
+                    firstRowItems.push({
+                        id: m.id, label: m.label, labelPosition: m.labelPosition,
+                        x: (getPosPercent(d, startDate, totalDays) / 100) * contentWidth,
+                    });
+                });
+            }
+            var PADDING_TOP = 52 + Math.max(0,
+                labelHeadroom(placeMilestoneLabels(firstRowItems, contentWidth)) - HEADROOM_FLOOR);
+            elTaskList.style.paddingTop = PADDING_TOP + 'px';
 
             DATA.forEach(function(task, index) {
                 var rowTop = (index * ROW_HEIGHT) + PADDING_TOP; 

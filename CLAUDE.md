@@ -25,9 +25,9 @@ npm run dev          # Vite dev server, http://localhost:5173, hot-reload
 npm run dev:api      # Express API server (PORT env, default 3000)
 npm run build        # Production build → dist/
 npm run lint         # ESLint 9 (flat config)
-npm run test:unit    # Vitest — 도메인 순수함수 + XSS 회귀 (468건)
+npm run test:unit    # Vitest — 도메인 순수함수 + XSS 회귀 (474건)
 npm run test:server  # node:test — 검증·서비스·저장소 내구성·감사 로그·의존성 정합성 (128건)
-npm run test:e2e     # Playwright E2E 99건 (API·dev 서버 자동 기동)
+npm run test:e2e     # Playwright E2E 101건 (API·dev 서버 자동 기동)
 npm run verify       # 위 전부 + 빌드 — 변경 후 이것을 돌려라
 ```
 
@@ -45,8 +45,8 @@ npx playwright test -g "프로젝트"                   # by test-title substrin
 npx playwright test --headed --debug                # watch it / step through
 ```
 
-**변경 후에는 `npm run verify`** — 합격 기준은 lint 0 error · unit 468/468 · server 128/128 ·
-빌드 성공 · **E2E 99/99 (skip 0)**.
+**변경 후에는 `npm run verify`** — 합격 기준은 lint 0 error · unit 474/474 · server 128/128 ·
+빌드 성공 · **E2E 101/101 (skip 0)**.
 
 `playwright.config.js` 는 **API 서버와 dev 서버를 모두 자동 기동**하며, API는
 `PH_DATA_DIR=.tmp-e2e-data` 로 격리된다. 예전에는 API 서버를 수동으로 띄우지 않으면 8건이
@@ -466,9 +466,18 @@ Dependencies now live at the range level.
   `.dependency-layer` (`top`, because an absolutely positioned child's containing block is the
   **padding box** — `top: 0` sits *above* the padding, so arrows would keep the old origin while
   the rows moved). Without it the first row's tier-1 labels drew on top of the sticky date
-  header. 42px covers tier 1 (marker half 10 + base 4 + tier 24 + label 22 − row half 20);
-  tier 2 and beyond still encroach, which needs five or more labels colliding at once.
-  `features.spec.js` measures the three-way alignment, since that is what silently breaks.
+  header. **The 42px is only a floor** — how many tiers get stacked is a property of the data
+  (five labels colliding at one point produce tier 2), so a constant could only ever cover
+  tier 1, and the label-placement rule *"auto never overlaps"* made the encroachment worse the
+  better it worked. `labelHeadroom()` (pure, in `milestoneLabels.js`) turns the first row's
+  placements into the number, `TimelineView` measures **the first row only** — the value is the
+  scroll area's `padding-top`, and rows below it are supposed to scroll under the header — and
+  writes the variable inline; the value only ever grows (`HEADROOM_FLOOR`), because a headroom
+  that shrank when you moved one milestone would make the whole chart jump. What the first row
+  even *has* comes from `visibleMilestoneItems()` in `timelineGeometry.js`, shared with
+  `TimelineBar` so the reservation can't be computed from a different set than the one drawn.
+  `features.spec.js` measures the three-way alignment and, with five stacked labels, that the
+  topmost label clears the header — the alignment is what silently breaks.
 - **The PNG capture computes its height from data, so every layout change has to be told about
   it.** `useTimelineCapture` deliberately doesn't measure the live DOM — it overwrites the
   container's `overflow`/`height` to unroll the scroll area first, so a measurement taken then
@@ -505,7 +514,10 @@ Dependencies now live at the range level.
   whole export into a blank chart that still looks fine; `tests/e2e/export-html.spec.js` then
   **renders the exported HTML in a real page** and measures the drawn strokes, dashes, markers and
   badges, which is the only way to catch string assembly that produces a valid-looking document
-  that draws nothing.
+  that draws nothing. The export reserves its own headroom the same way (`labelHeadroom()` rides
+  the embedded `milestoneLabels.js`), and the two columns take it from **one** number: while the
+  bars started at a constant 52px and the name list at 24px, every name in every exported chart
+  sat 28px above its own bar.
 
 ### Tree-update invariants (critical for correctness)
 

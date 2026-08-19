@@ -4,6 +4,7 @@ import { isTaskOverdue, getTaskStatus } from '../../utils/taskTree';
 import { getStatusColor } from '../../themes/index.js';
 import { rollupSegmentTitle, rollupMilestoneTitle } from './rollupBars';
 import { placeMilestoneLabels, milestoneLabelStyle } from './milestoneLabels';
+import { visibleMilestoneItems } from './timelineGeometry';
 import Tooltip from '../../shared/ui/Tooltip';
 import './TimelineBar.css';
 
@@ -309,17 +310,8 @@ function TimelineBar({
     const renderMilestones = () => {
         if (!task.milestones || task.milestones.length === 0) return null;
 
-        const visible = task.milestones
-            .filter(m => {
-                const d = new Date(m.date);
-                return d >= new Date(startDate) && d <= new Date(endDate);
-            })
-            .map(m => ({
-                id: m.id,
-                label: m.label,
-                labelPosition: m.labelPosition,
-                x: (dateUtils.getDaysBetween(startDate, m.date) / totalDays) * containerWidth,
-            }));
+        // 무엇이 보이는지는 TimelineView 의 여백 계산과 **같은 함수**로 정한다
+        const visible = visibleMilestoneItems(task, { start: startDate, end: endDate }, containerWidth);
 
         const placements = placeMilestoneLabels(visible, containerWidth);
 

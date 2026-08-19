@@ -1070,6 +1070,40 @@ test.describe('타임라인 위쪽 여백', () => {
         expect(y.count).toBeGreaterThan(0);
         expect(y.top).toBeGreaterThanOrEqual(y.contentTop);
     });
+
+    // 여백이 42px 상수이던 동안은 1층까지만 덮었다. 라벨은 겹치지 않으려고 층을 위로
+    // 무한히 쌓으므로, 한 지점에 다섯 개가 몰리면 2층이 생기고 그 라벨이 sticky 한 날짜
+    // 헤더 밑으로 들어가 잘렸다 — 겹침 회피를 지킬수록 헤더를 더 침범하는 모순이었다.
+    test('첫 행에 라벨이 여러 층 쌓여도 헤더를 덮지 않는다', async ({ page, request }) => {
+        await page.waitForTimeout(2500); // 초기 저장 안정화
+        const { data } = await (await request.get('/api/data')).json();
+        const target = data.find(t => (t.timeRanges || []).length > 0);
+        const day = target.timeRanges[0].startDate;
+        // 같은 날짜에 몰아넣어 층을 강제한다(위·아래 번갈아 → 다섯이면 위 2층까지)
+        target.milestones = Array.from({ length: 5 }, (_, i) => ({
+            id: `tier-ms-${i}`, date: day, label: `층 쌓기 마일스톤 ${i}`,
+            color: '#e74c3c', shape: 'diamond',
+        }));
+        expect((await request.post('/api/data', { data })).ok()).toBe(true);
+
+        await page.reload();
+        await expect(page.getByText('데이터 불러오는 중')).toHaveCount(0);
+
+        const y = await page.evaluate(() => {
+            const rows = [...document.querySelectorAll('.timeline-row')];
+            const labels = [...rows[0].querySelectorAll('.milestone-label')];
+            return {
+                count: labels.length,
+                top: Math.min(...labels.map(el => el.getBoundingClientRect().top)),
+                headerBottom: document.querySelector('.timeline-header').getBoundingClientRect().bottom,
+                padTop: parseFloat(getComputedStyle(document.querySelector('.timeline-content')).paddingTop),
+            };
+        });
+
+        expect(y.count).toBeGreaterThanOrEqual(5);
+        expect(y.padTop).toBeGreaterThan(42);       // 여백이 층수를 따라 늘었다
+        expect(y.top).toBeGreaterThanOrEqual(y.headerBottom);
+    });
 });
 
 test.describe('PNG 캡처 높이', () => {

@@ -29,9 +29,10 @@ import TimelineBar from './TimelineBar';
 import TimelineLegend from './TimelineLegend';
 import DependencyLayer from './DependencyLayer';
 import { flattenTasks } from '../../utils/dataModel';
-import { buildItemMap } from './timelineGeometry';
+import { buildItemMap, visibleMilestoneItems } from './timelineGeometry';
 import { resolveDependencyLinks } from './dependencyLinks';
 import { resolveRollup } from './rollupBars';
+import { placeMilestoneLabels, labelHeadroom } from './milestoneLabels';
 import { useTimelineScale } from './useTimelineScale';
 import { useBarDrag } from './useBarDrag';
 import { useDependencyLink } from './useDependencyLink';
@@ -200,6 +201,18 @@ const TimelineView = forwardRef(({
         handleBarDragEnd, handleMilestoneDragMove, handleMilestoneDragEnd,
     } = useBarDrag({ flatTasks, onUpdateTask, onUpdateTasks });
 
+    // 첫 행 위에 비워 둘 여백. 라벨은 층으로 겹침을 피하므로 몇 층까지 쌓이는지는
+    // 데이터에 달렸다 — CSS 의 상수(42px = 1층)만 있던 동안은 라벨이 다섯 개만 겹쳐도
+    // 2층이 생겨 그 라벨이 sticky 한 날짜 헤더 밑으로 들어갔다. 여백은 늘어나기만 한다
+    // (`HEADROOM_FLOOR`). 첫 행만 재면 되는 이유는 이것이 스크롤 영역의 padding-top 이기
+    // 때문이다 — 아래 행들의 라벨은 헤더 밑으로 스크롤되는 것이 맞다.
+    const labelHeadroomPx = useMemo(() => {
+        const first = flatTasks[0];
+        if (!first || !contentWidth) return null;
+        const items = visibleMilestoneItems(first, dateRange, contentWidth);
+        return labelHeadroom(placeMilestoneLabels(items, contentWidth));
+    }, [flatTasks, dateRange, contentWidth]);
+
     const { isLinkingMode, startLinking, handleTaskClick, handleMilestoneClick } =
         useDependencyLink({
             flatTasks,
@@ -299,7 +312,8 @@ const TimelineView = forwardRef(({
 
     return (
         <div className={`timeline-view ${isCompact ? 'compact-mode' : ''}`} ref={containerRef} data-chart-theme={chartTheme}>
-            <div className={`timeline-container ${showTaskNames ? 'with-names' : ''}`} ref={captureRef}>
+            <div className={`timeline-container ${showTaskNames ? 'with-names' : ''}`} ref={captureRef}
+                style={labelHeadroomPx ? { '--timeline-label-headroom': `${labelHeadroomPx}px` } : undefined}>
                 {/* 왼쪽 작업명 컬럼 */}
                 {showTaskNames && (<>
                     <div

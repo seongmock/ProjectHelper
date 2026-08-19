@@ -87,3 +87,40 @@ test('연결이 없으면 배지도 없다 — 빈 표시로 잡음을 만들지
     await expect(doc.locator('.task-item')).toHaveCount(1);
     await expect(doc.locator('.ph-dep-badge')).toHaveCount(0);
 });
+
+// 내보낸 문서에도 같은 규칙이 필요하다: 라벨은 층으로 겹침을 피하므로 첫 행 위에 비워 둘
+// 여백이 층수를 따라야 하고, 그 여백만큼 작업명 열도 내려가야 이름이 자기 막대 옆에 온다.
+// 상수 두 개(막대 52px, 이름 24px)로 나뉘어 있던 동안 **이름은 자기 막대보다 28px 위**에
+// 있었고, 라벨 다섯 개가 겹치면 2층이 컨테이너 위로 잘렸다.
+test('내보낸 HTML 의 작업명이 자기 막대와 같은 높이에 있고, 겹친 라벨이 잘리지 않는다', async ({ page, context }) => {
+    const stacked = [{
+        id: 'S', name: '층 쌓기', color: '#4A90E2', children: [], expanded: true,
+        timeRanges: [{ id: 'rs', startDate: '2026-01-01', endDate: '2026-01-31', dependencies: [] }],
+        milestones: Array.from({ length: 5 }, (_, i) => ({
+            id: `sm${i}`, date: '2026-01-10', label: `겹치는 라벨 ${i}`, color: '#e74c3c', shape: 'diamond',
+        })),
+    }, {
+        id: 'T', name: '둘째 행', color: '#4A90E2', children: [], expanded: true, milestones: [],
+        timeRanges: [{ id: 'rt', startDate: '2026-02-01', endDate: '2026-02-20', dependencies: [] }],
+    }];
+    const html = await renderExport(page, stacked);
+    const doc = await context.newPage();
+    await doc.setContent(`<div style="width:1200px;height:600px">${html}</div>`);
+    await expect(doc.locator('.milestone-label')).toHaveCount(5, { timeout: 5000 });
+
+    const m = await doc.evaluate(() => {
+        const mid = (el) => { const b = el.getBoundingClientRect(); return b.top + b.height / 2; };
+        const content = document.querySelector('[class*="qs-content-"]');
+        return {
+            nameMids: [...document.querySelectorAll('.task-item')].map(mid),
+            barMids: [...document.querySelectorAll('.timeline-bar')].map(mid),
+            labelTop: Math.min(...[...document.querySelectorAll('.milestone-label')]
+                .map(el => el.getBoundingClientRect().top)),
+            contentTop: content.getBoundingClientRect().top,
+        };
+    });
+
+    expect(m.barMids.length).toBe(m.nameMids.length);
+    m.barMids.forEach((y, i) => expect(Math.abs(y - m.nameMids[i])).toBeLessThanOrEqual(1));
+    expect(m.labelTop).toBeGreaterThanOrEqual(m.contentTop);
+});

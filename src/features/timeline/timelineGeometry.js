@@ -112,6 +112,27 @@ export const taskItemEntries = (task, index) => {
 
 // 의존성 선을 그리려면 "id → 그 항목이 몇 번째 행의 어느 날짜에 있나"가 필요하다.
 // 작업 / 개별 기간 / 마일스톤을 한 Map 에 모은다. **화면에 행이 있는 것만** 들어간다.
+// 한 행에서 **실제로 그려지는** 마일스톤만, 라벨 배치가 받는 형태로 추린다.
+// 축 밖의 마일스톤은 그려지지 않으므로 라벨 자리도 차지하지 않는다. 이 목록을 두 곳이
+// 본다 — TimelineBar(그린다)와 TimelineView(첫 행 라벨이 요구하는 위쪽 여백을 잰다).
+// 따로 거르면 화면에 없는 라벨을 기준으로 여백이 잡히거나 그 반대가 된다.
+export const visibleMilestoneItems = (task, dateRange, contentWidth) => {
+    const totalDays = dateUtils.getDaysBetween(dateRange.start, dateRange.end);
+    const from = new Date(dateRange.start);
+    const to = new Date(dateRange.end);
+    return (task?.milestones || [])
+        .filter(m => {
+            const d = new Date(m.date);
+            return d >= from && d <= to;
+        })
+        .map(m => ({
+            id: m.id,
+            label: m.label,
+            labelPosition: m.labelPosition,
+            x: (dateUtils.getDaysBetween(dateRange.start, m.date) / totalDays) * contentWidth,
+        }));
+};
+
 export const buildItemMap = (flatTasks) => {
     const map = new Map();
     flatTasks.forEach((task, index) => {

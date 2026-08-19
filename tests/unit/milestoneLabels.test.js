@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
     placeMilestoneLabels, milestoneLabelStyle, estimateLabelWidth,
     LABEL_GAP, LABEL_TIER_STEP, LABEL_BASE_OFFSET, MARKER_SCALE,
+    labelHeadroom, HEADROOM_FLOOR,
 } from '../../src/features/timeline/milestoneLabels.js';
 
 const WIDTH = 1000;
@@ -222,5 +223,47 @@ describe('LABEL_TIER_STEP 은 실제 라벨 높이보다 넓다', () => {
         const t1 = LABEL_BASE_OFFSET + LABEL_TIER_STEP;
         // 0층 라벨의 바깥 끝 ↔ 1층 라벨의 안쪽 끝
         expect(t1 - (t0 + MEASURED_LABEL_HEIGHT)).toBeGreaterThan(0);
+    });
+});
+
+
+// 층은 위로 무한히 쌓이는데 그 위에 비워 두는 자리는 42px(1층) 상수였다 — "auto 는 겹치지
+// 않는다"를 지킬수록 라벨이 sticky 한 날짜 헤더를 더 침범하는 모순이 있었다. 여백은 실제로
+// 쌓인 층수를 따라간다.
+describe('labelHeadroom — 여백이 실제 층수를 따라간다', () => {
+    const headroomFor = (count) => {
+        // 같은 x 에 몰아넣으면 층이 강제로 쌓인다(위·아래 번갈아 → n 개면 ⌈n/2⌉ 층)
+        const items = Array.from({ length: count }, (_, i) => ms(`m${i}`, 500, `마일스톤 ${i}`));
+        return labelHeadroom(placeMilestoneLabels(items, WIDTH));
+    };
+
+    it('라벨이 없으면 바닥값 그대로다', () => {
+        expect(labelHeadroom(placeMilestoneLabels([], WIDTH))).toBe(HEADROOM_FLOOR);
+    });
+
+    it('1층까지는 바닥값으로 충분하다', () => {
+        expect(headroomFor(1)).toBe(HEADROOM_FLOOR);
+        expect(headroomFor(3)).toBe(HEADROOM_FLOOR); // 위 0·1층, 아래 0층
+    });
+
+    it('2층이 생기면(라벨 5개가 겹칠 때) 여백이 한 층만큼 늘어난다', () => {
+        expect(headroomFor(5)).toBe(HEADROOM_FLOOR + LABEL_TIER_STEP);
+        expect(headroomFor(7)).toBe(HEADROOM_FLOOR + 2 * LABEL_TIER_STEP);
+    });
+
+    it('여백은 줄어들지 않는다 — 라벨 하나를 옮길 때마다 화면이 뛰면 안 된다', () => {
+        expect(headroomFor(9)).toBeGreaterThan(headroomFor(1));
+        expect(headroomFor(1)).toBeGreaterThanOrEqual(HEADROOM_FLOOR);
+    });
+
+    it('아래로만 내려간 라벨은 위쪽 여백을 요구하지 않는다', () => {
+        const items = Array.from({ length: 5 }, (_, i) => ms(`m${i}`, 500, `아래 ${i}`, 'bottom'));
+        expect(labelHeadroom(placeMilestoneLabels(items, WIDTH))).toBe(HEADROOM_FLOOR);
+    });
+
+    it('여백은 2층 라벨의 윗변보다 높다 (헤더를 덮지 않는다)', () => {
+        // 행 중앙 기준 라벨 윗변 = 마커 반높이 10 + 기준 4 + 층 × 24 + 라벨 22
+        const topOfTier2 = 10 + LABEL_BASE_OFFSET + 2 * LABEL_TIER_STEP + 22;
+        expect(headroomFor(5) + 20).toBeGreaterThanOrEqual(topOfTier2); // +20 = 행 반높이
     });
 });
