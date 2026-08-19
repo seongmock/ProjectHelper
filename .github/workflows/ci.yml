@@ -84,7 +84,13 @@ jobs:
             && { echo "::error::인증 예외가 /api/* 다 — 타임라인 데이터 전체가 열린다"; exit 1; }
           true
 
+      # 자격증명(.env)은 커밋되지 않으므로 필수 변수를 더미로 채운다. 여기서 보는 것은
+      # 값이 아니라 보간·구조 오류이고, 이 두 변수는 compose 가 `:?` 로 강제한다 —
+      # 채우지 않으면 검사 자체가 시작되지 않는다(이 잡이 처음 그렇게 실패했다).
       - name: Validate compose files
+        env:
+          BASIC_AUTH_USER: ci
+          BASIC_AUTH_HASH: ci-dummy-not-a-real-hash
         run: |
           docker compose -f docker-compose.yml config -q
           docker compose -f docker-compose.yml -f docker-compose.dev.yml config -q
