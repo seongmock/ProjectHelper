@@ -10,6 +10,16 @@ info:
     - 변경 요청에 `If-Match: <revision>` 헤더를 보내면 서버 리비전과 다를 때 409를 반환한다.
     - 헤더를 생략하면 무조건 쓰기(last-write-wins) — 기존 클라이언트 하위호환.
     - 브라우저 앱은 10초마다 `GET /api/revision`을 폴링해 외부 변경을 자동 반영한다.
+
+    ## 인증 (계정이 있을 때만)
+    - 서버에 계정이 하나도 없으면 `open` 모드다 — 인증 없이 지금까지처럼 동작한다.
+    - 첫 관리자를 만든 뒤에는 모든 경로에 신원이 필요하다. 예외는 정확히
+      `/`, `/guide`, `/openapi.yaml`, `/health`, `/auth/*` 뿐이다.
+    - 사람은 세션 쿠키(`POST /auth/login`), **에이전트는 서비스 토큰**을 쓴다:
+      `Authorization: Bearer <token>` (서버의 `PH_API_TOKENS` 에 `이름:역할:토큰` 으로 등록).
+      감사 로그의 actor 는 그 이름이 되므로 사람 계정을 빌려 쓰지 않는다.
+    - 역할은 viewer(읽기) ⊂ editor(쓰기) ⊂ admin(계정·프로젝트 삭제).
+      권한이 모자라면 403, 신원이 없으면 401.
   version: 1.0.0
 servers:
   - url: http://localhost:3000/api
@@ -20,7 +30,20 @@ servers:
       host:
         default: localhost
 
+security:
+  - serviceToken: []
+  - {}   # 계정이 없는 배포(open 모드)에서는 인증 없이 호출된다
+
 components:
+  securitySchemes:
+    serviceToken:
+      type: http
+      scheme: bearer
+      description: PH_API_TOKENS 에 등록된 서비스 토큰. 사람 사용자는 세션 쿠키를 쓴다.
+    session:
+      type: apiKey
+      in: cookie
+      name: ph_session
   parameters:
     IfMatch:
       name: If-Match
@@ -471,3 +494,77 @@ paths:
       summary: 헬스체크
       responses:
         '200': { description: '{ ok, time }' }
+
+  /auth/me:
+    get:
+      summary: 현재 신원과 인증 모드 — 화면이 로그인 창을 띄울지 정하는 근거
+      security: []
+      responses:
+        '200': { description: "{ ok, mode: 'open'|'enforced', user: {name, role} | null }" }
+
+  /auth/login:
+    post:
+      summary: 로그인 (세션 쿠키 발급)
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+                password: { type: string }
+      responses:
+        '200': { description: '{ ok, user } + Set-Cookie: ph_session' }
+        '401': { description: '이름·비밀번호 불일치 (어느 쪽인지 구분해 주지 않는다)' }
+        '429': { description: '시도 과다 (15분 내 10회)' }
+
+  /auth/logout:
+    post:
+      summary: 로그아웃 (쿠키 삭제)
+      security: []
+      responses:
+        '200': { description: '{ ok }' }
+
+  /auth/setup:
+    post:
+      summary: 첫 관리자 생성 — 계정이 하나도 없을 때만 열린다(이 호출로 인증이 켜진다)
+      security: []
+      responses:
+        '200': { description: '{ ok, user } + Set-Cookie' }
+        '409': { description: '이미 계정이 있다' }
+
+  /users:
+    get:
+      summary: 계정 목록 (admin)
+      responses:
+        '200': { description: '{ ok, users: [{name, role, createdAt}] }' }
+        '403': { description: 'admin 아님' }
+    post:
+      summary: 계정 생성 (admin)
+      responses:
+        '201': { description: '{ ok, user }' }
+        '409': { description: '같은 이름이 이미 있다' }
+
+  /users/{name}:
+    patch:
+      summary: 비밀번호·역할 변경 (본인 비밀번호 또는 admin)
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: '{ ok, user }' }
+        '409': { description: '마지막 관리자는 강등할 수 없다' }
+    delete:
+      summary: 계정 삭제 (admin)
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: '{ ok }' }
+        '409': { description: '마지막 관리자는 지울 수 없다' }

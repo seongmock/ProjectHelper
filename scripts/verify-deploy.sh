@@ -23,7 +23,7 @@ grep -qE '^[[:space:]]*basic_auth[[:space:]]' Caddyfile 2>/dev/null && AUTH_ON=t
 
 echo "=== ProjectHelper 배포 검증 (대상: $HOST) ==="
 if [ "$AUTH_ON" = true ]; then
-    echo "    인증: basicauth 활성 (Caddyfile 기준)"
+    echo "    인증: basicauth 활성 (Caddyfile 기준) — 앱 계정 인증 검사는 자격증명이 필요해 생략"
 else
     echo -e "    인증: ${YELLOW}없음 — 의도된 일시 상태${NC} (Caddyfile 주석 참조. 개선 완료 후 복구)"
 fi
@@ -60,6 +60,19 @@ else
             *)   no "GET $p → $code (200 기대)" ;;
         esac
     done
+    # 앱 계정 인증(P3-3)은 Caddy basicauth 와 **다른 층**이다. 하나가 꺼져 있다고 다른
+    # 하나까지 꺼져 있다고 단정하면 안 되므로, 상태를 응답에서 직접 읽는다.
+    mode=$(curl -s -m 5 -k "https://$HOST/api/auth/me" | grep -o '"mode":"[a-z]*"' | cut -d'"' -f4)
+    case "$mode" in
+        open) ok "앱 계정 인증: 꺼짐 (계정 없음 — 화면의 [계정] 에서 첫 관리자를 만들면 켜진다)" ;;
+        enforced)
+            code=$(curl -s -o /dev/null -w "%{http_code}" -m 5 -k "https://$HOST/api/tasks" || echo 000)
+            [ "$code" = "401" ] && ok "앱 계정 인증: 켜짐 — 익명 GET /api/tasks → 401" \
+                || no "앱 계정 인증이 켜져 있는데 익명 GET /api/tasks → $code (401 기대)"
+            ;;
+        *) no "/api/auth/me 가 mode 를 말하지 않는다 ('$mode') — 인증 계층 상태를 알 수 없다" ;;
+    esac
+
     # 인증을 되살릴 때 필요한 자격증명이 아직 있는지 — 여기서 사라지면 복구가 재발급이 된다.
     if grep -qE '^BASIC_AUTH_HASH=.+' .env 2>/dev/null; then
         ok ".env 에 BASIC_AUTH_HASH 보존됨 (복구는 Caddyfile 4줄 되살리기로 끝난다)"

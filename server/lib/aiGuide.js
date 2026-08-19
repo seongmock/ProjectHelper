@@ -17,6 +17,18 @@ module.exports = {
         events: 'GET /api/projects/{pid}/events?limit=50 (감사 로그 — 누가 언제 무엇을 얼마나 바꿨는지)',
         dependencyIssues: 'GET /api/projects/{pid}/dependency-issues (의존성 점검 — 순환·일정 위반·끊어진 참조)',
         mcp: '프로젝트 루트 .mcp.json 등록 시 16개 MCP 도구 사용 가능 (get-guide, list-projects, create-project, add-task, reschedule 등)',
+        auth: 'GET /api/auth/me — { mode:"open"|"enforced", user }. open 이면 인증 불필요.',
+    },
+
+    auth: {
+        description:
+            '서버에 계정이 하나도 없으면 인증이 꺼져 있다(open). 첫 관리자가 생기면 enforced 가 되고, ' +
+            '그때부터 /api/, /api/guide, /api/openapi.yaml, /api/health, /api/auth/* 를 제외한 모든 경로에 신원이 필요하다.',
+        agent:
+            '에이전트는 사람 계정을 쓰지 말 것. `Authorization: Bearer <token>` 으로 서비스 토큰을 보낸다 ' +
+            '(서버 환경변수 PH_API_TOKENS 의 "이름:역할:토큰"). 감사 로그의 actor 가 그 이름이 되므로 ' +
+            '누가 무엇을 바꿨는지 사람과 구분된다. MCP 서버는 PH_API_TOKEN 환경변수로 같은 일을 한다.',
+        roles: 'viewer(읽기) ⊂ editor(쓰기) ⊂ admin(계정 관리·프로젝트 삭제). 부족하면 403, 신원이 없으면 401.',
     },
 
     projects: {
@@ -31,7 +43,8 @@ module.exports = {
             delete: 'DELETE /api/projects/{pid} (마지막 프로젝트는 400)',
             scoped: '/api/projects/{pid}/tasks | /data | /revision | /snapshots | /events | /dependency-issues — 프로젝트 없는 경로와 동일한 형태',
         },
-        multiUser: '멀티유저 배포 시 Caddy basicauth 사용자가 X-Auth-User로 전달되어 owner/createdBy에 기록된다.',
+        multiUser: '멀티유저 배포에서 owner/createdBy 는 로그인한 계정(또는 서비스 토큰의 이름)이다. ' +
+            'X-Auth-User 헤더는 앞단 인증을 신뢰하도록 켰을 때만(PH_TRUST_PROXY_AUTH=1) 신원으로 쓰인다.',
     },
 
     formats: {

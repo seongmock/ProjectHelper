@@ -28,6 +28,14 @@ services:
       NODE_ENV: production
       PORT: "3000"
       LOG_LEVEL: "${LOG_LEVEL:-info}"
+      # 인증은 계정이 만들어지기 전까지 잠들어 있다(server/lib/auth.js). 아래는 켠 뒤에만 쓰인다.
+      # 세션 키는 비워 두면 데이터 볼륨에 만들어 재사용한다 — 다시 띄워도 로그아웃되지 않는다.
+      PH_SESSION_SECRET: "${PH_SESSION_SECRET:-}"
+      # AI·MCP 용 서비스 신원: "이름:역할:토큰" 을 쉼표로. 사람 계정을 빌려 쓰지 않게 한다.
+      PH_API_TOKENS: "${PH_API_TOKENS:-}"
+      # 앞단(Caddy basicauth·SSO)이 신원을 보증할 때만 1. 켜지 않으면 X-Auth-User 는 무시된다 —
+      # 켜 두고 앞단이 없으면 아무나 헤더 한 줄로 관리자가 된다.
+      PH_TRUST_PROXY_AUTH: "${PH_TRUST_PROXY_AUTH:-0}"
     volumes:
       - api_data:/app/data
     healthcheck:

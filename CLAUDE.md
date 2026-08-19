@@ -26,8 +26,8 @@ npm run dev:api      # Express API server (PORT env, default 3000)
 npm run build        # Production build → dist/
 npm run lint         # ESLint 9 (flat config)
 npm run test:unit    # Vitest — 도메인 순수함수 + XSS 회귀 (474건)
-npm run test:server  # node:test — 검증·서비스·저장소 내구성·감사 로그·의존성 정합성 (128건)
-npm run test:e2e     # Playwright E2E 101건 (API·dev 서버 자동 기동)
+npm run test:server  # node:test — 검증·서비스·저장소 내구성·감사 로그·의존성·인증 (158건)
+npm run test:e2e     # Playwright E2E 105건 (API·dev 서버 자동 기동)
 npm run verify       # 위 전부 + 빌드 — 변경 후 이것을 돌려라
 ```
 
@@ -45,8 +45,8 @@ npx playwright test -g "프로젝트"                   # by test-title substrin
 npx playwright test --headed --debug                # watch it / step through
 ```
 
-**변경 후에는 `npm run verify`** — 합격 기준은 lint 0 error · unit 474/474 · server 128/128 ·
-빌드 성공 · **E2E 101/101 (skip 0)**.
+**변경 후에는 `npm run verify`** — 합격 기준은 lint 0 error · unit 474/474 · server 158/158 ·
+빌드 성공 · **E2E 105/105 (skip 0)**.
 
 `playwright.config.js` 는 **API 서버와 dev 서버를 모두 자동 기동**하며, API는
 `PH_DATA_DIR=.tmp-e2e-data` 로 격리된다. 예전에는 API 서버를 수동으로 띄우지 않으면 8건이
@@ -69,7 +69,7 @@ task tree — the self-demo used for the README screenshots. It snapshots curren
 cp .env.example .env       # 최초 1회 — BASIC_AUTH_USER / BASIC_AUTH_HASH (인증 복구 시 필요)
 ./start_server.sh          # 백업 → 빌드 → 기동 → 헬스게이트 (Docker 불가 시 HTTP:8080 폴백)
 ./start_server.sh --dev    # hot-reload 오버레이 (docker-compose.dev.yml)
-./scripts/verify-deploy.sh # 배포 후 검증 33건 — 자격증명 없이 전부 검사한다 (아래 참조)
+./scripts/verify-deploy.sh # 배포 후 검증 34건 — 자격증명 없이 전부 검사한다 (아래 참조)
 ```
 
 `start_server.sh` 는 **배포 전에 자동으로 데이터 백업을 수행하고, 실패하면 배포를 중단한다.**
@@ -247,6 +247,50 @@ recorded (owner/createdBy) but not yet enforced.
 pending debounce → flush if dirty → `storage.setProject` (bumps epoch, guards stale
 responses) → load + `resetTasks` (undo history reset — never skip this; stale history would
 let Ctrl+Z restore another project's tree and auto-save it).
+
+### Authentication is dormant until an account exists — the user list *is* the switch
+
+`server/lib/auth.js` owns identity; `mode()` returns `'open'` while `users.json` is empty and
+`'enforced'` the moment the first admin exists. There is deliberately **no env switch**: one
+would create both "turned on with no accounts, so nobody can get in" and "turned off with
+accounts, so they mean nothing". Creating that first admin is done from the app (`[계정]` in the
+header → `POST /api/auth/setup`, which is open *only* while there are no users), and deleting
+every admin returns the deployment to `open`.
+
+Four judgements hang off that file and are easy to undo by accident:
+
+- **No new dependency.** Passwords are `crypto.scryptSync` (`scrypt$N$r$p$salt$key`,
+  `timingSafeEqual`), not bcrypt — a native build would have to survive the Docker image and
+  reproducible installs. A malformed hash is a *verification failure*, never an exception, so a
+  hand-edited `users.json` can't 500 the server.
+- **No session store.** The cookie (`ph_session`, HttpOnly, SameSite=Lax, 12h) is a stateless
+  HMAC token whose signing key is `HMAC(secret, user.hash)` — so **changing a password
+  invalidates that user's tokens** without the server keeping a session list. `PATCH
+  /api/users/<self>` with a password therefore re-issues the caller's cookie in the same
+  response, or the user logs themselves out mid-click. The secret comes from
+  `PH_SESSION_SECRET`, else a persisted `data/session-secret` (0600) — regenerating it per boot
+  would log everyone out on every restart.
+- **`X-Auth-User` is only an identity when `PH_TRUST_PROXY_AUTH=1`.** Without that, any client
+  can name itself (the audit-log forgery risk noted in the Caddy section). The audit actor
+  (`req.user`, fed to `auditCtx`) falls back to the header **only in open mode**, where nothing
+  is being protected anyway.
+- **Agents get service identities, not human accounts**: `PH_API_TOKENS="name:role:token,…"` +
+  `Authorization: Bearer` (constant-time compare), which is what the MCP server sends via
+  `PH_API_TOKEN`. A shared human account makes every audit line say the same actor — the whole
+  reason P3-3 exists.
+
+The gate in `index.js` is a single middleware: exempt paths are matched **exactly**
+(`/api`, `/api/guide`, `/api/openapi.yaml`, `/api/health`, plus the `/api/auth/` prefix — the
+same "never widen the matcher" rule as `Caddyfile`), `GET`/`HEAD` need `viewer`, everything else
+`editor`, and `DELETE /api/projects/:pid` needs `admin` because it destroys data belonging to
+everyone. On the client, **a 401 is not offline**: `storage.js`'s reads fall back to
+localStorage on *any* failure, which in front of an authenticated server means stale cache on
+screen plus saves that quietly fail forever — so `setUnauthorizedHandler` tells
+`features/auth/useAuth.js`, which separates `required` (401 at boot → full-screen `LoginGate`,
+reload after login because every loader already 401'd) from `expired` (401 mid-session →
+the same gate over a *live* app, and **no reload**, because unsaved edits only exist on screen).
+`LoginGate` is the one overlay that is not a `shared/ui/Modal` — Modal exists to be dismissed,
+and there is nothing behind this one to dismiss it to.
 
 ### AI integration surface
 

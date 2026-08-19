@@ -53,11 +53,18 @@ const localSet = (key, value) => {
     }
 };
 
+// 401 은 오프라인이 아니다. 그런데 이 파일의 모든 읽기는 실패를 오프라인으로 읽고
+// localStorage 폴백으로 넘어간다 — 인증이 걸린 서버 앞에서 그러면 화면에는 캐시가 뜨고
+// 저장은 조용히 계속 실패한다. 그래서 401 만은 앱에 따로 알린다(features/auth/useAuth.js).
+let onUnauthorized = null;
+export const setUnauthorizedHandler = (fn) => { onUnauthorized = fn; };
+
 const apiFetch = async (path, options = {}) => {
     const res = await fetch(API_BASE + path, {
         ...options,
         headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
     });
+    if (res.status === 401) onUnauthorized?.();
     if (!res.ok) {
         const err = new Error(`API ${path} failed: ${res.status}`);
         err.status = res.status;

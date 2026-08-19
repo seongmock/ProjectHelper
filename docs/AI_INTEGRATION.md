@@ -101,6 +101,34 @@ GET    /api/dependency-issues # 의존성 점검 — 순환/일정 위반/끊어
 위반·끊어진 참조는 애초에 쓰기 하나만 봐서는 판정할 수 없어 이 조회가 유일한 창구다.
 일정을 대량으로 옮긴 뒤 한 번 호출할 것. 같은 날 인계(후행 시작 = 선행 종료)는 위반이 아니다.
 
+## 인증 — 에이전트는 사람 계정을 빌려 쓰지 않는다
+
+서버에 계정이 하나도 없으면 인증은 **꺼져 있다**(`GET /api/auth/me` → `{"mode":"open"}`).
+이 상태에서는 아래 내용이 전부 무시돼도 된다 — 지금까지처럼 그냥 호출하면 된다.
+
+화면의 `[계정]` 에서 첫 관리자를 만들면 `enforced` 로 바뀌고, 그때부터 `/api/`,
+`/api/guide`, `/api/openapi.yaml`, `/api/health`, `/api/auth/*` 를 뺀 모든 경로에 신원이
+필요하다. 에이전트는 쿠키를 들고 다닐 수 없으므로 **서비스 토큰**을 쓴다:
+
+```bash
+# 서버(또는 docker-compose)에 등록 — "이름:역할:토큰"
+PH_API_TOKENS="ai-agent:editor:$(openssl rand -hex 24)"
+
+# 호출
+curl -H "Authorization: Bearer <token>" https://<host>/api/tasks
+
+# MCP 서버
+PH_API_TOKEN=<token> node mcp/index.js
+```
+
+토큰의 **이름이 감사 로그의 actor** 가 된다(`GET /api/projects/{pid}/events`). 사람 계정을
+공유하면 "누가 지웠나"에 답할 수 없다 — 서비스 신원을 따로 두는 이유가 이것이다.
+역할은 `viewer`(읽기) ⊂ `editor`(쓰기) ⊂ `admin`(계정 관리·프로젝트 삭제)이고, 모자라면
+403, 신원이 없으면 401 이다. 에이전트에게는 `editor` 로 충분하다.
+
+`X-Auth-User` 헤더는 앞단 인증을 신뢰하도록 켰을 때만(`PH_TRUST_PROXY_AUTH=1`) 신원이
+된다. 켜지 않은 서버에 그 헤더를 붙여도 무시된다 — 붙는 대로 믿으면 누구나 관리자가 된다.
+
 ## 동시성 규약
 
 1. 모든 변경 응답의 `revision`은 단조 증가 정수 (`server/data/meta.json`)

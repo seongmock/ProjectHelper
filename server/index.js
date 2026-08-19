@@ -6,6 +6,8 @@ const aiGuide = require('./lib/aiGuide');
 const { router: tasksRouter } = require('./routes/tasks');
 const dataRouter = require('./routes/data');
 const projectsRouter = require('./routes/projects');
+const authRouter = require('./routes/auth');
+const auth = require('./lib/auth');
 const { logger, requestLogger } = require('./lib/logger');
 
 const app = express();
@@ -21,11 +23,42 @@ app.disable('x-powered-by'); // 불필요한 스택 노출 제거
 app.use(requestLogger);
 app.use(express.json({ limit: '1mb' })); // 10mb는 과했다 — 트리 상한(5000노드)에 맞춘다
 
-// 사용자 신원 — Caddy basicauth가 X-Auth-User로 전달 (멀티유저 대비: 지금은 기록만, 강제 없음)
+// ── 신원과 권한 ──────────────────────────────────────
+// 계정이 하나도 없으면 `open` — 지금까지와 완전히 같이 동작한다(누구나 읽고 쓴다).
+// 첫 관리자를 만드는 순간 `enforced` 로 바뀐다. 스위치는 사용자 목록 그 자체다(lib/auth.js).
+//
+// 감사 로그의 actor 는 **강제 모드에서 헤더를 절대 믿지 않는다**. 열린 모드에서만 예전처럼
+// X-Auth-User 를 이름으로 받아들이는데, 그건 그 모드에서 애초에 아무도 막지 않기 때문이다.
 app.use('/api', (req, res, next) => {
-    req.user = req.get('X-Auth-User') || 'local';
+    req.authUser = auth.identify(req);
+    req.user = req.authUser?.name
+        || (auth.mode() === 'enforced' ? 'anonymous' : (req.get('X-Auth-User') || 'local'));
     next();
 });
+
+// 인증 없이 열려 있는 경로. **정확히 일치**해야 한다 —
+// `/api/*` 같은 접두어 매처는 타임라인 데이터를 통째로 여는 것과 같다(Caddyfile 의 교훈).
+const PUBLIC_PATHS = new Set(['/api', '/api/guide', '/api/openapi.yaml', '/api/health']);
+// 프로젝트 삭제는 그 프로젝트를 쓰는 전원의 데이터를 지운다 — editor 로는 부족하다.
+const ADMIN_ONLY = (method, p) => method === 'DELETE' && /^\/api\/projects\/[^/]+$/.test(p);
+
+app.use('/api', (req, res, next) => {
+    if (auth.mode() === 'open') return next();
+    const p = req.originalUrl.split('?')[0];
+    if (PUBLIC_PATHS.has(p) || p.startsWith('/api/auth/')) return next();
+    if (!req.authUser) {
+        return res.status(401).json({ ok: false, error: 'authentication required', mode: 'enforced' });
+    }
+    const need = ADMIN_ONLY(req.method, p) ? 'admin'
+        : (req.method === 'GET' || req.method === 'HEAD' ? 'viewer' : 'editor');
+    if (!auth.atLeast(req.authUser.role, need)) {
+        return res.status(403).json({ ok: false, error: `${need} role required`, role: req.authUser.role });
+    }
+    next();
+});
+
+// ── 로그인·계정 ──────────────────────────────────────
+app.use('/api', authRouter);
 
 // ── AI 셀프 디스커버리: 루트 진입점 + 가이드 ────────
 app.get('/api', (req, res) => {
@@ -39,7 +72,7 @@ app.get('/api', (req, res) => {
             '/api/projects/{pid}/tasks', '/api/projects/{pid}/data', '/api/projects/{pid}/revision', '/api/projects/{pid}/snapshots',
             '/api/projects/{pid}/events', '/api/projects/{pid}/dependency-issues',
             '/api/tasks (→ default 프로젝트 별칭)', '/api/revision', '/api/data', '/api/snapshots',
-            '/api/events', '/api/health',
+            '/api/events', '/api/health', '/api/auth/me',
         ],
     });
 });

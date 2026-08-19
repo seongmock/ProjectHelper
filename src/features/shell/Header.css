@@ -63,3 +63,16 @@
         font-size: var(--font-size-xs);
     }
 }
+/* 계정 버튼 — 이름이 붙으면 아이콘 버튼이 아니라 글자 버튼이 된다 */
+.header-account {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    max-width: 140px;
+}
+
+.header-account span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}

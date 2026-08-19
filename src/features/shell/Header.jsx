@@ -1,4 +1,4 @@
-import { Bot, FolderCog, Undo2, Redo2, Upload, Download, Sun, Moon } from 'lucide-react';
+import { Bot, FolderCog, Undo2, Redo2, Upload, Download, Sun, Moon, UserRound } from 'lucide-react';
 import SyncIndicator from '../projects/SyncIndicator';
 import './Header.css';
 
@@ -9,6 +9,7 @@ function Header({
     darkMode, onToggleDarkMode, onExport, onImport, canUndo, canRedo, onUndo, onRedo,
     onOpenPromptGuide, onOpenProjectManager, projectName,
     syncState, onRetrySave, onRecoverProject,
+    authUser, onOpenAccount,
 }) {
     return (
         <header className="header">
@@ -84,6 +85,19 @@ function Header({
                     </div>
 
 
+
+                    {/* 계정 — 이름이 보이면 "내가 누구로 쓰고 있는지"를 화면이 말한다.
+                        계정이 없는 배포(open)에서도 자리를 지운 적이 없다: 인증을 켜는
+                        입구가 여기뿐이라 숨기면 기능 전체가 화면에서 사라진다. */}
+                    <button
+                        className={authUser ? 'tooltip header-account' : 'icon tooltip'}
+                        onClick={onOpenAccount}
+                        data-tooltip={authUser ? `${authUser.name} (${authUser.role})` : '계정 · 인증 설정'}
+                        title="계정"
+                    >
+                        <UserRound size={authUser ? 15 : 18} aria-hidden="true" />
+                        {authUser && <span>{authUser.name}</span>}
+                    </button>
 
                     {/* 다크모드 토글 */}
                     <button

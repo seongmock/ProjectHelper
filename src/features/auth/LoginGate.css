@@ -1,0 +1,70 @@
+/* 로그인 게이트 — 화면 전체를 덮는다. 뒤의 화면은 서버가 거부한 화면이라 조작하면 안 된다. */
+.login-gate {
+    position: fixed;
+    inset: 0;
+    z-index: var(--z-modal);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--color-bg-secondary);
+    padding: 24px;
+}
+
+.login-card {
+    width: 100%;
+    max-width: 360px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 32px;
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+    background: var(--color-bg-primary);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
+}
+
+.login-icon {
+    color: var(--color-primary);
+}
+
+.login-card h1 {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--color-text-primary);
+}
+
+.login-sub {
+    margin: 0 0 8px;
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--color-text-secondary);
+}
+
+.login-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 12px;
+    color: var(--color-text-secondary);
+}
+
+.login-field input {
+    padding: 8px 10px;
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    background: var(--color-bg-secondary);
+    color: var(--color-text-primary);
+    font-size: 14px;
+}
+
+.login-error {
+    margin: 0;
+    font-size: 12px;
+    color: var(--color-danger);
+}
+
+.login-submit {
+    margin-top: 8px;
+    justify-content: center;
+}

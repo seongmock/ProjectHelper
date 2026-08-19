@@ -5,16 +5,23 @@
 // 환경변수:
 //   PH_API_BASE   — API 베이스 URL (기본 http://localhost:3000/api)
 //   PH_BASIC_AUTH — "user:pass" (Caddy HTTPS 프록시 경유 시에만 필요)
+//   PH_API_TOKEN  — 서비스 토큰. 서버에 계정이 있으면(enforced) 이게 없으면 401 이다.
+//                   서버 쪽 PH_API_TOKENS 의 `이름:역할:토큰` 중 토큰 부분을 넣는다 —
+//                   감사 로그에는 그 이름이 남으므로 사람 계정을 빌려 쓰지 않는다.
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
 
 const API_BASE = process.env.PH_API_BASE || 'http://localhost:3000/api';
 const BASIC_AUTH = process.env.PH_BASIC_AUTH || '';
+const API_TOKEN = process.env.PH_API_TOKEN || '';
 
 const api = async (path, { method = 'GET', body } = {}) => {
     const headers = { 'Content-Type': 'application/json' };
+    // 둘 다 Authorization 을 쓴다. 서비스 토큰이 앱의 신원이고 basicauth 는 프록시 통과용이라
+    // 동시에 필요하면 토큰을 우선한다 — 앱이 401 을 내면 프록시를 통과해도 소용없다.
     if (BASIC_AUTH) headers.Authorization = 'Basic ' + Buffer.from(BASIC_AUTH).toString('base64');
+    if (API_TOKEN) headers.Authorization = 'Bearer ' + API_TOKEN;
 
     const res = await fetch(API_BASE + path, {
         method,

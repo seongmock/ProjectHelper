@@ -1,0 +1,81 @@
+/* 계정 모달 — 목록 행과 입력 줄이 프로젝트 관리 모달과 같은 리듬을 갖도록 맞춘다. */
+.account-hint {
+    margin: 0 0 12px;
+    font-size: 12px;
+    line-height: 1.6;
+    color: var(--color-text-secondary);
+}
+
+.account-me {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 12px;
+    margin-bottom: 12px;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    background: var(--color-bg-secondary);
+}
+
+.account-role {
+    margin-left: 8px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 11px;
+    background: var(--color-bg-tertiary);
+    color: var(--color-text-secondary);
+}
+
+.account-role.role-admin {
+    background: var(--color-primary);
+    color: #fff;
+}
+
+.account-section {
+    margin: 18px 0 8px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--color-text-primary);
+}
+
+.account-list {
+    list-style: none;
+    margin: 0 0 12px;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.account-list li {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+}
+
+.account-name {
+    flex: 1;
+    font-size: 13px;
+    color: var(--color-text-primary);
+}
+
+.account-form {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.account-form input {
+    flex: 1;
+    min-width: 120px;
+    padding: 7px 10px;
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    background: var(--color-bg-primary);
+    color: var(--color-text-primary);
+    font-size: 13px;
+}

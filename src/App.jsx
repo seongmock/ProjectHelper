@@ -5,7 +5,7 @@
 //   - 서버 동기화     → hooks/useProjectSync
 //   - 트리 조작       → hooks/useTaskActions (로직은 utils/taskTree.js)
 //   - 파일 입출력     → hooks/useImportExport
-import { useEffect, useCallback, useRef, useMemo } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { getSampleData } from './utils/dataModel';
 import { flattenAll, planDependencyRemoval, expandAncestors, findDependencyIssues, filterTasksByQuery, taskMatchesQuery } from './utils/taskTree';
 import { resolveGlobalShortcut, isTextEditableTarget, hasOverlay } from './shared/keyboard';
@@ -28,6 +28,9 @@ import ProjectRail from './features/projects/ProjectRail';
 import MilestoneQuickAdd from './features/timeline/MilestoneQuickAdd';
 import InspectorPanel from './features/tasks/InspectorPanel';
 import CommandPalette from './features/shell/CommandPalette';
+import LoginGate from './features/auth/LoginGate';
+import AccountModal from './features/auth/AccountModal';
+import { useAuth } from './features/auth/useAuth';
 import { buildCommands } from './features/shell/commandPalette';
 import ToastContainer from './shared/ui/Toast';
 import './themes/themes.css';
@@ -133,6 +136,11 @@ function App() {
     // ── 트리 조작 · 파일 입출력 ──────────────────────
     const actions = useTaskActions({ setTasks, setTasksSilent, onSelect: setSelectedTaskId });
     const io = useImportExport({ tasks, setTasks, applySettings: applyImportedSettings, toast });
+
+    // ── 신원 ─────────────────────────────────────────
+    // 서버에 계정이 없으면 status 는 'open' 이고 여기 아래로는 아무것도 달라지지 않는다.
+    const { status: authStatus, user: authUser, refresh: refreshAuth, signOut } = useAuth();
+    const [isAccountOpen, setAccountOpen] = useState(false);
 
     // ── 다크모드 ─────────────────────────────────────
     useEffect(() => {
@@ -335,6 +343,13 @@ function App() {
         io, switchProject,
     ]);
 
+    // 부팅 시점에 인증이 걸려 있으면 앱을 아예 마운트하지 않는다 — 뒤에 보일 것은
+    // 서버가 거부한 빈 화면이거나 남의 localStorage 캐시다. 로그인 성공 후에는
+    // 새로고침한다: 이 시점에는 데이터·설정·프로젝트 목록 로더가 모두 이미 401 로 끝나 있다.
+    if (authStatus === 'required') {
+        return <LoginGate onSignedIn={() => window.location.reload()} />;
+    }
+
     return (
         <div className="app">
             <ProjectRail
@@ -364,6 +379,8 @@ function App() {
                     syncState={syncState}
                     onRetrySave={retrySave}
                     onRecoverProject={recoverDeletedProject}
+                    authUser={authUser}
+                    onOpenAccount={() => setAccountOpen(true)}
                 />
 
                 <Toolbar
@@ -553,6 +570,25 @@ function App() {
                 currentData={ieModalMode === 'EXPORT' ? (customExportData || io.getExportDataObject()) : null}
                 toast={toast}
             />
+
+            <AccountModal
+                isOpen={isAccountOpen}
+                onClose={() => setAccountOpen(false)}
+                status={authStatus}
+                user={authUser}
+                onChanged={refreshAuth}
+                onSignOut={signOut}
+                toast={toast}
+            />
+
+            {/* 쓰던 도중 세션이 끊긴 경우. 여기서는 새로고침하지 않는다 — 화면의 편집이
+                아직 서버에 못 갔을 수 있고, 다시 로그인하면 저장 재시도로 이어진다. */}
+            {authStatus === 'expired' && (
+                <LoginGate
+                    expired
+                    onSignedIn={() => { refreshAuth(); retrySave(); }}
+                />
+            )}
 
             <ToastContainer toasts={toasts} onRemove={removeToast} />
         </div>
