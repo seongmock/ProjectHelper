@@ -46,6 +46,11 @@ jobs:
       - name: Build
         run: npm run build
 
+      # 번들 예산 — vite 의 500kB 경고는 빌드 로그 한 줄이라 아무도 읽지 않는다.
+      # 엔트리 청크 크기와 "캡처 라이브러리가 별도 청크인지"를 실패로 만든다.
+      - name: Bundle budget
+        run: node scripts/assert-bundle-budget.mjs
+
       # 취약점은 빌드를 막는다. high 이상만 실패시켜 노이즈를 줄인다.
       - name: Audit (frontend)
         run: npm audit --audit-level=high
@@ -208,6 +213,14 @@ jobs:
       options: --user 1001
     timeout-minutes: 20
     needs: checks
+    # 두 저장 엔진 모두에서 돌린다. **운영은 SQLite 이고(2026-08-20) 이 스위트는 JSON 만
+    # 돌리고 있었다** — 미러 테스트(sqliteStore.test.js)는 저장소 계층까지만 맞춰 주므로
+    # 409 충돌·스냅샷·삭제 시 의존성 프루닝 같은 HTTP 경로는 운영 엔진에서 돈 적이 없었다.
+    # fail-fast: false — 한쪽이 먼저 죽어 다른 쪽 결과를 가리면 어느 엔진의 문제인지 모른다.
+    strategy:
+      fail-fast: false
+      matrix:
+        store: [json, sqlite]
     steps:
       - uses: actions/checkout@v5
 
@@ -228,6 +241,7 @@ jobs:
         run: npx playwright test --reporter=list,json
         env:
           PLAYWRIGHT_JSON_OUTPUT_NAME: pw-results.json
+          PH_STORE: ${{ matrix.store }}
 
       # skip 된 테스트는 아무것도 검증하지 않은 것이다 — 실패로 간주한다.
       # 개수 바닥도 여기서 함께 본다: skip 을 지우는 가장 쉬운 방법이 테스트를 지우는 것이다.
@@ -256,7 +270,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v5
         with:
-          name: playwright-report
+          name: playwright-report-${{ matrix.store }}
           path: |
             test-results/
             playwright-report/

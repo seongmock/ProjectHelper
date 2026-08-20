@@ -26,6 +26,9 @@ docker_cmd() {
     if docker info &>/dev/null; then docker "$@"; else sudo docker "$@"; fi
 }
 
+# shellcheck source=scripts/lib/restore-into-volume.sh
+. "$PROJECT_DIR/scripts/lib/restore-into-volume.sh"
+
 do_backup() {
     docker_cmd volume inspect "$VOLUME" &>/dev/null \
         || die "볼륨 '$VOLUME' 을(를) 찾을 수 없다. 운영 스택이 기동된 적이 있는지 확인하라."
@@ -131,20 +134,11 @@ do_restore() {
     log "복원 전 현재 상태 백업 중..."
     do_backup
 
-    docker_cmd run --rm \
-        -v "$VOLUME":/data \
-        -v "$(cd "$(dirname "$archive")" && pwd)":/backup:ro \
-        alpine:3.20 \
-        sh -c "rm -rf /data/* && tar xzf /backup/$(basename "$archive") -C /data && \
-               if [ -f /data/projecthelper.db.snapshot ]; then \
-                   mv -f /data/projecthelper.db.snapshot /data/projecthelper.db && \
-                   rm -f /data/projecthelper.db-wal /data/projecthelper.db-shm; \
-               fi" \
+    restore_into_volume "$VOLUME" "$(cd "$(dirname "$archive")" && pwd)" "$(basename "$archive")" \
         || die "복원 실패"
 
-    # 스냅샷이 들어 있으면 그것이 정합한 사본이므로 제자리에 놓고, 짝이 맞지 않는
-    # -wal/-shm 은 버린다(위 sh -c 안에서 처리). 그러지 않으면 tar 에 함께 담긴
-    # '쓰기 도중의' 원본이 복원되어, 정합 사본을 뜬 의미가 사라진다.
+    # 스냅샷 승격/-wal 폐기는 restore_into_volume 안에 있다 — 연습(restore-drill.sh)과
+    # 실전이 같은 코드를 지나야, 연습이 통과했다는 말에 의미가 있다.
     log "복원 완료. API 컨테이너 재시작 권장: sudo docker restart project-helper-api"
 }
 
