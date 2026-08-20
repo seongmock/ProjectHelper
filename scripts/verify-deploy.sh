@@ -285,6 +285,24 @@ elif [ "$got" = "json" ]; then
         || no "리비전이 어긋난다 — API=$apirev, meta.json=$filerev"
 fi
 
+# 백업이 **현재 엔진의** 산출물을 담고 있는지 — [12] 는 최신성만 본다. 엔진을 바꾼 뒤
+# 백업 스크립트가 옛 대상만 담으면, 크론은 매일 성공 로그를 남기면서 어제 데이터를
+# 보관한다(JSON 원본은 지워지지 않으므로 아카이브는 '그럴듯하게' 채워져 있다).
+if [ -n "${latest:-}" ]; then
+    have=$(tar tzf "$latest" 2>/dev/null || true)
+    if [ "$got" = "sqlite" ]; then
+        case "$have" in
+            *projecthelper.db.snapshot*) ok "최신 백업에 SQLite 정합 스냅샷이 있다" ;;
+            *) no "최신 백업에 projecthelper.db.snapshot 이 없다 — 지금 엔진의 데이터가 백업되지 않는다" ;;
+        esac
+    else
+        case "$have" in
+            */data.json*) ok "최신 백업에 data.json 이 있다" ;;
+            *) no "최신 백업에 data.json 이 없다" ;;
+        esac
+    fi
+fi
+
 echo "───────────────────────────────"
 echo -e "통과 ${GREEN}$PASS${NC} / 실패 ${RED}$FAIL${NC}"
 [ "$FAIL" -eq 0 ] || exit 1
