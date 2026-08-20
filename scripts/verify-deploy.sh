@@ -204,7 +204,10 @@ grep -qE '\$2[aby]\$' Caddyfile 2>/dev/null \
 git check-ignore -q .env 2>/dev/null && ok ".env 가 gitignore 처리됨" || no ".env 가 추적될 수 있다"
 
 echo "[12] 백업 최신성"
-latest=$(find backups -name 'ph-data-*.tar.gz' -mtime -2 2>/dev/null | head -1)
+# 이름을 출력하므로 **가장 최신 것**을 고른다 — find 의 출력 순서는 디렉토리 순서라,
+# 예전에는 48시간 안에 있기만 하면 아무 파일 이름이나 보여 줬다(방금 뜬 백업이 있는데도
+# 이틀 전 파일 이름을 보여 주면, 읽는 사람은 백업이 멈춘 줄로 읽는다).
+latest=$(find backups -name 'ph-data-*.tar.gz' -mtime -2 -printf '%T@ %p\n' 2>/dev/null | sort -rn | head -1 | cut -d' ' -f2-)
 [ -n "$latest" ] && ok "48시간 내 백업 존재: $(basename "$latest")" || no "최근 백업 없음 — ./scripts/backup-data.sh 실행"
 
 echo
@@ -246,6 +249,40 @@ if command -v openssl &>/dev/null; then
     fi
 else
     skip "openssl 없음 — 인증서 이름 검사 건너뜀"
+fi
+
+echo
+echo "[15] 저장 엔진 (PH_STORE)"
+# 왜 검사하는가: 엔진은 .env 한 줄로 바뀌고, **틀려도 서버는 정상 부팅한다.** sqlite 로
+# 옮긴 뒤 그 줄이 사라지면 API 는 옆에 남아 있는 옛 JSON 파일을 조용히 서빙하기 시작하고
+# (마이그레이션은 원본을 지우지 않는다 — 되돌릴 수 있어야 하므로), 그때부터 두 사본이
+# 각자 갈라진다. 화면에도 로그에도 아무 신호가 없다.
+want=$(sed -n 's/^PH_STORE=//p' .env 2>/dev/null | tail -1)
+want=${want:-json}
+got=$(d exec project-helper-api sh -c 'echo "${PH_STORE:-json}"' 2>/dev/null | tr -d '\r\n')
+if [ -z "$got" ]; then
+    skip "API 컨테이너가 없어 엔진을 확인하지 못했다"
+elif [ "$got" = "$want" ]; then
+    ok "컨테이너 엔진이 .env 와 일치한다 ($got)"
+else
+    no "엔진 불일치 — .env=$want, 컨테이너=$got (옛 사본을 서빙 중일 수 있다)"
+fi
+
+# 엔진이 실제로 그 저장소를 보고 있는지 — 리비전을 양쪽에서 읽어 맞춘다.
+apirev=$(curl -s -m 5 -k "https://$HOST/api/revision" | sed -n 's/.*"revision":\([0-9]*\).*/\1/p')
+if [ "$got" = "sqlite" ]; then
+    dbrev=$(d exec project-helper-api node -e \
+        'const s=require("./lib/store");process.stdout.write(String(s.getProjectStore("default").readMeta().revision))' \
+        2>/dev/null | tr -d '\r\n')
+    [ -n "$apirev" ] && [ "$apirev" = "$dbrev" ] \
+        && ok "SQLite 리비전이 API 응답과 같다 ($apirev)" \
+        || no "리비전이 어긋난다 — API=$apirev, DB=$dbrev"
+elif [ "$got" = "json" ]; then
+    filerev=$(d exec project-helper-api sh -c 'cat data/projects/default/meta.json 2>/dev/null' \
+        | sed -n 's/.*"revision":\([0-9]*\).*/\1/p')
+    [ -n "$apirev" ] && [ "$apirev" = "$filerev" ] \
+        && ok "JSON 리비전이 API 응답과 같다 ($apirev)" \
+        || no "리비전이 어긋난다 — API=$apirev, meta.json=$filerev"
 fi
 
 echo "───────────────────────────────"

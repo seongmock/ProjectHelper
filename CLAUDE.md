@@ -267,6 +267,12 @@ a query tool), and the **registry** (`projects.json`). Switching engines is a hu
 config default: `node server/scripts/migrate-store.js --to sqlite` (dry run) then `--write`, which
 preserves revisions, never deletes the source, and re-reads to compare. Flipping the env var
 without migrating gives you an empty store with the old data still sitting next to it.
+**운영은 2026-08-20 부터 `PH_STORE=sqlite` 다** (`.env` 한 줄, 마이그레이션 후 전환 — 리비전
+25 / 노드 14 / 스냅샷 4 가 양쪽에서 일치함을 확인했다). 되돌리기는 그 줄을 지우고 재기동하는
+것뿐이지만, **그것이 곧 위험이다**: JSON 원본은 (되돌릴 수 있어야 하므로) 지워지지 않고 옆에
+남아 있어서, 그 줄이 사라지면 서버는 정상 부팅한 채 옛 사본을 서빙하고 두 사본이 조용히
+갈라진다. `verify-deploy.sh` [15] 가 컨테이너의 `PH_STORE` 를 `.env` 와 맞추고, 리비전을
+저장소와 API 응답 양쪽에서 읽어 비교한다 — 그 침묵을 깨는 유일한 장치다.
 `tests/…/sqliteStore.test.js`'s **mirror test** runs one scripted sequence through both engines and
 compares tree/revision/snapshots/audit at every step — same reason `taskTreeMirror.test.js` exists.
 
