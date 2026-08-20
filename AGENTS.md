@@ -2,7 +2,7 @@
 
 ## 프로젝트 개요
 
-React 18 + Vite 프론트엔드 + 소형 Express API(`server/`, JSON 파일 영속화) 구조의
+React 18 + Vite 프론트엔드 + 소형 Express API(`server/`, 영속화는 JSON 파일이 기본이고 운영은 `PH_STORE=sqlite`) 구조의
 프로젝트 타임라인·간트 차트 관리 도구. 스토리지는 **localStorage 캐시 + 서버 동기화 하이브리드**
 (서버 없이도 localStorage 폴백으로 동작). AI 에이전트용 REST/MCP 연동 포함.
 

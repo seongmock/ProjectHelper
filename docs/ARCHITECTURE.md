@@ -7,7 +7,7 @@
 ```
 ┌─────────────────────────────── 브라우저 ───────────────────────────────┐
 │  React 18 SPA (Vite)                                                   │
-│  App.jsx (중앙 상태 허브, ~880줄)                                       │
+│  App.jsx (중앙 상태 허브, ~600줄)                                       │
 │   ├── useUndoRedo(tasks)      ← 작업 트리 + 히스토리(최대 20)           │
 │   ├── useToast()              ← 전역 알림 (alert 대체)                  │
 │   ├── TableView / TimelineView / split                                 │
@@ -33,8 +33,9 @@
                         │ HTTP (PH_API_BASE)
 ┌───────────────────────┴─────────────────────────────────────────────────┐
 │  MCP 서버 (mcp/index.js, stdio) — Claude Code 등 AI 에이전트용           │
-│  12개 도구: list/get/add/update/delete/move-task, reschedule,           │
+│  16개 도구: list/get/add/update/delete/move-task, reschedule,           │
 │             add/delete-time-range, add/delete-milestone, create-snapshot │
+│             check-dependencies, list/create-project, get-guide           │
 └──────────────────────────────────────────────────────────────────────────┘
 ```
 

@@ -40,7 +40,7 @@
 
 - [x] 프로젝트 1급 개념화: 레지스트리 + 프로젝트별 데이터/리비전/스냅샷 격리, 레거시 자동 마이그레이션
 - [x] 스코프 API `/api/projects/{pid}/...` + default 별칭 하위호환
-- [x] 헤더 ProjectSwitcher (생성/전환/이름변경/삭제), 전환 시 undo 히스토리 리셋·디바운스 flush
+- [x] 헤더 ProjectSwitcher (생성/전환/이름변경/삭제), 전환 시 undo 히스토리 리셋·디바운스 flush — 2026-08-19 좌측 `ProjectRail` + 관리 모달로 대체됨
 - [x] MCP `list-projects`/`create-project` + 전 도구 `projectId` 파라미터, AI 가이드 갱신
 - [x] 멀티유저 대비: Caddy `X-Auth-User` 전달 → owner/createdBy 기록 (권한 강제는 실사용 시)
 

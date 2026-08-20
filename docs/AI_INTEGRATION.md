@@ -7,7 +7,7 @@ ProjectHelper는 AI 에이전트(Claude Code 등)가 프로젝트 일정을 직�
 | REST API (작업 단위 CRUD) | 모든 HTTP 클라이언트 | `server/routes/tasks.js` |
 | **셀프 디스커버리** (`GET /api` → `GET /api/guide`) | 사전 지식 없는 AI CLI | `server/lib/aiGuide.js` |
 | OpenAPI 3.0 스펙 | 스펙 기반 도구/코드젠 | `server/openapi.yaml` · `GET /api/openapi.yaml` |
-| MCP 서버 (13개 도구) | Claude Code, MCP 클라이언트 | `mcp/index.js` · `.mcp.json` |
+| MCP 서버 (16개 도구) | Claude Code, MCP 클라이언트 | `mcp/index.js` · `.mcp.json` |
 
 ## 셀프 디스커버리 — 사전 지식 없는 AI가 처음부터 계획을 작성하는 법
 
@@ -44,7 +44,7 @@ cd mcp && npm install
 
 브라우저 앱을 열어둔 상태라면 **AI의 변경이 10초 안에 화면에 자동 반영**된다 (리비전 폴링).
 
-## MCP 도구 13개
+## MCP 도구 16개 (데이터 13 + 프로젝트 2 + 가이드 1)
 
 | 도구 | 설명 |
 |---|---|
@@ -61,6 +61,11 @@ cd mcp && npm install
 | `delete-milestone` | 마일스톤 삭제 |
 | `check-dependencies` | 의존성 정합성 점검 — 순환/일정 위반/끊어진 참조 |
 | `create-snapshot` | 전체 일정 이름 지정 백업 — **대량 편집 전 권장** |
+| `list-projects` | 프로젝트 목록 (id/name/updatedAt) |
+| `create-project` | 프로젝트 생성 |
+| `get-guide` | 기계가 읽는 사용 가이드 (`GET /api/guide` 와 같은 내용) |
+
+위 13개 데이터 도구는 모두 **선택 인자 `projectId`** 를 받고, 생략하면 `default` 프로젝트다.
 
 환경변수: `PH_API_BASE`(기본 `http://localhost:3000/api`), `PH_BASIC_AUTH`(`user:pass`, Caddy HTTPS 경유 시).
 

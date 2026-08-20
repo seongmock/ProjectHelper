@@ -364,7 +364,7 @@ spec) or the **MCP server** (`mcp/index.js`, 16 tools, registered via `.mcp.json
 optional `projectId`, defaulting to the 'default' project).
 See `docs/AI_INTEGRATION.md` and the `timeline-api` skill. Prefer per-task endpoints over blob `POST /api/data`.
 
-### State management (`src/App.jsx`, ~1000 lines — the hub)
+### State management (`src/App.jsx`, ~600 lines — the hub)
 
 `App.jsx` owns essentially all state and passes handlers down. Key pieces:
 
