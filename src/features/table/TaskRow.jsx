@@ -6,6 +6,7 @@ import {
 import { generateId, formatDate } from '../../utils/dataModel';
 import { recalcTaskBoundsSafe, isTaskOverdue, milestonesInDateOrder, patchRange } from '../../utils/taskTree';
 import { describeRowDependencies } from './dependencyBadges';
+import { milestoneShape } from '../../shared/milestoneShapes';
 import ColorPicker from '../../shared/ui/ColorPicker';
 import './TaskRow.css';
 
@@ -125,47 +126,31 @@ function TaskRow({
         onOpenMilestones(task.id, orderedMilestones[0]?.id || null);
     };
 
-    // 마일스톤 모양 아이콘 렌더링
+    // 마일스톤 모양 미리보기. 어떤 모양인지는 shared/milestoneShapes.js 가 정한다 —
+    // 예전에는 표가 직접(삼각형은 CSS border, 별·깃발은 텍스트 글리프) 그려서 같은
+    // 데이터가 차트와 다른 그림으로 보였다. 표현만 여기서 정한다: 12px 미리보기에
+    // 차트의 흰 테두리(2px)와 그림자를 얹으면 도형이 잡아먹히므로 색만 채운다.
     const renderMilestoneShape = (shape, color, size = 16) => {
-        const shapeStyle = {
-            width: `${size}px`,
-            height: `${size}px`,
-            backgroundColor: color,
-            display: 'inline-block',
-            marginRight: '4px',
-        };
-
-        switch (shape) {
-            case 'circle':
-                return <span style={{ ...shapeStyle, borderRadius: '50%' }} />;
-            case 'triangle':
-                return (
-                    <span style={{
-                        width: 0,
-                        height: 0,
-                        borderLeft: `${size / 2}px solid transparent`,
-                        borderRight: `${size / 2}px solid transparent`,
-                        borderBottom: `${size}px solid ${color}`,
-                        display: 'inline-block',
-                        marginRight: '4px',
-                    }} />
-                );
-            case 'square':
-                return <span style={{ ...shapeStyle, borderRadius: '2px' }} />;
-            case 'star':
-                return <span style={{ color, fontSize: `${size}px`, marginRight: '4px', lineHeight: 1 }}>★</span>;
-            case 'flag':
-                return <span style={{ color, fontSize: `${size}px`, marginRight: '4px', lineHeight: 1 }}>⚑</span>;
-            case 'diamond':
-            default:
-                return (
-                    <span style={{
-                        ...shapeStyle,
-                        transform: 'rotate(45deg)',
-                        marginRight: '8px',
-                    }} />
-                );
+        const spec = milestoneShape(shape);
+        if (spec.kind === 'box') {
+            return (
+                <span style={{
+                    width: `${size}px`,
+                    height: `${size}px`,
+                    backgroundColor: color,
+                    display: 'inline-block',
+                    marginRight: spec.rotate ? '8px' : '4px',
+                    ...(spec.borderRadius ? { borderRadius: spec.borderRadius } : {}),
+                    ...(spec.rotate ? { transform: `rotate(${spec.rotate}deg)` } : {}),
+                }} />
+            );
         }
+        return (
+            <svg width={size} height={size} viewBox={spec.viewBox}
+                style={{ display: 'inline-block', marginRight: '4px', verticalAlign: 'middle' }}>
+                <path d={spec.path} fill={color} />
+            </svg>
+        );
     };
 
     return (
@@ -265,7 +250,7 @@ function TaskRow({
                             <div className="milestone-preview">
                                 {orderedMilestones.slice(0, 3).map((m) => (
                                     <span key={m.id} className="milestone-shape-preview">
-                                        {renderMilestoneShape(m.shape || 'diamond', m.color, 12)}
+                                        {renderMilestoneShape(m.shape, m.color, 12)}
                                     </span>
                                 ))}
                                 {orderedMilestones.length > 3 && <span className="milestone-more">+{orderedMilestones.length - 3}</span>}

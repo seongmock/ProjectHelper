@@ -11,6 +11,7 @@ import { STATUS_STYLES, getStatusColor } from '../../themes/index.js';
 import milestoneLabelsSource from '../timeline/milestoneLabels.js?raw';
 import dependencyPathSource from '../timeline/dependencyPath.js?raw';
 import dependencyStyleSource from '../timeline/dependencyStyle.js?raw';
+import milestoneShapesSource from '../../shared/milestoneShapes.js?raw';
 
 // ESM 소스를 <script> 안의 평범한 선언으로 바꾼다. export 키워드만 떼면 되고, 심는 값은
 // 템플릿 리터럴의 **보간값**이라 백틱이나 치환 구문을 다시 이스케이프하면 오히려 깨진다.
@@ -620,6 +621,10 @@ ${inlineModuleSource(dependencyPathSource)}
 ${inlineModuleSource(dependencyStyleSource)}
         // ---8<--- /dependencyStyle.js ---8<---
 
+        // ---8<--- milestoneShapes.js (앱과 같은 소스, export 만 제거) ---8<---
+${inlineModuleSource(milestoneShapesSource)}
+        // ---8<--- /milestoneShapes.js ---8<---
+
         // 배치 결과(React 스타일 객체)를 인라인 CSS 로 바꾼다. undefined 는 "지정 안 함"이므로
         // 건너뛴다 — 'max-width: undefined' 는 선언 하나를 통째로 무효로 만든다.
         function styleToCss(style) {
@@ -1038,25 +1043,25 @@ ${inlineModuleSource(dependencyStyleSource)}
                         var leftPerc = item.leftPerc;
 
                         var color = m.color || '#e67e22';
-                        var shape = m.shape || 'diamond';
-                        
-                        var shapeHtml = '';
+                        // 도형의 서술은 심어 둔 milestoneShapes.js 에서 온다 — 앱과 같은
+                        // 소스이므로 모양이 앱과 어긋날 수 없다. 여기서 정하는 것은 표현뿐:
+                        // 상자형은 .shape-div 클래스(테두리·그림자·크기)에 얹고, 회전은
+                        // 부모의 .diamond 클래스가 CSS 로 준다.
+                        var spec = milestoneShape(m.shape);
                         var svgStyle = 'filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));';
-                        
-                        // Use classes for shapes. .shape-div has border/shadow/sizing.
-                        if (shape === 'circle') shapeHtml = '<div class="shape-icon shape-div" style="background-color: ' + color + '; border-radius: 50%;"></div>';
-                        else if (shape === 'square') shapeHtml = '<div class="shape-icon shape-div" style="background-color: ' + color + '; border-radius: 2px;"></div>';
-                        else if (shape === 'diamond') shapeHtml = '<div class="shape-icon shape-div" style="background-color: ' + color + ';"></div>'; // Rotation handled by parent class + CSS
-                        else if (shape === 'triangle') shapeHtml = '<svg class="shape-icon" width="20" height="20" viewBox="0 0 24 24" style="' + svgStyle + '"><path d="M12 2L22 22H2L12 2Z" fill="' + color + '" stroke="white" stroke-width="2" stroke-linejoin="round" /></svg>';
-                        else if (shape === 'star') shapeHtml = '<svg class="shape-icon" width="20" height="20" viewBox="0 0 24 24" style="' + svgStyle + '"><path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" fill="' + color + '" stroke="white" stroke-width="2" stroke-linejoin="round" /></svg>';
-                        else if (shape === 'flag') shapeHtml = '<svg class="shape-icon" width="20" height="20" viewBox="0 0 24 24" style="' + svgStyle + '"><path d="M14.4 6L14 4H5V21H7V14H12L12.4 16H22V6H14.4Z" fill="' + color + '" stroke="white" stroke-width="2" stroke-linejoin="round" /></svg>';
-                        else shapeHtml = '<div class="shape-icon shape-div" style="background-color: ' + color + ';"></div>';
+                        var shapeHtml;
+                        if (spec.kind === 'box') {
+                            shapeHtml = '<div class="shape-icon shape-div" style="background-color: ' + color + ';' +
+                                (spec.borderRadius ? ' border-radius: ' + spec.borderRadius + ';' : '') + '"></div>';
+                        } else {
+                            shapeHtml = '<svg class="shape-icon" width="20" height="20" viewBox="' + spec.viewBox + '" style="' + svgStyle + '">' +
+                                '<path d="' + spec.path + '" fill="' + color + '" stroke="white" stroke-width="2" stroke-linejoin="round" /></svg>';
+                        }
 
                         var labelStyle = styleToCss(milestoneLabelStyle(placements.get(m.id)));
 
                         // Shape wrapper classes
-                        var shapeClasses = 'milestone-shape';
-                        if (shape === 'diamond') shapeClasses += ' diamond';
+                        var shapeClasses = 'milestone-shape' + (spec.rotate ? ' diamond' : '');
 
                         html += '<div class="milestone-marker" style="left: ' + leftPerc + '%; top: ' + rowCenter + 'px;" title="' + esc(m.label) + ' (' + formatDate(date) + ')">' +
                             '<div class="' + shapeClasses + '">' + shapeHtml + '</div>' +

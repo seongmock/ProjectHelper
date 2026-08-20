@@ -3,6 +3,7 @@ import { dateUtils } from '../../utils/dateUtils';
 import Modal from '../../shared/ui/Modal';
 import './MilestoneQuickAdd.css';
 import ColorPicker from '../../shared/ui/ColorPicker';
+import { MILESTONE_SHAPE_OPTIONS } from '../../shared/milestoneShapes';
 
 function MilestoneQuickAdd({ task, date, onClose, onAdd }) {
     const [label, setLabel] = useState('새 마일스톤');
@@ -68,12 +69,9 @@ function MilestoneQuickAdd({ task, date, onClose, onAdd }) {
                             onKeyUp={(e) => e.stopPropagation()}
                             onPointerDown={(e) => e.stopPropagation()}
                         >
-                            <option value="diamond">◆</option>
-                            <option value="circle">●</option>
-                            <option value="triangle">▲</option>
-                            <option value="square">■</option>
-                            <option value="star">★</option>
-                            <option value="flag">⚑</option>
+                            {MILESTONE_SHAPE_OPTIONS.map(opt => (
+                                <option key={opt.value} value={opt.value}>{opt.label}</option>
+                            ))}
                         </select>
                     </div>
                     <div className="form-group">

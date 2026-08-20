@@ -27,6 +27,7 @@ import {
 import { STATUS_STYLES } from '../../themes/index.js';
 import { formatDate } from '../../utils/dataModel';
 import ColorPicker from '../../shared/ui/ColorPicker';
+import { MILESTONE_SHAPE_OPTIONS } from '../../shared/milestoneShapes';
 import './InspectorPanel.css';
 
 // 간선 문제 배지. 색만으로 구분하지 않도록 아이콘 + 텍스트를 함께 낸다
@@ -70,16 +71,6 @@ const BAR_HEIGHTS = [
     { value: 28, label: 'XL' },
 ];
 
-// 폐기한 마일스톤 팝오버가 제공하던 것과 같은 목록이다. 글리프는 데이터(도형)의 표현이라
-// Lucide 아이콘으로 바꾸지 않는다 — 타임라인이 그리는 모양과 눈으로 대조되어야 한다.
-const MILESTONE_SHAPES = [
-    { value: 'diamond', label: '◆' },
-    { value: 'circle', label: '●' },
-    { value: 'square', label: '■' },
-    { value: 'triangle', label: '▲' },
-    { value: 'star', label: '★' },
-    { value: 'flag', label: '⚑' },
-];
 
 // TimelineBar 는 'left' 도 그릴 수 있지만 팝오버가 내놓던 선택지는 이 넷이었다.
 const MILESTONE_LABEL_POSITIONS = [
@@ -295,7 +286,7 @@ function MilestoneRow({ milestone, isFocused, onPatch, onRemove }) {
                 <Segmented
                     label="도형"
                     value={milestone.shape || 'diamond'}
-                    options={MILESTONE_SHAPES}
+                    options={MILESTONE_SHAPE_OPTIONS}
                     onChange={(shape) => onPatch({ shape })}
                 />
                 <ColorPicker

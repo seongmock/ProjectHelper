@@ -1134,3 +1134,61 @@ test.describe('PNG 캡처 높이', () => {
         expect(captureHeight(m)).toBeGreaterThanOrEqual(m.lastRowBottom);
     });
 });
+
+test.describe('마일스톤 도형 — 표와 차트가 같은 것을 그린다', () => {
+    // 도형은 표(글리프)·차트(SVG)·내보내기가 각자 그리고 있었고, 그래서 별과 깃발은
+    // 표에서는 ★·⚑ 텍스트, 차트에서는 벡터였다 — 같은 데이터가 화면마다 다른 그림이었다.
+    // 이제 셋이 shared/milestoneShapes.js 의 서술 하나를 쓴다. 그것을 화면에서 확인한다.
+    // 표의 미리보기는 날짜 순 **앞 세 개**만 그린다(나머지는 +n). 경로형 셋을 앞에 두어야
+    // 표와 차트를 경로로 대조할 수 있다 — 상자형은 경로가 없다.
+    const SHAPES = ['triangle', 'star', 'flag', 'diamond', 'circle', 'square'];
+
+    test('여섯 도형이 표 미리보기와 차트 마커에서 같은 경로로 그려진다', async ({ page, request }) => {
+        await page.waitForTimeout(2500); // 초기 저장 안정화
+        const { data } = await (await request.get('/api/data')).json();
+        const target = data.find(t => (t.timeRanges || []).length > 0);
+        const start = new Date(target.timeRanges[0].startDate);
+        // 샘플 데이터의 다른 마일스톤을 비운다 — 마커 수를 세는 검사가 그것들까지 세면
+        // 여기서 무엇을 확인하는지가 흐려진다.
+        const clear = (items) => items.forEach(t => { t.milestones = []; clear(t.children || []); });
+        clear(data);
+        target.milestones = SHAPES.map((shape, i) => {
+            const d = new Date(start);
+            d.setDate(d.getDate() + i);
+            return { id: `shape-ms-${i}`, date: d.toISOString().slice(0, 10), label: shape, color: '#e74c3c', shape };
+        });
+        expect((await request.post('/api/data', { data })).ok()).toBe(true);
+
+        await page.reload();
+        await expect(page.getByText('데이터 불러오는 중')).toHaveCount(0);
+
+        // 차트: 마커 여섯 개. 경로형 셋은 서로 다른 d 를, 상자형 셋은 서로 다른 모양을 갖는다.
+        const chart = await page.evaluate(() => [...document.querySelectorAll('.milestone-shape')]
+            .map(el => {
+                const svg = el.querySelector('svg path');
+                const box = el.querySelector('div');
+                return svg
+                    ? { kind: 'path', d: svg.getAttribute('d') }
+                    : { kind: 'box', radius: getComputedStyle(box).borderRadius, transform: getComputedStyle(box).transform };
+            }));
+        expect(chart).toHaveLength(6);
+        expect(chart.filter(s => s.kind === 'path')).toHaveLength(3);
+        expect(new Set(chart.filter(s => s.kind === 'path').map(s => s.d)).size).toBe(3);
+        const boxes = chart.filter(s => s.kind === 'box');
+        expect(boxes.filter(s => s.radius.startsWith('50%'))).toHaveLength(1);   // 원
+        expect(boxes.filter(s => s.transform !== 'none')).toHaveLength(1);       // 다이아(회전)
+
+        // 표: 같은 작업 행의 미리보기. 경로형은 이제 텍스트 글리프가 아니라 같은 SVG 경로다.
+        await page.getByTitle('표 뷰').click();
+        const row = page.locator('.task-row', { hasText: target.name }).first();
+        await expect(row.locator('.milestone-shape-preview')).toHaveCount(3);
+        await expect(row.locator('.milestone-more')).toHaveText('+3');
+        const table = await row.locator('.milestone-shape-preview').evaluateAll(els => els.map(el => {
+            const svg = el.querySelector('svg path');
+            return svg ? svg.getAttribute('d') : null;
+        }));
+        // 예전 표는 별·깃발을 ★·⚑ 텍스트로, 삼각형을 CSS border 로 그렸다 — 경로가 없었다.
+        expect(table.filter(Boolean)).toHaveLength(3);
+        expect(new Set(table)).toEqual(new Set(chart.filter(s => s.kind === 'path').map(s => s.d)));
+    });
+});

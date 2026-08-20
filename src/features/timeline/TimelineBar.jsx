@@ -5,6 +5,7 @@ import { getStatusColor } from '../../themes/index.js';
 import { rollupSegmentTitle, rollupMilestoneTitle } from './rollupBars';
 import { placeMilestoneLabels, milestoneLabelStyle } from './milestoneLabels';
 import { visibleMilestoneItems } from './timelineGeometry';
+import { milestoneShape } from '../../shared/milestoneShapes';
 import './TimelineBar.css';
 
 function TimelineBar({
@@ -327,35 +328,28 @@ function TimelineBar({
             const daysFromStart = dateUtils.getDaysBetween(startDate, currentDate);
             const position = (daysFromStart / totalDays) * containerWidth;
 
-            const shape = milestone.shape || 'diamond';
-
-            const baseStyle = {
-                width: '16px',
-                height: '16px',
-                backgroundColor: milestone.color,
-                border: '2px solid white',
-                boxShadow: '0 2px 6px rgba(0, 0, 0, 0.3)',
-            };
+            // 도형의 서술은 shared/milestoneShapes.js 한 곳에서 온다 — 표·차트·내보내기가
+            // 각자 그리던 것을 그 파일이 대신한다. 여기서는 차트의 표현만 얹는다:
+            // 배경 위에 떠 있어야 하므로 흰 테두리와 그림자를 씌운다.
+            const spec = milestoneShape(milestone.shape);
 
             const getShape = () => {
-                switch (shape) {
-                    case 'circle': return <div style={{ ...baseStyle, borderRadius: '50%' }} />;
-                    case 'square': return <div style={{ ...baseStyle, borderRadius: '2px' }} />;
-                    case 'diamond': return <div style={{ ...baseStyle, transform: 'rotate(45deg)' }} />;
-                    case 'triangle': return (
-                        <svg width="20" height="20" viewBox="0 0 24 24" style={{ filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3))' }}>
-                            <path d="M12 2L22 22H2L12 2Z" fill={milestone.color} stroke="white" strokeWidth="2" strokeLinejoin="round" />
-                        </svg>);
-                    case 'star': return (
-                        <svg width="20" height="20" viewBox="0 0 24 24" style={{ filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3))' }}>
-                            <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" fill={milestone.color} stroke="white" strokeWidth="2" strokeLinejoin="round" />
-                        </svg>);
-                    case 'flag': return (
-                        <svg width="20" height="20" viewBox="0 0 24 24" style={{ filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3))' }}>
-                            <path d="M14.4 6L14 4H5V21H7V14H12L12.4 16H22V6H14.4Z" fill={milestone.color} stroke="white" strokeWidth="2" strokeLinejoin="round" />
-                        </svg>);
-                    default: return <div style={{ ...baseStyle, transform: 'rotate(45deg)' }} />;
+                if (spec.kind === 'box') {
+                    return <div style={{
+                        width: '16px',
+                        height: '16px',
+                        backgroundColor: milestone.color,
+                        border: '2px solid white',
+                        boxShadow: '0 2px 6px rgba(0, 0, 0, 0.3)',
+                        ...(spec.borderRadius ? { borderRadius: spec.borderRadius } : {}),
+                        ...(spec.rotate ? { transform: `rotate(${spec.rotate}deg)` } : {}),
+                    }} />;
                 }
+                return (
+                    <svg width="20" height="20" viewBox={spec.viewBox} style={{ filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3))' }}>
+                        <path d={spec.path} fill={milestone.color} stroke="white" strokeWidth="2" strokeLinejoin="round" />
+                    </svg>
+                );
             };
 
             const placement = placements.get(milestone.id) ?? { position: 'top', tier: 0, shiftX: 0, maxWidth: null };

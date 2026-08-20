@@ -8,6 +8,7 @@ import { exportToHtml } from '../../src/features/io/htmlExporter.js';
 import { placeMilestoneLabels, milestoneLabelStyle } from '../../src/features/timeline/milestoneLabels.js';
 import { dependencyPath } from '../../src/features/timeline/dependencyPath.js';
 import { dependencyStyleFor, dependencyStrokes } from '../../src/features/timeline/dependencyStyle.js';
+import { milestoneShape, MILESTONE_SHAPE_OPTIONS } from '../../src/shared/milestoneShapes.js';
 
 const XSS = '<img src=x onerror=alert(1)>';
 const BREAKOUT = '</script><script>alert(1)</script>';
@@ -302,5 +303,48 @@ describe('exportToHtml — 의존성 문제를 색과 모양으로 말한다', (
     it('연결이 없는 트리에는 배지가 하나도 없다', () => {
         const html = exportToHtml([task()]);
         expect(html).toContain('const DEP_BADGES = {}');
+    });
+});
+
+describe('exportToHtml — 마일스톤 도형', () => {
+    // 표·차트·내보내기가 각자 도형을 그리던 것을 shared/milestoneShapes.js 로 합쳤다.
+    // "합쳤다"를 문장으로 두면 다음 사람이 다시 갈라 놓는다 — 심은 소스의 **출력**을
+    // 앱의 모듈과 대조한다(문자열 포함 검사는 복사본에도 통과한다).
+    const shaped = (shape) => task({
+        id: 'ms', name: '도형',
+        milestones: [{ id: 'm1', date: '2026-02-01', label: '표식', color: '#e67e22', shape }],
+    });
+
+    const loadEmbedded = () => {
+        const html = exportToHtml([shaped('diamond')]);
+        const begin = html.indexOf('// ---8<--- milestoneShapes.js');
+        const end = html.indexOf('// ---8<--- /milestoneShapes.js');
+        expect(begin).toBeGreaterThan(-1);
+        const source = html.slice(html.indexOf('\n', begin) + 1, end);
+        return new Function(`${source}\nreturn { milestoneShape, MILESTONE_SHAPE_OPTIONS };`)();
+    };
+
+    it('심은 소스가 앱과 같은 서술을 낸다', () => {
+        const embedded = loadEmbedded();
+        expect(embedded.MILESTONE_SHAPE_OPTIONS).toEqual(MILESTONE_SHAPE_OPTIONS);
+        for (const name of [...MILESTONE_SHAPE_OPTIONS.map((o) => o.value), 'hexagon', undefined]) {
+            expect(embedded.milestoneShape(name)).toEqual(milestoneShape(name));
+        }
+    });
+
+    it('마커 조립이 서술을 통해서만 도형을 정한다', () => {
+        // 마커의 HTML 은 내보낸 문서 **안에서** 조립되므로 정적 출력에는 도형이 없다.
+        // 여기서 볼 수 있는 것은 조립이 서술을 지나는지까지고, 실제로 그려지는지는
+        // export-html.spec.js 가 띄워서 본다.
+        const html = exportToHtml([shaped('triangle')]);
+        expect(html).toContain('milestoneShape(m.shape)');
+        // 회전은 CSS 클래스가 준다 — 클래스가 빠지면 다이아몬드가 그냥 사각형이 된다
+        expect(html).toContain("spec.rotate ? ' diamond' : ''");
+    });
+
+    it('도형별 if 사슬이 남아 있지 않다 (복사본 회귀 방지)', () => {
+        const html = exportToHtml([shaped('star')]);
+        expect(html).not.toContain("if (shape === 'circle')");
+        expect(html).not.toContain("else if (shape === 'star')");
     });
 });

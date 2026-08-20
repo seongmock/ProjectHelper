@@ -124,3 +124,53 @@ test('내보낸 HTML 의 작업명이 자기 막대와 같은 높이에 있고, 
     m.barMids.forEach((y, i) => expect(Math.abs(y - m.nameMids[i])).toBeLessThanOrEqual(1));
     expect(m.labelTop).toBeGreaterThanOrEqual(m.contentTop);
 });
+
+// 도형 여섯 개를 한 작업에 얹는다. 날짜가 같으면 라벨이 겹칠 뿐 마커는 모두 그려진다.
+const SHAPE_TREE = [
+    { id: 'S', name: '도형 모음', color: '#4A90E2', children: [], expanded: true,
+        timeRanges: [{ id: 'rs', startDate: '2026-01-01', endDate: '2026-06-30', dependencies: [] }],
+        milestones: [
+            { id: 'm1', date: '2026-01-15', label: '다이아', color: '#e67e22', shape: 'diamond' },
+            { id: 'm2', date: '2026-02-15', label: '원', color: '#e67e22', shape: 'circle' },
+            { id: 'm3', date: '2026-03-15', label: '사각', color: '#e67e22', shape: 'square' },
+            { id: 'm4', date: '2026-04-15', label: '삼각', color: '#e67e22', shape: 'triangle' },
+            { id: 'm5', date: '2026-05-15', label: '별', color: '#e67e22', shape: 'star' },
+            { id: 'm6', date: '2026-06-15', label: '깃발', color: '#e67e22', shape: 'flag' },
+        ] },
+];
+
+test('내보낸 HTML 의 마일스톤 도형이 여섯 가지 모두 그려진다', async ({ page, context }) => {
+    // 도형은 앱과 같은 모듈(shared/milestoneShapes.js)의 서술로 조립된다. 조립은 문자열
+    // 이어붙이기이므로, 서술이 맞아도 **아무것도 그리지 않는 문서**가 나올 수 있다.
+    const html = await renderExport(page, SHAPE_TREE);
+    const doc = await context.newPage();
+    await doc.setContent(`<div style="width:1200px;height:600px">${html}</div>`);
+
+    const shapes = doc.locator('.milestone-shape');
+    await expect(shapes).toHaveCount(6, { timeout: 5000 });
+
+    const drawn = await shapes.evaluateAll(els => els.map(el => {
+        const svg = el.querySelector('svg.shape-icon path');
+        const box = el.querySelector('div.shape-div');
+        const target = svg || box;
+        const rect = target.getBoundingClientRect();
+        return {
+            kind: svg ? 'path' : 'box',
+            d: svg ? svg.getAttribute('d') : null,
+            radius: box ? getComputedStyle(box).borderRadius : null,
+            rotated: el.classList.contains('diamond'),
+            drawn: rect.width > 0 && rect.height > 0,
+        };
+    }));
+
+    for (const s of drawn) expect(s.drawn).toBe(true);   // 0px 짜리 마커는 없는 것과 같다
+    expect(drawn.filter(s => s.kind === 'path')).toHaveLength(3);  // 삼각·별·깃발
+    expect(drawn.filter(s => s.kind === 'box')).toHaveLength(3);   // 다이아·원·사각
+    // 경로가 서로 달라야 세 도형이 세 모양이다 (하나로 뭉개지면 여기서 걸린다)
+    expect(new Set(drawn.filter(s => s.kind === 'path').map(s => s.d)).size).toBe(3);
+    // 상자형 셋도 서로 다르다: 원(50%) · 사각(2px) · 다이아(회전)
+    const boxes = drawn.filter(s => s.kind === 'box');
+    expect(boxes.filter(s => s.radius.startsWith('50%'))).toHaveLength(1);
+    expect(boxes.filter(s => s.rotated)).toHaveLength(1);
+    expect(boxes.find(s => s.rotated).radius.startsWith('50%')).toBe(false);
+});
