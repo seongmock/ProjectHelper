@@ -55,6 +55,15 @@ unit/server/e2e 별)과 커버리지 임계값(`vitest.config.js`)이 함께 걸
 그 자체로 리뷰 대상이다. 커버리지는 도메인 순수 모듈에만 건다(`.jsx` 와 `use*.js` 는 제외 —
 그리는 코드와 훅은 E2E 가 본다).
 
+**그 숫자는 `scripts/test-floors.mjs` 한 곳에만 있다.** 두 게이트가 같은 값을 본다 — 실제
+실행 개수(`assert-test-floor.mjs`)와 **문서가 말하는 개수**(`assert-doc-counts.mjs`). 후자를
+만든 이유: 2026-08-20 감사에서 README·AGENTS.md·copilot-instructions·verify-app 스킬이 각각
+E2E 를 51·28·37·16건이라고 말하고 있었다(실제 107). 테스트를 늘린 커밋은 초록불이고 문서를
+검사하는 것은 없었으니, 개수는 **늘릴 때마다** 낡는다. 검사 대상은 그 다섯 파일과 이 파일이고,
+날짜가 박힌 기록 문서(`docs/*REPORT*`, 실사, HANDOVER 세션 로그)는 제외한다 — 그 숫자는 그
+시점의 사실이므로 고치면 기록이 거짓이 된다. 테스트를 늘렸으면 `test-floors.mjs` 와 문서를
+같은 커밋에서 올려라.
+
 `playwright.config.js` 는 **API 서버와 dev 서버를 모두 자동 기동**하며, API는
 `PH_DATA_DIR=.tmp-e2e-data` 로 격리된다. 예전에는 API 서버를 수동으로 띄우지 않으면 8건이
 조용히 skip 되고 1건이 404로 실패해서(19/1/8) "통과"가 아무것도 보증하지 않았다.
@@ -149,7 +158,12 @@ sources, so a `COPY` missing from a Dockerfile is green everywhere and only surf
 time (it happened twice: `0fca603`, and 2026-08-18 with `server/services/`). The `docker-smoke`
 CI job is the only gate for that class: it builds both images, boots them, and probes
 `/api/health` · `/api/projects` · `/api/tasks` plus the frontend's `index.html`/`assets/*.js`.
-If you add a runtime directory, fix the Dockerfile `COPY` list too.
+If you add a runtime directory, fix the Dockerfile `COPY` list too. 그 잡은 **복원 리허설도
+한 번 돌린다** — 합성 아카이브로 `restore-drill.sh` 의 경로 전체(복원 함수 → 임시 볼륨 → API
+부팅 → HTTP 대조)를 지난다. 운영 아카이브로 하는 연습은 사람이 돌리지만, 그 스크립트 자체가
+아직 도는지는 아무것도 검사하지 않았다 — 복원이 필요한 날 스크립트가 고장 나 있는 것은
+연습해 본 적 없는 백업과 같은 실패다. SQLite 정합 스냅샷 분기는 합성 데이터로는 못 보므로,
+그 부분은 운영 아카이브로 확인한다.
 
 **Never run `docker compose down -v`** (or otherwise prune volumes): the `api_data` named
 volume mounted at `/app/data` in the API container holds live production timeline data.

@@ -7,11 +7,9 @@
 //
 // 숫자를 **올리는** 것은 테스트를 늘렸다는 뜻이니 그냥 올리면 된다. 내릴 때는 왜
 // 내리는지 커밋 메시지에 적어라. 그 한 줄이 이 파일의 존재 이유다.
-const FLOOR = {
-    unit: 588,   // vitest — tests/unit/**
-    server: 267, // node:test — server/test/**
-    e2e: 107,    // playwright — tests/e2e/** (skip 0 은 별도 게이트)
-};
+import { FLOOR } from './test-floors.mjs';
+
+// 숫자 자체는 test-floors.mjs 에 있다 — 문서 개수 게이트와 같은 출처를 봐야 한다.
 
 const [kind, raw] = process.argv.slice(2);
 
@@ -30,7 +28,7 @@ if (!Number.isInteger(count) || count < 0) {
 
 if (count < FLOOR[kind]) {
     console.error(`::error::${kind} 테스트가 ${count}건이다 — 바닥값 ${FLOOR[kind]}건보다 적다. ` +
-        '테스트가 지워졌거나 수집되지 않았다. 의도한 감소라면 scripts/assert-test-floor.mjs 를 함께 낮춰라.');
+        '테스트가 지워졌거나 수집되지 않았다. 의도한 감소라면 scripts/test-floors.mjs 를 함께 낮춰라.');
     process.exit(1);
 }
 

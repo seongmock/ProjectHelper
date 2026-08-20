@@ -27,7 +27,7 @@ React 기반의 인터랙티브한 프로젝트 타임라인 및 간트 차트 �
 - **🔗 작업 의존성**: S자 곡선으로 선행/후행 작업 시각화
 - **🎨 커스터마이징**: 색상, 레이블, 마일스톤 마커, 작업 구분선
 - **🖱️ 컨텍스트 메뉴**: 작업명 및 타임라인 바 우클릭으로 빠른 설정
-- **💾 저장 시스템**: 이름 지정이 가능한 멀티 슬롯 저장 및 로드
+- **💾 프로젝트 · 버전**: 프로젝트별 독립 저장 + 시점 버전(스냅샷) 복원 (좌측 레일에서 전환)
 - **⚡ 실행 취소/다시 실행**: 최근 20개 액션 기록
 - **📤 가져오기/내보내기**: JSON 백업, **HTML(인터랙티브)** 내보내기
 - **⌛ 멀티 타임라인**: 하나의 작업에 여러 개의 기간(Time Ranges) 추가 및 개별 관리
@@ -91,15 +91,20 @@ VITE_API_TARGET=http://localhost:3100 npm run dev  # 프론트엔드
 ./scripts/backup-data.sh --install-cron  # 매일 03:00 자동 백업 등록
 ./scripts/backup-data.sh --list          # 백업 목록
 ./scripts/backup-data.sh --restore <아카이브>
+./scripts/restore-drill.sh               # 복원 리허설 — 임시 볼륨에 되살려 HTTP 로 확인
 ```
+
+> 복원해 본 적 없는 백업은 백업이 아닙니다. `restore-drill.sh` 는 실제 복원과 **같은 함수**를
+> 지나며, 운영 볼륨(`api_data`)은 건드리지 않습니다.
 
 ### 테스트
 ```bash
 npm run lint         # ESLint
-npm run test:unit    # 단위 테스트 (도메인 순수함수 + XSS 회귀)
-npm run test:server  # 서버 테스트 (검증 로직 + 저장소 내구성)
-npm run test:e2e     # Playwright E2E 51건 (API·dev 서버 자동 기동)
-npm run verify       # 위 전부 + 빌드
+npm run test:unit        # 단위 588건 (도메인 순수함수 + XSS 회귀)
+npm run test:server      # 서버 267건 (검증·서비스·저장소·인증·감사)
+npm run test:e2e         # Playwright E2E 107건 (API·dev 서버 자동 기동)
+npm run test:e2e:sqlite  # 같은 E2E 를 운영 저장 엔진(SQLite)으로 — CI 는 둘 다 돈다
+npm run verify           # 위 전부 + 빌드
 ```
 
 ### 프로덕션 빌드
@@ -112,10 +117,10 @@ npm run build
 - **React 18** - UI 프레임워크
 - **Vite 6** - 빌드 도구
 - **Vanilla CSS** - 스타일링
-- **Express** (`server/`) - JSON 파일 영속화 + REST API
+- **Express** (`server/`) - REST API + 영속화 (JSON 파일이 기본, 운영은 `PH_STORE=sqlite`)
 - **localStorage** - 오프라인 캐시 (서버 장애 시 폴백)
 - **Caddy** - HTTPS 리버스 프록시 (Basic 인증은 현재 일시 제거)
-- **Playwright / Vitest / node:test** - E2E 51건 + 단위 371건(unit 243 + server 128)
+- **Playwright / Vitest / node:test** - E2E 107건 + 단위 588건 + 서버 267건
 
 ## 📖 사용법
 
@@ -123,7 +128,7 @@ npm run build
 2. **작업 편집**: 작업명 더블클릭하여 수정
 3. **날짜 조정**: 타임라인에서 바를 드래그
 4. **하위 작업**: 각 작업의 ➕ 버튼으로 하위 작업 추가
-5. **뷰 전환**: 도구 모음에서 표/타임라인/분할 뷰 선택
+5. **뷰 전환**: 도구 모음에서 표 / 타임라인 뷰 선택
 
 ## ⌨️ 키보드 단축키
 
@@ -131,6 +136,7 @@ npm run build
 - `Ctrl+Y` - 다시 실행
 - `Ctrl+S` - JSON 내보내기
 - `Ctrl+N` - 새 작업 추가
+- `Ctrl+K` - 명령 팔레트
 - `↑` / `↓` - 작업 선택 이동 (선택이 없으면 첫/마지막 작업)
 - `[` / `]` - 선택한 작업의 일정을 하루 앞/뒤로
 - `Shift+[` / `Shift+]` - 일주일 단위로 이동

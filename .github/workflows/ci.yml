@@ -51,6 +51,11 @@ jobs:
       - name: Bundle budget
         run: node scripts/assert-bundle-budget.mjs
 
+      # 문서가 말하는 테스트 개수 — 2026-08-20 감사에서 네 문서가 51/28/37/16건이라고
+      # 서로 다르게 말하고 있었다(실제 107건). 개수는 늘릴 때마다 조용히 낡는다.
+      - name: Docs match test floors
+        run: node scripts/assert-doc-counts.mjs
+
       # 취약점은 빌드를 막는다. high 이상만 실패시켜 노이즈를 줄인다.
       - name: Audit (frontend)
         run: npm audit --audit-level=high
@@ -138,6 +143,12 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      # 복원 연습의 기대값 스크립트가 node:sqlite 를 쓸 수 있으므로 러너 기본 노드에
+      # 맡기지 않는다 — 운영 이미지와 같은 22 로 고정한다.
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
       - name: Build API image
         run: docker build -t ph-api:ci ./server
 
@@ -172,6 +183,25 @@ jobs:
               *) echo "::error::$path 가 200이 아니다: $out"; docker logs ph-api-ci; exit 1 ;;
             esac
           done
+
+      # 복원 리허설 — **스크립트가 아직 도는지**를 매 푸시마다 확인한다.
+      # 운영 백업으로 하는 연습은 사람이 돌린다(`./scripts/restore-drill.sh`). 그런데 그
+      # 스크립트 자체는 아무 테스트도 지나지 않으므로, 복원이 필요한 날 "스크립트가
+      # 고장 나 있었다"를 발견하게 된다 — 연습해 본 적 없는 백업과 같은 실패 유형이다.
+      # 여기서는 합성 아카이브로 경로 전체(복원 함수 → 임시 볼륨 → API 부팅 → HTTP 대조)를
+      # 지난다. 데이터가 작아 SQLite 정합 스냅샷 분기는 못 보지만, 그 분기는 운영 아카이브로
+      # 사람이 확인한다.
+      - name: Restore drill (합성 아카이브 → 임시 볼륨 → HTTP 대조)
+        run: |
+          mkdir -p /tmp/drill/data/projects/default /tmp/drill/backups
+          cd /tmp/drill/data
+          echo '[{"id":"default","name":"CI drill","owner":"ci","createdAt":"2026-01-01T00:00:00.000Z"}]' > projects.json
+          echo '[{"id":"t1","name":"parent","timeRanges":[],"milestones":[],"children":[{"id":"t2","name":"child","timeRanges":[{"id":"r1","startDate":"2026-01-05","endDate":"2026-01-09","dependencies":[]}],"milestones":[],"children":[]}]}]' > projects/default/data.json
+          echo '{"revision":7}' > projects/default/meta.json
+          echo '[]' > projects/default/snapshots.json
+          tar czf /tmp/drill/backups/ph-data-20260101-000000.tar.gz -C /tmp/drill/data .
+          cd "$GITHUB_WORKSPACE"
+          PH_BACKUP_DIR=/tmp/drill/backups PH_API_IMAGE=ph-api:ci ./scripts/restore-drill.sh
 
       - name: Boot frontend image and probe index
         run: |

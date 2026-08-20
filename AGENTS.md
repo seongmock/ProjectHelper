@@ -16,11 +16,15 @@ React 18 + Vite 프론트엔드 + 소형 Express API(`server/`, JSON 파일 영�
 npm run dev       # 개발 서버 (http://localhost:5173, Hot-Reload, /api → :3000 프록시)
 npm run dev:api   # Express API 서버 (:3000) — 서버 동기화·AI 연동 기능에 필요
 npm run build     # 프로덕션 빌드 → dist/
-npm run test:e2e  # Playwright E2E (API·dev 서버 자동 기동, 28 테스트)
+npm run test:unit # Vitest 단위 588건 (도메인 순수함수 + XSS 회귀)
+npm run test:server # node:test 서버 267건 (검증·서비스·저장소·인증·감사)
+npm run test:e2e  # Playwright E2E 107건 (API·dev 서버 자동 기동)
+npm run test:e2e:sqlite # 같은 E2E 를 운영 저장 엔진(SQLite)으로
+npm run verify    # 위 전부 + 빌드 — 변경 후 이것을 돌린다
 npm run preview   # 빌드 결과물 로컬 미리보기
 ```
 
-> **코드 변경 후 `npm run verify` 필수** (lint + 단위 243 + 서버 128 + 빌드 + E2E 51건).
+> **코드 변경 후 `npm run verify` 필수** (lint 0 error + 단위 588건 + 서버 267건 + 빌드 + E2E 107건).
 > E2E는 playwright.config.js가 API 서버까지 자동 기동하므로 skip이 발생하지 않는다.
 > skip이 1건이라도 있으면 그 테스트는 아무것도 검증하지 않은 것이다 — 불합격으로 본다.
 
@@ -208,8 +212,8 @@ JSX에서 **함수 호출 `filteredTasks()`가 아닌 변수 참조 `filteredTas
 ### 자동 검증 (권장 — 수동 체크리스트 대부분을 커버)
 
 ```bash
-npm run build        # 빌드 성공 확인
-npx playwright test  # E2E 16개 (스모크 14 + AI 동기화 2)
+npm run verify           # lint + 단위 588건 + 서버 267건 + 빌드 + E2E 107건
+npm run test:e2e:sqlite  # 운영 저장 엔진(SQLite)으로 같은 E2E 를 한 번 더
 ```
 
 ### 빌드 검증

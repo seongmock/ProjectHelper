@@ -6,8 +6,9 @@
 
 ## 이 프로젝트는 무엇인가
 
-React 18 + Vite SPA **+ Express API 서버**(`server/`, JSON 파일 영속화) 구조의
-간트차트/타임라인 관리 도구. 클라이언트 전용 앱이 **아니다**.
+React 18 + Vite SPA **+ Express API 서버**(`server/`) 구조의 간트차트/타임라인 관리
+도구. 클라이언트 전용 앱이 **아니다**. 영속화는 JSON 파일이 기본이고 **운영은
+`PH_STORE=sqlite`** 다 (엔진 교체는 사람이 하는 일 — `server/scripts/migrate-store.js`).
 
 ## 명령어
 
@@ -16,16 +17,18 @@ npm run dev          # Vite dev 서버 (5173)
 npm run dev:api      # Express API (기본 3000; 이 호스트는 3000 점유 → PORT=3100 사용)
 npm run build        # 프로덕션 빌드 → dist/
 npm run lint         # ESLint
-npm run test:unit    # Vitest — 도메인 순수함수 + XSS 회귀
-npm run test:server  # node:test — 검증 로직 + 저장소 내구성
-npm run test:e2e     # Playwright 37건 (API·dev 서버 자동 기동)
-npm run verify       # 위 전부
+npm run test:unit    # Vitest 단위 588건 (도메인 순수함수 + XSS 회귀)
+npm run test:server  # node:test 서버 267건 (검증·서비스·저장소·인증·감사)
+npm run test:e2e     # Playwright E2E 107건 (API·dev 서버 자동 기동, skip 은 불합격)
+npm run test:e2e:sqlite  # 같은 E2E 를 운영 저장 엔진(SQLite)으로
+npm run verify       # 위 전부 + 빌드
 ```
 
 ## 절대 지켜야 할 것
 
 1. **운영 API에 쓰기 요청 금지.** 2026-08-05에 이 규칙 부재로 운영 데이터가 소실됐다.
 2. **`docker compose down -v` 금지** — `api_data` 볼륨에 운영 데이터가 있다.
+   배포 전에는 `./scripts/backup-data.sh`, 백업이 살아 있는지는 `./scripts/restore-drill.sh`.
 3. 트리 조작은 `src/utils/taskTree.js` 순수함수만 사용. **제자리 변경 금지**
    (undo/redo 히스토리가 트리를 공유한다). deep clone 은 `structuredClone`.
 4. `src/utils/taskTree.js` 시그니처를 바꾸면 CJS 대응본 `server/lib/taskTree.js` 도 고친다.

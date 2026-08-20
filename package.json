@@ -16,7 +16,7 @@
     "test:server": "node --test server/test/*.test.js",
     "test:e2e": "playwright test",
     "test:e2e:sqlite": "PH_STORE=sqlite playwright test",
-    "test": "npm run lint && npm run test:coverage && npm run test:server && npm run build && node scripts/assert-bundle-budget.mjs",
+    "test": "npm run lint && npm run test:coverage && npm run test:server && npm run build && node scripts/assert-bundle-budget.mjs && node scripts/assert-doc-counts.mjs",
     "verify": "npm run test && npm run test:e2e"
   },
   "dependencies": {
