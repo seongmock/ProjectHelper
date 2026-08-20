@@ -95,6 +95,17 @@ jobs:
           docker compose -f docker-compose.yml config -q
           docker compose -f docker-compose.yml -f docker-compose.dev.yml config -q
 
+      # E2E 잡의 컨테이너 태그와 package.json 의 Playwright 버전이 같은지.
+      # 어긋나면 이미지 안의 브라우저를 찾지 못해 E2E 가 통째로 죽는다 — 그리고 그것은
+      # 의존성을 올린 커밋과 아무 관계없어 보이는 자리에서 터진다.
+      - name: Assert Playwright image tag matches package.json
+        run: |
+          want=$(node -p "require('./package.json').devDependencies['@playwright/test'].replace(/^[^0-9]*/,'')")
+          got=$(sed -n 's|.*mcr.microsoft.com/playwright:v\([0-9.]*\)-.*|\1|p' .github/workflows/ci.yml | head -1)
+          [ "$want" = "$got" ] \
+            || { echo "::error::Playwright 버전 불일치 — package.json=$want, ci.yml 이미지=$got"; exit 1; }
+          echo "playwright $want"
+
       # 이미지에 들어가야 할 런타임 디렉토리가 Dockerfile COPY 목록에 있는지.
       # docker-smoke 가 부팅으로 잡아 주지만, 그건 '부팅에 필요한 것'만 잡는다 —
       # 예컨대 아직 아무 라우트도 부르지 않는 새 디렉토리는 조용히 빠진 채 통과한다.
@@ -180,14 +191,28 @@ jobs:
 
   e2e:
     runs-on: ubuntu-latest
-    # 25분: E2E 자체는 5~6분이지만 앞에 `playwright install --with-deps`(apt + 브라우저
-    # 내려받기)가 붙는다. 15분 캡에서는 그 설치가 느린 날 **캡에 걸려 잡이 취소되고**
-    # 테스트는 한 건도 돌지 않는다(2026-08-19 실제 발생, 설치에서 15분 19초).
-    timeout-minutes: 25
+    # 브라우저와 시스템 의존성이 **이미 들어 있는** 공식 이미지에서 돌린다.
+    #
+    # 왜 바꿨나: `playwright install --with-deps` 는 잘 돌 때 4~5분인데 **간헐적으로 멈춘다**.
+    # 2026-08-19 에 두 번 겪었고 두 번 다 이 스텝이 잡 캡까지 그대로 갔다(15분 캡 → 15분 19초,
+    # 25분으로 올린 뒤 → 25분 05초). 캡을 올리는 것은 고치는 게 아니라 벽을 미는 것이고,
+    # 그때 결과는 `cancelled` 로만 남아 **테스트가 한 건도 돌지 않았다는 사실이 안 보인다**.
+    # 이미지를 쓰면 apt 도 브라우저 내려받기도 없다 — 그 실패 유형 자체가 사라진다.
+    #
+    # `--user 1001` 은 Playwright 공식 GitHub Actions 예시 그대로다(러너가 만든 워크스페이스
+    # 소유자와 맞춘다 — root 로 돌면 checkout 산출물 권한이 어긋난다).
+    # 태그의 버전은 package.json 의 @playwright/test 와 같아야 하고, config-check 가 그것을
+    # 검사한다 — 어긋나면 이미지의 브라우저를 못 찾는다.
+    container:
+      image: mcr.microsoft.com/playwright:v1.61.1-noble
+      options: --user 1001
+    timeout-minutes: 20
     needs: checks
     steps:
       - uses: actions/checkout@v5
 
+      # 이미지의 Node 는 24 다. 운영과 같은 22 로 맞춘다 — 배포하지 않는 런타임에서
+      # 초록불을 받는 것은 보증이 아니다(Dockerfile 은 node:22-alpine).
       - uses: actions/setup-node@v5
         with:
           node-version: 22
@@ -195,9 +220,6 @@ jobs:
 
       - run: npm ci
       - run: npm ci --prefix server
-
-      - name: Install Playwright browsers
-        run: npx playwright install --with-deps chromium
 
       # playwright.config.js 가 API 서버와 vite dev 서버를 모두 기동한다.
       # (예전에는 API 서버를 수동으로 띄웠고, 누락되면 8건이 조용히 skip 됐다)
