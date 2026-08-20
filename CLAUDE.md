@@ -25,10 +25,11 @@ npm run dev          # Vite dev server, http://localhost:5173, hot-reload
 npm run dev:api      # Express API server (PORT env, default 3000)
 npm run build        # Production build → dist/
 npm run lint         # ESLint 9 (flat config)
-npm run test:unit    # Vitest — 도메인 순수함수 + XSS 회귀 (580건)
+npm run test:unit    # Vitest — 도메인 순수함수 + XSS 회귀 (588건)
 npm run test:coverage # 위 + 커버리지 게이트 (vitest.config.js 의 임계값 — CI 와 같은 조건)
 npm run test:server  # node:test — 검증·서비스·저장소·레지스트리·감사·의존성·인증·메트릭 (267건)
-npm run test:e2e     # Playwright E2E 105건 (API·dev 서버 자동 기동)
+npm run test:e2e     # Playwright E2E 107건 (API·dev 서버 자동 기동)
+npm run test:e2e:sqlite # 같은 E2E 를 운영 엔진(PH_STORE=sqlite)으로 — CI 는 둘 다 돈다
 npm run verify       # 위 전부 + 빌드 — 변경 후 이것을 돌려라
 ```
 
@@ -46,8 +47,8 @@ npx playwright test -g "프로젝트"                   # by test-title substrin
 npx playwright test --headed --debug                # watch it / step through
 ```
 
-**변경 후에는 `npm run verify`** — 합격 기준은 lint 0 error · unit 580/580 · server 267/267 ·
-빌드 성공 · **E2E 105/105 (skip 0)**.
+**변경 후에는 `npm run verify`** — 합격 기준은 lint 0 error · unit 588/588 · server 267/267 ·
+빌드 성공 · **E2E 107/107 (skip 0)**.
 
 **테스트는 지워서 초록불을 만들 수 있다** — 그래서 CI 에 개수 바닥(`scripts/assert-test-floor.mjs`,
 unit/server/e2e 별)과 커버리지 임계값(`vitest.config.js`)이 함께 걸려 있다. 숫자를 낮추는 커밋은
@@ -75,7 +76,8 @@ task tree — the self-demo used for the README screenshots. It snapshots curren
 cp .env.example .env       # 최초 1회 — BASIC_AUTH_USER / BASIC_AUTH_HASH (인증 복구 시 필요)
 ./start_server.sh          # 백업 → 빌드 → 기동 → 헬스게이트 (Docker 불가 시 HTTP:8080 폴백)
 ./start_server.sh --dev    # hot-reload 오버레이 (docker-compose.dev.yml)
-./scripts/verify-deploy.sh # 배포 후 검증 34건 — 자격증명 없이 전부 검사한다 (아래 참조)
+./scripts/verify-deploy.sh # 배포 후 검증 39건 — 자격증명 없이 전부 검사한다 (아래 참조)
+./scripts/restore-drill.sh  # 복원 리허설 — 최신 백업을 임시 볼륨에 되살려 HTTP 로 확인
 ```
 
 **운영 지표는 `GET /api/metrics` 하나다** (JSON, `?format=prometheus` 로 노출 형식만 바꾼다):
@@ -162,6 +164,18 @@ this project need `sudo`.
 ② `store.js` 의 쓰기 전 세대 백업(`data.json.bak.1~5`, 10분 간격 + 트리가 절반 이하로
 줄어드는 파괴적 쓰기는 간격 무시하고 보존) ③ `validateTaskTree()` 로 라우트 검증 +
 `writeTasks()` 의 배열 타입 가드(라우트를 우회한 경로도 막는다).
+
+**복원해 본 적 없는 백업은 백업이 아니다** — `./scripts/restore-drill.sh` (인수 없으면 최신
+아카이브)가 임시 볼륨(`ph-restore-drill-vol-*`)에 복원하고 그 볼륨으로 API 컨테이너를 띄워
+**HTTP 로** 프로젝트·리비전·노드 수를 물어본 뒤, 아카이브를 호스트에서 직접 읽어 만든 기대값과
+비교한다. 네 가지가 의도된 설계다: ① 실전 복원과 **같은 함수**(`scripts/lib/restore-into-volume.sh`)
+를 지난다 — 연습과 실전이 다른 코드면 연습이 아무것도 보증하지 않는다. ② 기대값은 `lib/store.js`
+가 아니라 아카이브를 직접 파싱해서 만든다(`restore-drill-expect.cjs`) — 같은 코드로 양쪽을 읽으면
+공유된 버그가 비교를 통과시킨다. ③ 지우는 대상은 `$PREFIX` 접두어 검사를 통과해야 하므로
+`api_data` 는 절대 지워지지 않고, 포트를 열지 않아 운영과 섞이지 않는다. ④ 프로브는 `docker cp`
+가 아니라 **표준입력**으로 들어간다 — 컨테이너는 non-root(uid 1000)라 root 소유로 복사된 파일을
+`EACCES` 로 읽지 못한다. `--keep` 으로 임시 자원을 남겨 들여다볼 수 있다. SQLite 아카이브는
+`projecthelper.db.snapshot` 승격 + 짝 안 맞는 `-wal`/`-shm` 폐기까지 이 경로에서 검증된다.
 
 여기에 **추적** 장치가 하나 더 있다(복구 수단은 아니다): `lib/eventLog.js` 가 프로젝트별
 append-only 로그 `data/projects/<pid>/events.jsonl` 에 모든 쓰기를 한 줄씩 남긴다 —
@@ -442,6 +456,20 @@ Dependencies now live at the range level.
   see-through while lint and the build stayed green. `tests/unit/cssTokens.test.js` scans every
   `var(--x)` without a fallback in `src/**` against the tokens defined in the same file set;
   runtime-injected names go in its `RUNTIME_INJECTED` allowlist.
+- **마일스톤 도형은 `shared/milestoneShapes.js` 하나가 정한다 — 그리는 방식은 셋이 다르다.**
+  표(`TaskRow` 미리보기)·차트(`TimelineBar`)·내보내기(`htmlExporter`)가 각자 도형을 그리던
+  동안 같은 데이터가 화면마다 다른 그림이었다: 별과 깃발은 표에서 `★`·`⚑` **텍스트 글리프**,
+  차트에서는 SVG 였고, 삼각형은 표에서 CSS border 였다. 도형을 하나 추가하려면 다섯 곳
+  (렌더 셋 + 선택 목록 둘)을 고쳐야 했다. 이제 공유되는 것은 그림이 아니라 **모양의 서술**
+  (`{kind:'box'|'path', borderRadius, rotate, viewBox, path}`)이고, 표현은 맥락이 정한다 —
+  차트는 배경 위에 떠야 하므로 흰 테두리 2px + 그림자를, 12px 표 미리보기는 그것을 얹으면
+  도형이 잡아먹히므로 색만 채운다. 그 모듈은 `dependencyPath.js` 와 같은 이유로 **import 가
+  없다** — 내보내기가 `?raw` 로 소스를 심는다. 선택 목록(`MILESTONE_SHAPE_OPTIONS`)도 같은
+  파일에서 나오므로 "고를 수 있지만 다이아몬드로 그려지는" 도형이 생길 수 없고, 모르는
+  이름은 다이아몬드다(서버는 `shape` 를 검증하지 않는다). 검증은 세 층이다: 단위 테스트가
+  심은 소스의 **출력**을 앱 모듈과 대조하고, `export-html.spec.js` 가 내보낸 문서를 띄워
+  여섯 도형이 실제로 그려지는지 보고, `features.spec.js` 가 표 미리보기와 차트 마커의 SVG
+  경로가 **같은 집합**인지 본다. 표는 날짜 순 앞 세 개만 그린다(나머지는 `+n`).
 - **Milestone labels: auto never overlaps, manual may — but nothing is ever clipped.**
   `features/timeline/milestoneLabels.js` (pure) places every visible marker's label:
   a hand-picked `labelPosition` reserves its slot first and auto placements route around it,
