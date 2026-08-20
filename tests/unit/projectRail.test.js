@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { projectHue, projectColor, projectInitial } from '../../src/features/projects/projectRail.js';
+import {
+    projectHue, projectColor, projectInitial, projectLightness, contrastWithWhite,
+} from '../../src/features/projects/projectRail.js';
 
 describe('projectHue / projectColor — id 로 결정되는 색', () => {
     it('같은 id 는 항상 같은 색이다', () => {
@@ -31,6 +33,27 @@ describe('projectHue / projectColor — id 로 결정되는 색', () => {
     });
 });
 
+describe('배지 밝기 — 흰 글자가 읽히는 값이어야 한다', () => {
+    // 밝기를 모든 색조에 45% 로 고정했을 때 노랑(hue 60)은 흰 글자 대비 2.66:1 이었다.
+    // 눈으로 보면 '노란 배지'라 결함처럼 보이지 않는다 — 그래서 숫자로 고정한다.
+    it('모든 색조에서 흰 글자 대비가 4.5:1 이상이다', () => {
+        const bad = [];
+        for (let hue = 0; hue < 360; hue++) {
+            const ratio = contrastWithWhite(hue, projectLightness(hue));
+            if (ratio < 4.5) bad.push(`hue ${hue}: ${ratio.toFixed(2)}:1`);
+        }
+        expect(bad).toEqual([]);
+    });
+
+    it('필요한 색조만 어두워진다 — 대비가 이미 충분하면 45% 를 그대로 쓴다', () => {
+        expect(projectLightness(240)).toBe(45);   // 파랑은 45% 로도 9:1
+        expect(projectLightness(60)).toBeLessThan(45); // 노랑은 내려가야 한다
+    });
+
+    it('같은 id 는 여전히 같은 색이다 (밝기도 색조에서만 나온다)', () => {
+        expect(projectColor('p-123')).toBe(projectColor('p-123'));
+    });
+});
 describe('projectInitial — 이름의 첫 글자', () => {
     it('한글 이름의 첫 음절을 그대로 쓴다', () => {
         expect(projectInitial('기본 프로젝트')).toBe('기');

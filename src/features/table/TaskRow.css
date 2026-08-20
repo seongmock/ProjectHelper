@@ -79,6 +79,7 @@
 
 .milestone-button {
     padding: 4px 8px;
+    min-height: 24px;
     font-size: var(--font-size-sm);
     border-radius: var(--border-radius);
     background-color: var(--color-bg-tertiary);

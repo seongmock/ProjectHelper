@@ -96,17 +96,20 @@
 
 /* 접기 토글과 이름. 토글이 생기면서 이 행은 flex 아이템이 둘이 됐다 —
    줄임표는 이제 이름 쪽에서 처리해야 한다(행에 걸면 토글까지 잘린다). */
+/* WCAG 2.5.8 — 포인터 타깃 24×24. 표 쪽 토글은 `button.icon`(36×36)이 이기고 있어서
+   실제로 20×20 으로 그려지던 것은 이 목록의 토글 하나였다. 자리표시자도 같은 폭이어야
+   자식 없는 행의 이름이 어긋나지 않는다. */
 .task-name-item .expand-toggle {
-    padding: 2px;
-    width: 20px;
-    height: 20px;
+    padding: 4px;
+    width: 24px;
+    height: 24px;
     font-size: 10px;
     flex-shrink: 0;
     line-height: 1;
 }
 
 .task-name-item .expand-spacer {
-    width: 20px;
+    width: 24px;
     flex-shrink: 0;
 }
 

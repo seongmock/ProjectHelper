@@ -17,8 +17,54 @@ export function projectHue(id) {
     return hash % HUE_MAX;
 }
 
+// 배지 안의 글자는 흰색이다 — 그래서 밝기는 취향이 아니라 **대비의 결과**다.
+// 채도 52% / 밝기 45% 를 모든 색조에 똑같이 쓰던 동안, 노랑·초록·시안 계열(360 중 183)은
+// 흰 글자 대비가 4.5:1 에 못 미쳤다(노랑 hue 60 은 2.66:1 — 배지 글자가 사실상 안 보였다).
+// 색조는 프로젝트를 구별하는 단서이므로 건드리지 않고, 밝기만 그 색조에서 AA 를 만족하는
+// 가장 밝은 값으로 내린다. 계산은 여기서 한다 — CSS 로는 상대 휘도를 알 수 없다.
+const SATURATION = 52;
+const MAX_LIGHTNESS = 45;
+const MIN_LIGHTNESS = 20;
+const AA_CONTRAST = 4.5;
+
+function hslToRgb(hue, saturation, lightness) {
+    const h = hue / HUE_MAX;
+    const s = saturation / 100;
+    const l = lightness / 100;
+    if (s === 0) return [l, l, l];
+    const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+    const p = 2 * l - q;
+    const channel = (t) => {
+        const x = (t % 1 + 1) % 1;
+        if (x < 1 / 6) return p + (q - p) * 6 * x;
+        if (x < 1 / 2) return q;
+        if (x < 2 / 3) return p + (q - p) * (2 / 3 - x) * 6;
+        return p;
+    };
+    return [channel(h + 1 / 3), channel(h), channel(h - 1 / 3)];
+}
+
+// WCAG 상대 휘도. 흰색(휘도 1)과의 대비는 1.05 / (L + 0.05) 이다.
+function relativeLuminance([r, g, b]) {
+    const f = (c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
+    return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
+}
+
+export function contrastWithWhite(hue, lightness) {
+    return 1.05 / (relativeLuminance(hslToRgb(hue, SATURATION, lightness)) + 0.05);
+}
+
+// 그 색조에서 흰 글자가 AA 를 만족하는 **가장 밝은** 밝기. 1% 단위로 충분하다.
+export function projectLightness(hue) {
+    for (let l = MAX_LIGHTNESS; l > MIN_LIGHTNESS; l -= 1) {
+        if (contrastWithWhite(hue, l) >= AA_CONTRAST) return l;
+    }
+    return MIN_LIGHTNESS;
+}
+
 export function projectColor(id) {
-    return `hsl(${projectHue(id)}, 52%, 45%)`;
+    const hue = projectHue(id);
+    return `hsl(${hue}, ${SATURATION}%, ${projectLightness(hue)}%)`;
 }
 
 // 첫 글자 하나. Array.from 이어야 이모지·서러게이트 쌍이 반쪽으로 잘리지 않는다.

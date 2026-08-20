@@ -27,7 +27,7 @@
 }
 
 .account-role.role-admin {
-    background: var(--color-primary);
+    background: var(--color-primary-strong);
     color: #fff;
 }
 

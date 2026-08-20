@@ -17,9 +17,9 @@ npm run dev          # Vite dev 서버 (5173)
 npm run dev:api      # Express API (기본 3000; 이 호스트는 3000 점유 → PORT=3100 사용)
 npm run build        # 프로덕션 빌드 → dist/
 npm run lint         # ESLint
-npm run test:unit    # Vitest 단위 588건 (도메인 순수함수 + XSS 회귀)
+npm run test:unit    # Vitest 단위 591건 (도메인 순수함수 + XSS 회귀)
 npm run test:server  # node:test 서버 267건 (검증·서비스·저장소·인증·감사)
-npm run test:e2e     # Playwright E2E 107건 (API·dev 서버 자동 기동, skip 은 불합격)
+npm run test:e2e     # Playwright E2E 111건 (API·dev 서버 자동 기동, skip 은 불합격)
 npm run test:e2e:sqlite  # 같은 E2E 를 운영 저장 엔진(SQLite)으로
 npm run verify       # 위 전부 + 빌드
 ```

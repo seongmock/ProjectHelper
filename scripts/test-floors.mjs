@@ -8,7 +8,7 @@
 // 숫자를 **올리는** 것은 테스트를 늘렸다는 뜻이니 그냥 올리면 된다. 내릴 때는 왜
 // 내리는지 커밋 메시지에 적어라. 그 한 줄이 이 파일의 존재 이유다.
 export const FLOOR = {
-    unit: 588,      // vitest — tests/unit/**
+    unit: 591,      // vitest — tests/unit/**
     server: 267,    // node:test — server/test/**
-    e2e: 107,       // playwright — tests/e2e/** (skip 0 은 별도 게이트)
+    e2e: 111,       // playwright — tests/e2e/** (skip 0 은 별도 게이트)
 };

@@ -25,10 +25,10 @@ npm run dev          # Vite dev server, http://localhost:5173, hot-reload
 npm run dev:api      # Express API server (PORT env, default 3000)
 npm run build        # Production build → dist/
 npm run lint         # ESLint 9 (flat config)
-npm run test:unit    # Vitest — 도메인 순수함수 + XSS 회귀 (588건)
+npm run test:unit    # Vitest — 도메인 순수함수 + XSS 회귀 (591건)
 npm run test:coverage # 위 + 커버리지 게이트 (vitest.config.js 의 임계값 — CI 와 같은 조건)
 npm run test:server  # node:test — 검증·서비스·저장소·레지스트리·감사·의존성·인증·메트릭 (267건)
-npm run test:e2e     # Playwright E2E 107건 (API·dev 서버 자동 기동)
+npm run test:e2e     # Playwright E2E 111건 (API·dev 서버 자동 기동)
 npm run test:e2e:sqlite # 같은 E2E 를 운영 엔진(PH_STORE=sqlite)으로 — CI 는 둘 다 돈다
 npm run verify       # 위 전부 + 빌드 — 변경 후 이것을 돌려라
 ```
@@ -47,8 +47,8 @@ npx playwright test -g "프로젝트"                   # by test-title substrin
 npx playwright test --headed --debug                # watch it / step through
 ```
 
-**변경 후에는 `npm run verify`** — 합격 기준은 lint 0 error · unit 588/588 · server 267/267 ·
-빌드 성공 · **E2E 107/107 (skip 0)**.
+**변경 후에는 `npm run verify`** — 합격 기준은 lint 0 error · unit 591/591 · server 267/267 ·
+빌드 성공 · **E2E 111/111 (skip 0)**.
 
 **테스트는 지워서 초록불을 만들 수 있다** — 그래서 CI 에 개수 바닥(`scripts/assert-test-floor.mjs`,
 unit/server/e2e 별)과 커버리지 임계값(`vitest.config.js`)이 함께 걸려 있다. 숫자를 낮추는 커밋은
@@ -640,6 +640,39 @@ Dependencies now live at the range level.
   the embedded `milestoneLabels.js`), and the two columns take it from **one** number: while the
   bars started at a constant 52px and the name list at 24px, every name in every exported chart
   sat 28px above its own bar.
+
+### 지원 폭은 데스크톱 1024px 이상이다 — 그리고 그 폭을 매번 잰다
+
+2026-08-20 UI 결함 사냥에서 셋이 나왔고, 사용자가 지원 범위를 **1024px 이상**으로 확정했다.
+그래서 좁은 폭의 붕괴는 **고치지 않았다**. 무엇이 깨지는지만 적어 둔다: 700px 아래에서
+`.toolbar-left`(`flex-shrink:0`) 안의 `.view-toggle`(`flex-shrink:1` + `overflow:hidden`)이
+폭 2px 로 접히고, 넘친 버튼이 확대/축소 버튼과 같은 y 에서 겹쳐 **포인터를 가로챈다**(뷰 전환이
+클릭을 못 받는다). 375px 에서는 헤더 버튼 여섯 개가 화면 밖으로 나가고 도달할 스크롤도 없다.
+이 범위를 넓히려면 그 두 가지를 고치고 `MIN_SUPPORTED_WIDTH` 를 낮춰라 — 그 상수가 곧 약속이다.
+
+검사는 `tests/e2e/a11y-audit.spec.js` 넷이다. **범위를 좁히는 결정과 그 범위가 성립하는지 보는
+검사는 함께 있어야 한다** — 지원한다고 말한 폭을 아무것도 재지 않으면 다음 레이아웃 변경이
+1024 를 깨도 초록불이다(기존 E2E 는 기본 뷰포트 1280 하나에서만 돈다).
+
+- **흰 글자는 `--color-primary` 로는 안 된다.** #4A90E2 위의 흰 글자는 3.29:1 로 AA(4.5:1)
+  미달이다 — 활성 버튼·배지 아홉 곳이 그랬다. 흰 글자를 담는 **배경**만
+  `--color-primary-strong`(#3E78BD, 4.54:1)을 쓰고, 그것의 hover 는 `--color-primary-dark`,
+  테두리·포커스링처럼 글자를 담지 않는 곳은 `--color-primary` 그대로다. `font-weight: 600` 은
+  WCAG 의 "굵게"가 아니다(700 이어야 하고 크기도 18.66px 이상) — 그 착각이 3.29 를 통과시킬 뻔했다.
+- **회색 텍스트 토큰은 그 색이 실제로 앉는 가장 밝은 표면을 기준으로 정했다.** 흰 배경만 보고
+  고르면 `#F8F9FA`·`#E9ECEF` 카드 위에서 다시 미달이 된다(라이트 tertiary/muted `#626A72`,
+  secondary `#565D64`, 다크 tertiary/muted `#98A5B1`).
+- **레일 배지의 밝기는 취향이 아니라 대비의 결과다.** `projectRail.js` 의 `projectLightness(hue)`
+  가 색조별로 흰 글자가 4.5:1 이 되는 **가장 밝은** 밝기를 찾는다. 모든 색조에 45% 를 쓰던 동안
+  360 중 183 개(노랑·초록·시안)가 미달이었고 노랑은 2.66:1 이었다 — 눈으로는 "노란 배지"라
+  결함처럼 보이지 않아서 단위테스트가 색조 360 개를 전수로 본다.
+- **포인터 타깃 24×24 는 `button.icon`(36×36)이 어디서 이기는지 알아야 판정할 수 있다.** 표의
+  펼침 토글은 `.expand-toggle`(20px)이 아니라 그 규칙이 이겨서 이미 36px 였고, 실제로 20×20 으로
+  그려지던 것은 **타임라인 이름 목록**의 토글 하나였다. 그래서 그 가드는 표와 타임라인 양쪽을
+  본다 — 한쪽만 보면 그 하나를 놓친다.
+- **대비는 CSS transition 이 끝난 뒤에 재라.** 전환 중간값을 잡으면 4.40:1 / `font-weight: 598`
+  같은 유령 결함이 나온다. 배경은 조상과 **알파 합성**해야 한다 — `rgba(0,0,0,0.016)` 을 그대로
+  읽으면 검정 위 검정 글자로 1.36:1 이 나온다(실제로 나왔고, 내가 만든 오탐이었다).
 
 ### Tree-update invariants (critical for correctness)
 
