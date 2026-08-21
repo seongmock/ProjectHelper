@@ -102,7 +102,7 @@ VITE_API_TARGET=http://localhost:3100 npm run dev  # 프론트엔드
 npm run lint         # ESLint
 npm run test:unit        # 단위 591건 (도메인 순수함수 + XSS 회귀)
 npm run test:server      # 서버 267건 (검증·서비스·저장소·인증·감사)
-npm run test:e2e         # Playwright E2E 111건 (API·dev 서버 자동 기동)
+npm run test:e2e         # Playwright E2E 112건 (API·dev 서버 자동 기동)
 npm run test:e2e:sqlite  # 같은 E2E 를 운영 저장 엔진(SQLite)으로 — CI 는 둘 다 돈다
 npm run verify           # 위 전부 + 빌드
 ```
@@ -120,7 +120,7 @@ npm run build
 - **Express** (`server/`) - REST API + 영속화 (JSON 파일이 기본, 운영은 `PH_STORE=sqlite`)
 - **localStorage** - 오프라인 캐시 (서버 장애 시 폴백)
 - **Caddy** - HTTPS 리버스 프록시 (Basic 인증은 현재 일시 제거)
-- **Playwright / Vitest / node:test** - E2E 111건 + 단위 591건 + 서버 267건
+- **Playwright / Vitest / node:test** - E2E 112건 + 단위 591건 + 서버 267건
 
 ## 📖 사용법
 

@@ -361,6 +361,8 @@ function App() {
                 // 만들기는 관리 모달의 입력란 하나뿐이다 — 레일에 두 번째 입력을 두면
                 // 같은 일을 하는 UI 가 다시 둘이 된다
                 onCreate={() => ui.openProjectManager('projects')}
+                // 활성 프로젝트를 누르면 전환할 곳이 없다 — 무반응 대신 같은 모달을 연다
+                onManage={() => ui.openProjectManager('projects')}
             />
 
             <div className="app-shell">

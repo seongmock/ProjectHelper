@@ -14,6 +14,15 @@ import './ProjectRail.css';
 //
 // 만들기·이름 변경·삭제는 여기 두지 않는다 — 프로젝트 관리 모달이 그 자리다. `+` 는
 // 그 모달의 프로젝트 탭을 열 뿐이고, 입력란은 앱을 통틀어 하나다.
+//
+// 반응 없는 클릭은 두지 않는다. 활성 프로젝트를 누르면 전환할 곳이 없으므로(그것이
+// 지금 열려 있는 프로젝트다) 예전에는 아무 일도 일어나지 않았고 — 커서는 pointer,
+// hover 배경도 바뀌는데 눌러도 무반응이니 고장으로 읽혔다. 프로젝트가 하나뿐인
+// 배포에서는 레일의 **모든** 프로젝트 클릭이 그랬다. 이제 관리 모달을 연다:
+// 그 자리에서 이름을 바꾸거나 새로 만들 수 있으니 사용자가 원했을 다음 동작이다.
+// 브랜드 줄도 같은 이유로 클릭 대상이다 — 접힌 레일에서는 이름이 안 보이므로
+// (`.rail-label` 이 display:none) 무엇을 보고 있는지 알려면 먼저 펴야 하고,
+// 그 토글이 레일 맨 아래에만 있으면 상단을 누른 사람은 또 무반응을 만난다.
 function ProjectRail({
     projects = [],
     activeProjectId,
@@ -21,6 +30,7 @@ function ProjectRail({
     onToggleExpanded,
     onSwitch,
     onCreate,
+    onManage,
 }) {
     return (
         <nav
@@ -28,10 +38,17 @@ function ProjectRail({
             data-testid="project-rail"
             aria-label="프로젝트"
         >
-            <div className="rail-brand" title="프로젝트 타임라인 관리">
+            <button
+                type="button"
+                className="rail-brand"
+                data-testid="rail-brand"
+                title={`프로젝트 타임라인 관리 (${expanded ? '레일 접기' : '레일 펴기'})`}
+                aria-expanded={expanded}
+                onClick={onToggleExpanded}
+            >
                 <ChartNoAxesGantt size={20} aria-hidden="true" />
                 <span className="rail-label">프로젝트 타임라인 관리</span>
-            </div>
+            </button>
 
             <div className="rail-projects" data-testid="rail-project-list">
                 {projects.map(project => (
@@ -43,7 +60,9 @@ function ProjectRail({
                         data-project-id={project.id}
                         title={project.name}
                         aria-current={project.id === activeProjectId ? 'true' : undefined}
-                        onClick={() => project.id !== activeProjectId && onSwitch(project.id)}
+                        onClick={() => (project.id === activeProjectId
+                            ? onManage()
+                            : onSwitch(project.id))}
                     >
                         <span
                             className="rail-badge"

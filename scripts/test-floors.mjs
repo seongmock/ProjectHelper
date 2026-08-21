@@ -10,5 +10,5 @@
 export const FLOOR = {
     unit: 591,      // vitest — tests/unit/**
     server: 267,    // node:test — server/test/**
-    e2e: 111,       // playwright — tests/e2e/** (skip 0 은 별도 게이트)
+    e2e: 112,       // playwright — tests/e2e/** (skip 0 은 별도 게이트)
 };

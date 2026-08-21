@@ -146,6 +146,31 @@ test('레일: 전환은 클릭 하나, 접기/펴기는 새로고침 뒤에도 �
     await expect(page.getByTestId('project-rail')).not.toHaveClass(/is-expanded/);
 });
 
+// 반응 없는 클릭은 고장으로 읽힌다. 활성 프로젝트에는 전환할 곳이 없고, 접힌 레일에서는
+// 브랜드 줄이 무엇인지도 안 보인다 — 둘 다 예전에는 눌러도 아무 일이 없었다. 프로젝트가
+// 하나뿐인 배포에서는 레일의 모든 클릭이 그랬다.
+test('레일: 눌러서 아무 일도 안 일어나는 자리가 없다', async ({ page }) => {
+    // 프로젝트가 하나뿐인 상태 — 사용자가 실제로 마주친 화면이다
+    await expect(page.getByTestId('rail-project')).toHaveCount(1);
+    const active = page.getByTestId('rail-project').first();
+    await expect(active).toHaveClass(/is-active/);
+
+    // 활성 프로젝트 클릭 → 전환이 아니라 관리 모달(이름 변경·새로 만들기가 거기 있다)
+    await active.click();
+    await expect(page.getByTestId('pm-panel-projects')).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(page.getByTestId('pm-panel-projects')).toHaveCount(0);
+
+    // 브랜드 줄 = 레일 토글. 접힌 레일에서 이름을 보려면 먼저 펴야 하는데, 그 토글이
+    // 맨 아래에만 있으면 상단을 누른 사람은 또 무반응을 만난다.
+    await expect(page.getByTestId('project-rail')).not.toHaveClass(/is-expanded/);
+    await page.getByTestId('rail-brand').click();
+    await expect(page.getByTestId('project-rail')).toHaveClass(/is-expanded/);
+    await expect(active.locator('.rail-label')).toBeVisible();
+    await page.getByTestId('rail-brand').click(); // 설정은 전역이다 — 되돌린다
+    await expect(page.getByTestId('project-rail')).not.toHaveClass(/is-expanded/);
+});
+
 test('AI가 REST로 만든 프로젝트+계획 → 레일에서 전환해 확인', async ({ page, request }) => {
     // 외부(AI)가 프로젝트 생성 + 계획 주입
     const created = await (await request.post('/api/projects', { data: { name: 'AI 프로젝트' } })).json();

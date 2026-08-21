@@ -28,7 +28,7 @@ npm run lint         # ESLint 9 (flat config)
 npm run test:unit    # Vitest — 도메인 순수함수 + XSS 회귀 (591건)
 npm run test:coverage # 위 + 커버리지 게이트 (vitest.config.js 의 임계값 — CI 와 같은 조건)
 npm run test:server  # node:test — 검증·서비스·저장소·레지스트리·감사·의존성·인증·메트릭 (267건)
-npm run test:e2e     # Playwright E2E 111건 (API·dev 서버 자동 기동)
+npm run test:e2e     # Playwright E2E 112건 (API·dev 서버 자동 기동)
 npm run test:e2e:sqlite # 같은 E2E 를 운영 엔진(PH_STORE=sqlite)으로 — CI 는 둘 다 돈다
 npm run verify       # 위 전부 + 빌드 — 변경 후 이것을 돌려라
 ```
@@ -48,7 +48,7 @@ npx playwright test --headed --debug                # watch it / step through
 ```
 
 **변경 후에는 `npm run verify`** — 합격 기준은 lint 0 error · unit 591/591 · server 267/267 ·
-빌드 성공 · **E2E 111/111 (skip 0)**.
+빌드 성공 · **E2E 112/112 (skip 0)**.
 
 **테스트는 지워서 초록불을 만들 수 있다** — 그래서 CI 에 개수 바닥(`scripts/assert-test-floor.mjs`,
 unit/server/e2e 별)과 커버리지 임계값(`vitest.config.js`)이 함께 걸려 있다. 숫자를 낮추는 커밋은
@@ -514,7 +514,7 @@ Dependencies now live at the range level.
   프로젝트가 있다는 사실조차 화면에 없었다 — 계층 없는 단일 화면이라 프로젝트가 늘면
   무너진다. 레일이 목록을 상시로 들고 있으므로 전환은 클릭 하나이고, 헤더는 "이 프로젝트의
   무엇"만 말하는 컨텍스트 바가 된다(`h1.header-title` = **프로젝트 이름**, 앱 이름은 레일
-  상단 `.rail-brand` 로 갔다 — 이 두 자리를 되돌리면 계층이 다시 사라진다). 네 가지가 규약이다:
+  상단 `.rail-brand` 로 갔다 — 이 두 자리를 되돌리면 계층이 다시 사라진다). 다섯 가지가 규약이다:
   ① 접힘(아이콘만, 56px)이 기본이고 폭은 `railExpanded` 설정으로 지속된다. ② 접힌 레일에는
   이름이 들어갈 자리가 없으므로 배지 색은 **id 에서**(이름을 고쳐도 색이 안 바뀐다), 글자는
   **이름에서** 뽑는다(`features/projects/projectRail.js`, 순수). ③ 레일은 만들지 않는다 —
@@ -522,6 +522,16 @@ Dependencies now live at the range level.
   폴링이 함께 한다.** 드롭다운은 "열 때" 다시 읽으면 됐지만 상시로 떠 있는 레일에는 그
   순간이 없다 — 갱신하지 않으면 AI가 REST로 만든 프로젝트가 새로고침 전까지 보이지 않는다
   (그 폴링의 미저장 편집 가드보다 **앞**에 둔다; 목록은 편집 상태와 무관하다).
+  ⑤ **레일에는 눌러도 아무 일이 없는 자리가 없다.** 활성 프로젝트는 전환할 곳이 없어서
+  `project.id !== activeProjectId && onSwitch(...)` 로 무동작이었고, 브랜드 줄은 `<div>`
+  라 애초에 클릭 대상이 아니었다 — 그런데 활성 항목도 `cursor: pointer` 와 hover 배경을
+  그대로 갖고 있었으니, 사용자는 눌러 보고 **고장으로 읽었다**(실제 보고: 2026-08-21).
+  프로젝트가 하나뿐인 배포에서는 레일의 **모든** 프로젝트 클릭이 그랬다. 이제 활성 프로젝트는 관리 모달의 프로젝트 탭을 열고(이름 변경·새로 만들기가
+  거기 있으니 원했을 다음 동작이다), 브랜드 줄은 `rail-toggle` 과 같은 접기/펴기 버튼이다
+  — 접힌 레일에서 이름을 보려면 먼저 펴야 하는데 그 토글이 맨 아래에만 있으면 상단을 누른
+  사람은 또 무반응을 만난다. 무동작을 커서로 알리는 쪽(`cursor: default`)도 답이지만,
+  **눌러서 쓸 만한 일이 있으면 그것을 하는 편이 낫다.** 가드는 `projects.spec.js` 의
+  *"눌러서 아무 일도 안 일어나는 자리가 없다"* — 프로젝트가 하나인 상태에서 돈다.
 - **Window-level keyboard policy lives in `src/shared/keyboard.js`** — both `window` keydown
   listeners (global shortcuts in `App.jsx`, selected-task keys in `useTaskKeyboard`) get their
   guards from it, because a guard that exists in two places gets fixed in one. The pure
