@@ -1031,8 +1031,8 @@ test.describe('접힌 가지의 요약 막대', () => {
     });
 });
 
-// 첫 행 위의 마일스톤 라벨이 날짜 헤더를 덮지 않도록 타임라인 위쪽에 여백을 뒀다
-// (`--timeline-label-headroom`). 그 여백은 **세 곳이 같이** 내려가야 의미가 있다:
+// 첫 행 라벨을 손으로 위에 두면 날짜 헤더를 덮지 않도록 타임라인 위쪽에 여백이 생긴다
+// (`--timeline-label-headroom`, 평소엔 0). 그 여백은 **세 곳이 같이** 내려가야 의미가 있다:
 // 막대가 있는 행, 왼쪽 작업명, 그리고 절대배치라 padding 을 따라오지 않는 화살표 레이어.
 // 하나라도 빠지면 이름과 막대가, 또는 화살표와 막대가 어긋난다 — 그래서 여기서 잰다.
 test.describe('타임라인 위쪽 여백', () => {
@@ -1071,25 +1071,22 @@ test.describe('타임라인 위쪽 여백', () => {
         expect(y.top).toBeGreaterThanOrEqual(y.contentTop);
     });
 
-    // 여백이 42px 상수이던 동안은 1층까지만 덮었다. 라벨은 겹치지 않으려고 층을 위로
-    // 무한히 쌓으므로, 한 지점에 다섯 개가 몰리면 2층이 생기고 그 라벨이 sticky 한 날짜
-    // 헤더 밑으로 들어가 잘렸다 — 겹침 회피를 지킬수록 헤더를 더 침범하는 모순이었다.
-    test('첫 행에 라벨이 여러 층 쌓여도 헤더를 덮지 않는다', async ({ page, request }) => {
+    // 첫 행의 auto 라벨은 **아래로만** 쌓는다(`preferBelow`) — 위로 쌓으면 그만큼 빈 여백을
+    // 늘 잡아 둬야 하고, 마일스톤이 없는 흔한 화면에서도 그 여백이 남아 첫 작업 위에 빈 줄로
+    // 보였다. 그래서 여기서 재는 것은 두 가지다: 다섯 개가 한 날짜에 몰려도 여백은 0 이고,
+    // 손으로 'top' 을 고른 때는(그때만) 여백이 생겨 라벨이 헤더 밑으로 들어가지 않는다.
+    test('첫 행 라벨은 아래로 쌓여 여백을 만들지 않고, 손으로 위에 두면 자리를 잡는다', async ({ page, request }) => {
         await page.waitForTimeout(2500); // 초기 저장 안정화
         const { data } = await (await request.get('/api/data')).json();
         const target = data.find(t => (t.timeRanges || []).length > 0);
         const day = target.timeRanges[0].startDate;
-        // 같은 날짜에 몰아넣어 층을 강제한다(위·아래 번갈아 → 다섯이면 위 2층까지)
-        target.milestones = Array.from({ length: 5 }, (_, i) => ({
+        // 같은 날짜에 몰아넣어 층을 강제한다(첫 행이므로 아래로만 쌓인다)
+        const stack = (labelPosition) => Array.from({ length: 5 }, (_, i) => ({
             id: `tier-ms-${i}`, date: day, label: `층 쌓기 마일스톤 ${i}`,
             color: '#e74c3c', shape: 'diamond',
+            ...(i === 0 && labelPosition ? { labelPosition } : {}),
         }));
-        expect((await request.post('/api/data', { data })).ok()).toBe(true);
-
-        await page.reload();
-        await expect(page.getByText('데이터 불러오는 중')).toHaveCount(0);
-
-        const y = await page.evaluate(() => {
+        const measure = () => page.evaluate(() => {
             const rows = [...document.querySelectorAll('.timeline-row')];
             const labels = [...rows[0].querySelectorAll('.milestone-label')];
             return {
@@ -1100,8 +1097,24 @@ test.describe('타임라인 위쪽 여백', () => {
             };
         });
 
+        target.milestones = stack(null);
+        expect((await request.post('/api/data', { data })).ok()).toBe(true);
+        await page.reload();
+        await expect(page.getByText('데이터 불러오는 중')).toHaveCount(0);
+
+        let y = await measure();
         expect(y.count).toBeGreaterThanOrEqual(5);
-        expect(y.padTop).toBeGreaterThan(42);       // 여백이 층수를 따라 늘었다
+        expect(y.padTop).toBe(0);                   // 위를 안 쓰므로 비워 둘 자리도 없다
+        expect(y.top).toBeGreaterThanOrEqual(y.headerBottom);
+
+        target.milestones = stack('top');
+        expect((await request.post('/api/data', { data })).ok()).toBe(true);
+        await page.reload();
+        await expect(page.getByText('데이터 불러오는 중')).toHaveCount(0);
+
+        y = await measure();
+        expect(y.count).toBeGreaterThanOrEqual(5);
+        expect(y.padTop).toBeGreaterThan(0);        // 사용자가 위를 골랐으니 자리를 잡는다
         expect(y.top).toBeGreaterThanOrEqual(y.headerBottom);
     });
 });
@@ -1110,7 +1123,22 @@ test.describe('PNG 캡처 높이', () => {
     // 캡처 높이는 DOM 이 아니라 데이터로 계산된다(useTimelineCapture) — 그래서 레이아웃이
     // 바뀌면 조용히 어긋난다. 실제로 첫 행 위 라벨 여백이 생기자 마지막 행이 통째로 잘렸다.
     // **앱과 같은 함수**에 실측 입력을 넣어, 그림이 마지막 행 바닥까지 덮는지 본다.
-    test('계산된 높이가 마지막 행 바닥까지 덮는다', async ({ page }) => {
+    //
+    // 여백을 **일부러 만들어 놓고** 잰다: 첫 행 auto 라벨은 이제 아래로만 쌓여서 여백이 0 이고,
+    // 0 인 화면에서는 이 검사가 아무것도 보증하지 않는다(잘림은 여백이 있을 때만 일어난다).
+    // 여백이 생기는 유일한 경로가 손으로 고른 'top' 이므로 그것을 재현한다.
+    test('계산된 높이가 마지막 행 바닥까지 덮는다', async ({ page, request }) => {
+        await page.waitForTimeout(2500); // 초기 저장 안정화
+        const { data } = await (await request.get('/api/data')).json();
+        const target = data.find(t => (t.timeRanges || []).length > 0);
+        target.milestones = [{
+            id: 'cap-ms', date: target.timeRanges[0].startDate, label: '위로 올린 라벨',
+            color: '#e74c3c', shape: 'diamond', labelPosition: 'top',
+        }];
+        expect((await request.post('/api/data', { data })).ok()).toBe(true);
+        await page.reload();
+        await expect(page.getByText('데이터 불러오는 중')).toHaveCount(0);
+
         const m = await page.evaluate(() => {
             const cap = document.querySelector('.timeline-container');
             const content = cap.querySelector('.timeline-content');

@@ -10,6 +10,8 @@ import './TimelineBar.css';
 
 function TimelineBar({
     task,
+    // 첫 행 라벨은 아래를 먼저 쓴다 — 위로 쌓으면 그만큼 빈 여백을 늘 잡아 둬야 한다
+    isFirstRow = false,
     // 접혀 있는 가지의 요약 (rollupBars.resolveRollup) — 접혀 있지 않으면 undefined
     rollup = null,
     level,
@@ -313,7 +315,7 @@ function TimelineBar({
         // 무엇이 보이는지는 TimelineView 의 여백 계산과 **같은 함수**로 정한다
         const visible = visibleMilestoneItems(task, { start: startDate, end: endDate }, containerWidth);
 
-        const placements = placeMilestoneLabels(visible, containerWidth);
+        const placements = placeMilestoneLabels(visible, containerWidth, { preferBelow: isFirstRow });
 
         return task.milestones.map((milestone) => {
             const currentDate = (draggingMilestone === milestone.id && draggedMilestoneDate)

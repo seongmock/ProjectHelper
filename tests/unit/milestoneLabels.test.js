@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
     placeMilestoneLabels, milestoneLabelStyle, estimateLabelWidth,
     LABEL_GAP, LABEL_TIER_STEP, LABEL_BASE_OFFSET, MARKER_SCALE,
-    labelHeadroom, HEADROOM_FLOOR,
+    labelHeadroom,
 } from '../../src/features/timeline/milestoneLabels.js';
 
 const WIDTH = 1000;
@@ -227,43 +227,68 @@ describe('LABEL_TIER_STEP 은 실제 라벨 높이보다 넓다', () => {
 });
 
 
-// 층은 위로 무한히 쌓이는데 그 위에 비워 두는 자리는 42px(1층) 상수였다 — "auto 는 겹치지
-// 않는다"를 지킬수록 라벨이 sticky 한 날짜 헤더를 더 침범하는 모순이 있었다. 여백은 실제로
-// 쌓인 층수를 따라간다.
-describe('labelHeadroom — 여백이 실제 층수를 따라간다', () => {
-    const headroomFor = (count) => {
-        // 같은 x 에 몰아넣으면 층이 강제로 쌓인다(위·아래 번갈아 → n 개면 ⌈n/2⌉ 층)
-        const items = Array.from({ length: count }, (_, i) => ms(`m${i}`, 500, `마일스톤 ${i}`));
-        return labelHeadroom(placeMilestoneLabels(items, WIDTH));
-    };
+// 여백은 위로 쌓인 층수를 따라간다 — 그리고 첫 행은 애초에 위로 쌓지 않는다.
+// 예전에는 42px(1층)을 **늘** 깔았다: 마일스톤이 하나도 없는 화면에도 빈 줄이 남았고,
+// 층은 위로 무한히 쌓이는데 자리는 한 층뿐이라 "auto 는 겹치지 않는다"를 지킬수록
+// 라벨이 sticky 한 날짜 헤더를 더 침범하는 모순도 있었다.
+describe('labelHeadroom — 첫 행은 아래로 쌓고, 위로 쌓을 때만 자리를 잡는다', () => {
+    // 같은 x 에 몰아넣으면 층이 강제로 쌓인다(위·아래 번갈아 → n 개면 ⌈n/2⌉ 층)
+    const items = (count, position) => Array.from({ length: count },
+        (_, i) => ms(`m${i}`, 500, `마일스톤 ${i}`, position));
+    const headroomFor = (count, options) =>
+        labelHeadroom(placeMilestoneLabels(items(count), WIDTH, options));
 
-    it('라벨이 없으면 바닥값 그대로다', () => {
-        expect(labelHeadroom(placeMilestoneLabels([], WIDTH))).toBe(HEADROOM_FLOOR);
+    it('첫 행(preferBelow)은 라벨이 몇 개든 위쪽 자리를 요구하지 않는다', () => {
+        for (const n of [0, 1, 3, 5, 9]) {
+            expect(headroomFor(n, { preferBelow: true })).toBe(0);
+        }
     });
 
-    it('1층까지는 바닥값으로 충분하다', () => {
-        expect(headroomFor(1)).toBe(HEADROOM_FLOOR);
-        expect(headroomFor(3)).toBe(HEADROOM_FLOOR); // 위 0·1층, 아래 0층
+    it('라벨이 없으면 여백도 없다 — 빈 줄이 늘 보이던 자리다', () => {
+        expect(labelHeadroom(placeMilestoneLabels([], WIDTH))).toBe(0);
     });
 
-    it('2층이 생기면(라벨 5개가 겹칠 때) 여백이 한 층만큼 늘어난다', () => {
-        expect(headroomFor(5)).toBe(HEADROOM_FLOOR + LABEL_TIER_STEP);
-        expect(headroomFor(7)).toBe(HEADROOM_FLOOR + 2 * LABEL_TIER_STEP);
-    });
-
-    it('여백은 줄어들지 않는다 — 라벨 하나를 옮길 때마다 화면이 뛰면 안 된다', () => {
+    it('위로 쌓이면 층수만큼 자리를 잡는다', () => {
+        expect(headroomFor(1)).toBe(18);                        // 10 + 4 + 22 − 20 + 2
+        expect(headroomFor(5)).toBe(18 + 2 * LABEL_TIER_STEP);  // 위 2층까지 쌓인다
         expect(headroomFor(9)).toBeGreaterThan(headroomFor(1));
-        expect(headroomFor(1)).toBeGreaterThanOrEqual(HEADROOM_FLOOR);
     });
 
     it('아래로만 내려간 라벨은 위쪽 여백을 요구하지 않는다', () => {
-        const items = Array.from({ length: 5 }, (_, i) => ms(`m${i}`, 500, `아래 ${i}`, 'bottom'));
-        expect(labelHeadroom(placeMilestoneLabels(items, WIDTH))).toBe(HEADROOM_FLOOR);
+        expect(labelHeadroom(placeMilestoneLabels(items(5, 'bottom'), WIDTH))).toBe(0);
+    });
+
+    it('첫 행이라도 손으로 top 을 고르면 그만큼 자리를 잡는다 — 잘리면 안 된다', () => {
+        const manual = placeMilestoneLabels(items(1, 'top'), WIDTH, { preferBelow: true });
+        expect(labelHeadroom(manual)).toBe(18);
     });
 
     it('여백은 2층 라벨의 윗변보다 높다 (헤더를 덮지 않는다)', () => {
         // 행 중앙 기준 라벨 윗변 = 마커 반높이 10 + 기준 4 + 층 × 24 + 라벨 22
         const topOfTier2 = 10 + LABEL_BASE_OFFSET + 2 * LABEL_TIER_STEP + 22;
         expect(headroomFor(5) + 20).toBeGreaterThanOrEqual(topOfTier2); // +20 = 행 반높이
+    });
+});
+
+// 첫 행 라벨이 아래로 간다는 것이 이 변경의 본체다 — 위 여백이 0 이 되는 것은 그 결과다.
+describe('preferBelow — 첫 행 auto 는 아래로만 쌓는다', () => {
+    const items = (count) => Array.from({ length: count },
+        (_, i) => ms(`m${i}`, 500, `마일스톤 ${i}`));
+
+    it('preferBelow 면 0층이 bottom 이다', () => {
+        const p = placeMilestoneLabels([ms('a', 500, '첫 행')], WIDTH, { preferBelow: true });
+        expect(p.get('a')).toMatchObject({ position: 'bottom', tier: 0 });
+    });
+
+    it('기본(다른 행)은 그대로 top 이 0층이다', () => {
+        const p = placeMilestoneLabels([ms('a', 500, '아랫 행')], WIDTH);
+        expect(p.get('a')).toMatchObject({ position: 'top', tier: 0 });
+    });
+
+    it('겹쳐도 아래로만 층을 쌓는다 — 겹침 회피는 그대로다', () => {
+        const p = placeMilestoneLabels(items(4), WIDTH, { preferBelow: true });
+        const slots = [...p.values()].map(v => `${v.position}:${v.tier}`);
+        expect(new Set(slots).size).toBe(4);            // 아무도 같은 칸을 쓰지 않는다
+        expect(slots.every(s => s.startsWith('bottom:'))).toBe(true);
     });
 });

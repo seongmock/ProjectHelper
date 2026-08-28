@@ -38,11 +38,6 @@ export const MARKER_HALF = 10;
 export const LABEL_HEIGHT = 22;
 export const ROW_HALF = 20;
 export const HEADROOM_MARGIN = 2; // 헤더 경계에 딱 붙지 않도록
-// 1층까지 덮는 기본값. `.timeline-container` 의 `--timeline-label-headroom` 과 같은 수이고,
-// 여기서는 **바닥값**이다 — 라벨이 적다고 여백이 줄었다 늘었다 하면 마일스톤을 하나 옮길
-// 때마다 화면 전체가 위아래로 뛴다. 늘어나기만 한다.
-export const HEADROOM_FLOOR = 42;
-
 /**
  * 배치 결과가 요구하는 위쪽 여백(px). `--timeline-label-headroom` 이 이 값이 된다.
  *
@@ -51,16 +46,22 @@ export const HEADROOM_FLOOR = 42;
  * 무한히 쌓이도록 만들어 놓고(겹침 회피) 그 위에 자리는 한 층만 비워 둔 셈이라,
  * "auto 는 겹치지 않는다"를 지킬수록 헤더를 더 침범하는 모순이 있었다.
  * 아래(bottom)·좌우 라벨은 위로 올라가지 않으므로 top 층만 센다.
+ *
+ * **바닥값은 없다(0).** 예전에는 42px 을 항상 깔았다 — 라벨이 적다고 여백이 줄었다
+ * 늘었다 하면 화면이 위아래로 뛴다는 이유였는데, 첫 행에 마일스톤이 하나도 없는 흔한
+ * 화면에서 42px 짜리 빈 줄이 늘 보였고 그것이 결함으로 읽혔다(실제 보고: 2026-08-26).
+ * 대신 첫 행의 auto 배치가 아래를 먼저 쓰므로(`preferBelow`) 여백은 애초에 필요하지
+ * 않고, 남는 경우는 사용자가 첫 행 라벨을 손으로 'top' 에 둔 때뿐이다 — 그때 뛰는 것은
+ * 사용자 자신의 조작이다.
  */
 export function labelHeadroom(placements) {
     let maxTier = -1;
     for (const p of (placements?.values?.() ?? [])) {
         if (p.position === 'top') maxTier = Math.max(maxTier, p.tier ?? 0);
     }
-    const needed = maxTier < 0 ? 0
-        : MARKER_HALF + LABEL_BASE_OFFSET + maxTier * LABEL_TIER_STEP
-            + LABEL_HEIGHT - ROW_HALF + HEADROOM_MARGIN;
-    return Math.max(HEADROOM_FLOOR, needed);
+    if (maxTier < 0) return 0;
+    return Math.max(0, MARKER_HALF + LABEL_BASE_OFFSET + maxTier * LABEL_TIER_STEP
+        + LABEL_HEIGHT - ROW_HALF + HEADROOM_MARGIN);
 }
 
 // 한글은 라틴 문자보다 넓다. 정확한 측정은 DOM 이 필요하고(그러면 순수함수가 아니다),
@@ -100,9 +101,21 @@ function clampInterval([start, end], containerWidth) {
 }
 
 // auto 가 시도하는 칸의 순서: 위 0층 → 아래 0층 → 위 1층 → 아래 1층 → …
-// 위를 먼저 보는 것은 기존 동작과 같다(라벨은 관습적으로 마커 위에 붙는다).
-function* autoSlots() {
+// 위를 먼저 보는 것은 관습이다(라벨은 마커 위에 붙는다).
+//
+// **첫 행은 아래만 쓴다**(`preferBelow`). 첫 행 위에는 sticky 한 날짜 헤더밖에 없어서, 위로
+// 쌓으려면 스크롤 영역에 그만큼 빈 여백을 미리 잡아 둬야 한다 — 마일스톤이 없는 화면에서도
+// 그 여백은 남으므로 늘 빈 줄이 보였다. 위·아래를 번갈아 쓰면 라벨 둘만 겹쳐도 둘째 것이
+// 위로 올라가 여백이 되살아나므로, 번갈아 쓰는 대신 **아래로만** 쌓는다. 그래야 "첫 행은
+// 위 자리를 요구하지 않는다"가 조건 없이 성립한다. 대가는 첫 행 라벨이 아래 행 영역으로
+// 내려온다는 것인데, 그것은 다른 행들이 이미 하는 일이다. 위로 올리고 싶으면 손으로
+// 'top' 을 고른다 — 그때만 여백이 생긴다.
+function* autoSlots(preferBelow) {
     for (let tier = 0; ; tier++) {
+        if (preferBelow) {
+            yield { position: 'bottom', tier };
+            continue;
+        }
         yield { position: 'top', tier };
         yield { position: 'bottom', tier };
     }
@@ -114,9 +127,10 @@ const overlaps = (a, b) => a.start < b.end && a.end > b.start;
 /**
  * @param {Array<{id, x, label, labelPosition}>} items  화면에 보이는 마일스톤들
  * @param {number} containerWidth  바 컨테이너 폭(px)
+ * @param {{preferBelow?: boolean}} [options]  첫 행이면 preferBelow — 위쪽 여백을 안 쓴다
  * @returns {Map<string, {position, tier, shiftX, maxWidth}>}
  */
-export function placeMilestoneLabels(items, containerWidth) {
+export function placeMilestoneLabels(items, containerWidth, options) {
     const result = new Map();
     if (!Array.isArray(items) || items.length === 0) return result;
 
@@ -144,7 +158,7 @@ export function placeMilestoneLabels(items, containerWidth) {
     }
 
     for (const m of auto) {
-        for (const { position, tier } of autoSlots()) {
+        for (const { position, tier } of autoSlots(options?.preferBelow)) {
             const [start, end] = baseInterval(position, m.x, m.width);
             const { shiftX, maxWidth } = clampInterval([start, end], containerWidth);
             const interval = { start: start + shiftX, end: end + shiftX };

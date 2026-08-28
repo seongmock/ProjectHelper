@@ -861,9 +861,9 @@ ${inlineModuleSource(milestoneShapesSource)}
             // Read Row Height from CSS to ensure sync
             const rowHeightCss = getComputedStyle(root).getPropertyValue('--row-height').trim();
             const ROW_HEIGHT = parseInt(rowHeightCss, 10) || 40;
-            // 첫 행 위로도 라벨이 층을 쌓는다 — 여백이 없으면 컨테이너 위로 잘려 나간다.
-            // 몇 층까지 쌓이는지는 데이터가 정하므로(같은 지점에 다섯 개면 2층) 상수 52px 은
-            // **바닥값**이고, 그 위로 필요한 만큼은 앱과 **같은 규칙**이 정한다(labelHeadroom).
+            // 첫 행 라벨이 **위로** 쌓일 때만 여백이 더 필요하다. 앱과 같은 규칙이라
+            // 첫 행의 auto 배치는 아래를 먼저 쓰므로(preferBelow) 보통은 0 이고, 사용자가
+            // 손으로 'top' 을 고른 만큼만 늘어난다 — 판정은 앱과 **같은 함수**가 한다.
             // 작업명 열도 같은 값만큼 내려야 이름과 막대가 같은 높이에 온다.
             var firstRowItems = [];
             if (DATA[0] && DATA[0].milestones) {
@@ -876,8 +876,8 @@ ${inlineModuleSource(milestoneShapesSource)}
                     });
                 });
             }
-            var PADDING_TOP = 52 + Math.max(0,
-                labelHeadroom(placeMilestoneLabels(firstRowItems, contentWidth)) - HEADROOM_FLOOR);
+            var PADDING_TOP = 52 + labelHeadroom(
+                placeMilestoneLabels(firstRowItems, contentWidth, { preferBelow: true }));
             elTaskList.style.paddingTop = PADDING_TOP + 'px';
 
             DATA.forEach(function(task, index) {
@@ -1035,7 +1035,7 @@ ${inlineModuleSource(milestoneShapesSource)}
                         });
                     });
 
-                    var placements = placeMilestoneLabels(shownMilestones, contentWidth);
+                    var placements = placeMilestoneLabels(shownMilestones, contentWidth, { preferBelow: index === 0 });
 
                     shownMilestones.forEach(function(item) {
                         var m = item.m;

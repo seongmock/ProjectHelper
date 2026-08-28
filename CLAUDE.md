@@ -25,7 +25,7 @@ npm run dev          # Vite dev server, http://localhost:5173, hot-reload
 npm run dev:api      # Express API server (PORT env, default 3000)
 npm run build        # Production build → dist/
 npm run lint         # ESLint 9 (flat config)
-npm run test:unit    # Vitest — 도메인 순수함수 + XSS 회귀 (591건)
+npm run test:unit    # Vitest — 도메인 순수함수 + XSS 회귀 (594건)
 npm run test:coverage # 위 + 커버리지 게이트 (vitest.config.js 의 임계값 — CI 와 같은 조건)
 npm run test:server  # node:test — 검증·서비스·저장소·레지스트리·감사·의존성·인증·메트릭 (267건)
 npm run test:e2e     # Playwright E2E 112건 (API·dev 서버 자동 기동)
@@ -47,7 +47,7 @@ npx playwright test -g "프로젝트"                   # by test-title substrin
 npx playwright test --headed --debug                # watch it / step through
 ```
 
-**변경 후에는 `npm run verify`** — 합격 기준은 lint 0 error · unit 591/591 · server 267/267 ·
+**변경 후에는 `npm run verify`** — 합격 기준은 lint 0 error · unit 594/594 · server 267/267 ·
 빌드 성공 · **E2E 112/112 (skip 0)**.
 
 **테스트는 지워서 초록불을 만들 수 있다** — 그래서 CI 에 개수 바닥(`scripts/assert-test-floor.mjs`,
@@ -591,25 +591,26 @@ Dependencies now live at the range level.
   (`TimelineView`'s `tasks`, i.e. `filteredTasks`), not `allTasks`: reviving search-filtered
   tasks on an ancestor row would invert "show me only these". A connection is a fact; a filter is
   a request.
-- **Milestone labels stack upward, so the chart reserves room above its first row.**
-  `--timeline-label-headroom` (42px, declared on `.timeline-container`) is read by three rules
-  and all three must move together: `.timeline-content` (padding, moves the in-flow rows),
-  `.task-names-list` (same padding, or names stop lining up with their bars), and
-  `.dependency-layer` (`top`, because an absolutely positioned child's containing block is the
-  **padding box** — `top: 0` sits *above* the padding, so arrows would keep the old origin while
-  the rows moved). Without it the first row's tier-1 labels drew on top of the sticky date
-  header. **The 42px is only a floor** — how many tiers get stacked is a property of the data
-  (five labels colliding at one point produce tier 2), so a constant could only ever cover
-  tier 1, and the label-placement rule *"auto never overlaps"* made the encroachment worse the
-  better it worked. `labelHeadroom()` (pure, in `milestoneLabels.js`) turns the first row's
-  placements into the number, `TimelineView` measures **the first row only** — the value is the
-  scroll area's `padding-top`, and rows below it are supposed to scroll under the header — and
-  writes the variable inline; the value only ever grows (`HEADROOM_FLOOR`), because a headroom
-  that shrank when you moved one milestone would make the whole chart jump. What the first row
-  even *has* comes from `visibleMilestoneItems()` in `timelineGeometry.js`, shared with
-  `TimelineBar` so the reservation can't be computed from a different set than the one drawn.
-  `features.spec.js` measures the three-way alignment and, with five stacked labels, that the
-  topmost label clears the header — the alignment is what silently breaks.
+- **첫 행 라벨은 아래로 쌓는다 — 그래서 차트 위의 여백은 보통 0 이다.** 라벨은 관습적으로
+  마커 **위**에 붙고 겹치면 위로 층을 쌓으므로, 첫 행이 그렇게 하면 sticky 한 날짜 헤더에
+  가리지 않도록 스크롤 영역 위에 그만큼을 늘 비워 둬야 한다. 그 자리(`--timeline-label-headroom`)를
+  42px 상수로 깔아 뒀더니, **마일스톤이 하나도 없는 흔한 화면에서도 첫 작업 위에 빈 줄이
+  남았다** — 사용자가 결함으로 보고했다(2026-08-26). 그래서 `autoSlots(preferBelow)` 가 첫 행의
+  auto 배치를 **아래로만** 쌓는다(위·아래를 번갈아 쓰면 라벨 둘만 겹쳐도 둘째가 위로 올라가
+  여백이 되살아난다 — 조건 없이 성립해야 0 을 기본값으로 둘 수 있다). 대가는 첫 행 라벨이
+  아래 행 영역으로 내려오는 것인데, 그것은 다른 행들이 이미 하는 일이다. 위로 올리고 싶으면
+  인스펙터에서 `labelPosition: 'top'` 을 고르고, **그때만** 여백이 생긴다 — 화면이 뛰는 것이
+  사용자 자신의 조작이므로 바닥값(옛 `HEADROOM_FLOOR`)도 필요 없다. 값은 `labelHeadroom()`
+  (순수, `milestoneLabels.js`)이 배치 결과의 top 층수에서 뽑고, `TimelineView` 가 **첫 행만**
+  재어(그 값이 곧 스크롤 영역의 `padding-top` 이고, 아래 행들의 라벨은 헤더 밑으로 스크롤되는
+  것이 맞다) 변수를 인라인으로 덮어쓴다. 첫 행이 무엇을 갖고 있는지는 `timelineGeometry.js` 의
+  `visibleMilestoneItems()` 로 `TimelineBar` 와 공유한다 — 따로 거르면 화면에 없는 라벨을
+  기준으로 여백이 잡힌다. 그 변수는 **세 규칙이 함께** 봐야 의미가 있다: `.timeline-content`
+  (padding, 흐름 상의 행을 내린다), `.task-names-list`(같은 padding, 아니면 이름이 자기 막대와
+  어긋난다), `.dependency-layer`(`top` — 절대배치 자식의 컨테이닝 블록은 **padding box** 라
+  `top: 0` 은 padding 의 *위*에 앉는다. 행만 내려가고 화살표는 옛 원점에 남는다).
+  `features.spec.js` 가 그 세 곳의 정렬과, 첫 행에 다섯 개를 겹쳐도 여백이 0 인 것 · 손으로
+  'top' 을 고르면 여백이 생겨 헤더를 덮지 않는 것을 잰다.
 - **The PNG capture computes its height from data, so every layout change has to be told about
   it.** `useTimelineCapture` deliberately doesn't measure the live DOM — it overwrites the
   container's `overflow`/`height` to unroll the scroll area first, so a measurement taken then

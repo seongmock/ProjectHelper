@@ -201,16 +201,17 @@ const TimelineView = forwardRef(({
         handleBarDragEnd, handleMilestoneDragMove, handleMilestoneDragEnd,
     } = useBarDrag({ flatTasks, onUpdateTask, onUpdateTasks });
 
-    // 첫 행 위에 비워 둘 여백. 라벨은 층으로 겹침을 피하므로 몇 층까지 쌓이는지는
-    // 데이터에 달렸다 — CSS 의 상수(42px = 1층)만 있던 동안은 라벨이 다섯 개만 겹쳐도
-    // 2층이 생겨 그 라벨이 sticky 한 날짜 헤더 밑으로 들어갔다. 여백은 늘어나기만 한다
-    // (`HEADROOM_FLOOR`). 첫 행만 재면 되는 이유는 이것이 스크롤 영역의 padding-top 이기
-    // 때문이다 — 아래 행들의 라벨은 헤더 밑으로 스크롤되는 것이 맞다.
+    // 첫 행 위에 비워 둘 여백. 보통은 0 이다 — 첫 행의 auto 배치는 아래로만 쌓으므로
+    // (`preferBelow`) 위 자리를 요구하지 않는다. 상수 42px 을 늘 깔던 동안은 마일스톤이
+    // 하나도 없는 화면에도 첫 작업 위에 빈 줄이 남았다. 남는 경우는 사용자가 첫 행 라벨을
+    // 손으로 'top' 에 둔 때뿐이고, 그때는 층수만큼 자리를 잡아 준다. 첫 행만 재면 되는
+    // 이유는 이것이 스크롤 영역의 padding-top 이기 때문이다 — 아래 행들의 라벨은 헤더
+    // 밑으로 스크롤되는 것이 맞다.
     const labelHeadroomPx = useMemo(() => {
         const first = flatTasks[0];
         if (!first || !contentWidth) return null;
         const items = visibleMilestoneItems(first, dateRange, contentWidth);
-        return labelHeadroom(placeMilestoneLabels(items, contentWidth));
+        return labelHeadroom(placeMilestoneLabels(items, contentWidth, { preferBelow: true }));
     }, [flatTasks, dateRange, contentWidth]);
 
     const { isLinkingMode, startLinking, handleTaskClick, handleMilestoneClick } =
@@ -451,10 +452,11 @@ const TimelineView = forwardRef(({
                                 <p>{isSearching ? '검색 결과가 없습니다.' : '작업을 추가하여 타임라인을 시작하세요'}</p>
                             </div>
                         ) : (
-                            flatTasks.map((task) => (
+                            flatTasks.map((task, rowIndex) => (
                                 <TimelineBar
                                     key={task.id}
                                     task={task}
+                                    isFirstRow={rowIndex === 0}
                                     rollup={rollups.get(task.id)}
                                     level={task.level}
                                     startDate={dateRange.start}
