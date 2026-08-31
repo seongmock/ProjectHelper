@@ -2,7 +2,10 @@
 // 실행: npm run test:server  (= node --test server/test/)
 const { test, describe } = require('node:test');
 const assert = require('node:assert/strict');
-const { validate, validateTaskTree, MAX_TASKS, MAX_DEPTH } = require('../lib/validate');
+const {
+    validate, validateTaskTree, validateSettings, mergeSettings,
+    MAX_TASKS, MAX_DEPTH, MAX_SETTING_KEYS,
+} = require('../lib/validate');
 
 const task = (id, extra = {}) => ({ id, name: id, children: [], timeRanges: [], ...extra });
 
@@ -123,5 +126,54 @@ describe('validate — 필드 단위 검증', () => {
     test('body 가 객체가 아니면 거부', () => {
         assert.match(validate([], {}), /must be a JSON object/);
         assert.match(validate(null, {}), /must be a JSON object/);
+    });
+});
+
+// ── 전역 뷰 설정 ─────────────────────────────────────
+describe('validateSettings / mergeSettings — POST /api/settings', () => {
+    test('평평한 스칼라 묶음은 통과한다', () => {
+        assert.equal(validateSettings({ darkMode: true, zoomLevel: 1.5, timeScale: 'week', theme: null }), null);
+    });
+
+    test('객체가 아니면 거부 — 예전에는 무엇이든 그대로 파일이 됐다', () => {
+        assert.match(validateSettings([]), /must be a JSON object/);
+        assert.match(validateSettings('darkMode'), /must be a JSON object/);
+    });
+
+    test('중첩 객체/배열은 거부 — 설정은 스칼라만이다', () => {
+        assert.match(validateSettings({ nested: { a: 1 } }), /must be a string, number, boolean or null/);
+        assert.match(validateSettings({ list: [1, 2] }), /must be a string, number, boolean or null/);
+    });
+
+    test('키 이름과 개수, 문자열 길이에 상한이 있다', () => {
+        assert.match(validateSettings({ 'bad key': 1 }), /invalid settings key/);
+        assert.match(validateSettings({ ['a'.repeat(41)]: 1 }), /invalid settings key/);
+        const many = {};
+        for (let i = 0; i <= MAX_SETTING_KEYS; i++) many[`k${i}`] = i;
+        assert.match(validateSettings(many), /too many settings keys/);
+        assert.match(validateSettings({ label: 'x'.repeat(201) }), /too long/);
+    });
+
+    test('NaN/Infinity 는 거부한다 — JSON.stringify 가 null 로 바꿔 조용히 설정을 지운다', () => {
+        assert.match(validateSettings({ zoomLevel: NaN }), /must be finite/);
+        assert.match(validateSettings({ zoomLevel: Infinity }), /must be finite/);
+    });
+
+    // 통짜 덮어쓰기였을 때, 설정 하나만 담은 요청(가져오기 경로와 AI)이
+    // 사용자의 나머지 뷰 설정을 전부 지웠다.
+    test('병합은 보내지 않은 키를 남긴다', () => {
+        assert.deepEqual(
+            mergeSettings({ darkMode: true, zoomLevel: 2, timeScale: 'week' }, { zoomLevel: 3 }),
+            { darkMode: true, zoomLevel: 3, timeScale: 'week' },
+        );
+    });
+
+    test('null 로는 값을 덮어쓸 수 있다 (깊은 병합이 아니다)', () => {
+        assert.deepEqual(mergeSettings({ theme: 'ocean' }, { theme: null }), { theme: null });
+    });
+
+    test('기존 값이 없거나 깨져 있어도 새 설정만 남는다', () => {
+        assert.deepEqual(mergeSettings(undefined, { darkMode: true }), { darkMode: true });
+        assert.deepEqual(mergeSettings('garbage', { darkMode: true }), { darkMode: true });
     });
 });

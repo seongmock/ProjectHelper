@@ -23,6 +23,9 @@
 │  Express API (server/, CommonJS, :3000)                                 │
 │   index.js          — 블롭 /api/data + settings/snapshots + 인증 게이트   │
 │   routes/tasks.js   — 작업 단위 CRUD (AI 연동용, 검증 + If-Match/409)    │
+│   services/taskService.js — 순수 변경자 OPS 표 + 일괄 적용(batch)         │
+│   lib/schedule.js   — 작업일(주말) 달력 · 캐스케이드 · 임계경로/여유       │
+│   lib/asciiChart.js — 텍스트 간트 (GET /chart — AI 가 결과를 보는 수단)   │
 │   lib/auth.js       — 신원(계정 0개면 open, 첫 관리자부터 enforced)       │
 │   lib/eventLog.js   — 프로젝트별 append-only 감사 로그 events.jsonl       │
 │   lib/registry.js   — 프로젝트 레지스트리 + 부팅 시 레거시 마이그레이션    │
@@ -36,15 +39,16 @@
                         │ HTTP (PH_API_BASE)
 ┌───────────────────────┴─────────────────────────────────────────────────┐
 │  MCP 서버 (mcp/index.js, stdio) — Claude Code 등 AI 에이전트용           │
-│  16개 도구: list/get/add/update/delete/move-task, reschedule,           │
-│             add/delete-time-range, add/delete-milestone, create-snapshot │
-│             check-dependencies, list/create-project, get-guide           │
+│  21개 도구: list/get/add/update/delete/move-task, reschedule(+cascade), │
+│             add/delete-time-range, add/update/delete-milestone,          │
+│             check/set-dependencies, critical-path, render-chart, batch,  │
+│             create-snapshot, list/create-project, get-guide              │
 └──────────────────────────────────────────────────────────────────────────┘
 ```
 
 ## 데이터 모델
 
-Task는 재귀 트리(`children`). **날짜의 단일 진실은 `timeRanges[]`** — task 레벨 `startDate`/`endDate`는 파생 캐시이며 서버/클라이언트 모두 변경 시 재계산한다. 의존성은 range/milestone 레벨(작업 레벨 `dependencies`는 레거시, `migrateTaskData`가 첫 range로 이관 후 비움). **마일스톤의 `labelPosition`·`dependencies` 는 화면에서만 쓸 수 있다** — REST/MCP 의 마일스톤 생성 스펙에 없고 수정 엔드포인트 자체가 없다(`docs/AI_INTEGRATION.md` 의 한계 표).
+Task는 재귀 트리(`children`). **날짜의 단일 진실은 `timeRanges[]`** — task 레벨 `startDate`/`endDate`는 파생 캐시이며 서버/클라이언트 모두 변경 시 재계산한다. 의존성은 range/milestone 레벨(작업 레벨 `dependencies`는 레거시, `migrateTaskData`가 첫 range로 이관 후 비움). 마일스톤의 `labelPosition`·`dependencies` 도 REST/MCP 로 쓸 수 있다(2026-08-31 — 생성 스펙 + `PATCH .../milestones/:id`). **수정은 반드시 PATCH 로 한다**: 지우고 다시 만들면 id 가 바뀌고, 삭제가 그 id 를 가리키던 연결을 함께 정리하므로 화살표가 조용히 사라진다.
 
 ```
 Task { id, name, timeRanges[{id, startDate, endDate, dependencies[], color, label}],

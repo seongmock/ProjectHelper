@@ -109,4 +109,43 @@ const validateTaskTree = (tasks) => {
     return walk(tasks, 0, 'data');
 };
 
-module.exports = { validate, validators, validateTaskTree, MAX_TASKS, MAX_DEPTH };
+
+// ── 전역 뷰 설정 ─────────────────────────────────────
+// POST /api/settings 는 무검증 통짜 덮어쓰기였다 — 설정 하나만 담아 보내면(가져오기
+// 경로와 AI 가 그렇게 한다) 사용자의 나머지 뷰 설정이 전부 사라졌다.
+// 키 목록을 여기 두지 않는 것은 일부러다: 클라이언트 settingsStore.js 의
+// SETTING_DEFAULTS 가 유일한 목록이고, 그것을 베껴 두면 설정을 하나 추가할 때마다
+// 두 곳이 갈라진다. 그래서 검사하는 것은 **구조**뿐 — 이름·타입·크기.
+const SETTING_KEY_RE = /^[A-Za-z0-9_]{1,40}$/;
+const MAX_SETTING_KEYS = 64;
+const MAX_SETTING_STRING = 200;
+
+const validateSettings = (body) => {
+    if (!validators.object(body)) return 'settings must be a JSON object';
+    const keys = Object.keys(body);
+    if (keys.length > MAX_SETTING_KEYS) return `too many settings keys (max ${MAX_SETTING_KEYS})`;
+    for (const key of keys) {
+        if (!SETTING_KEY_RE.test(key)) return `invalid settings key: ${key}`;
+        const v = body[key];
+        if (v !== null && !['string', 'number', 'boolean'].includes(typeof v)) {
+            return `settings.${key} must be a string, number, boolean or null`;
+        }
+        if (typeof v === 'string' && v.length > MAX_SETTING_STRING) {
+            return `settings.${key} is too long (max ${MAX_SETTING_STRING})`;
+        }
+        if (typeof v === 'number' && !Number.isFinite(v)) return `settings.${key} must be finite`;
+    }
+    return null;
+};
+
+// 기존 값 위에 얕게 병합한다. 설정은 평평한 스칼라 묶음이라 깊은 병합이 필요 없고,
+// 깊은 병합은 "키를 지운다"를 불가능하게 만든다.
+const mergeSettings = (current, patch) => ({
+    ...(validators.object(current) ? current : {}),
+    ...patch,
+});
+
+module.exports = {
+    validate, validators, validateTaskTree, validateSettings, mergeSettings,
+    MAX_TASKS, MAX_DEPTH, MAX_SETTING_KEYS,
+};

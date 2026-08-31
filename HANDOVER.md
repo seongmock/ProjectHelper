@@ -235,6 +235,8 @@ Phase 2/3 이후로는 실사 §5.4 의 남은 개선안을 자동 스케줄이 
 | 마일스톤 도형 3중 구현 (실사 잔여 한계) | ✅ 2026-08-20 | 같은 데이터가 화면마다 다른 그림이었다(표는 별·깃발을 `★`·`⚑` 텍스트로, 삼각형을 CSS border 로). `src/shared/milestoneShapes.js` 가 **서술**을 갖고 표현은 맥락이 정한다. 내보내기는 `?raw` 로 소스를 심으므로 import 가 없다. 선택 목록도 같은 파일 — "고를 수 있지만 다이아몬드로 그려지는" 도형이 불가능해진다. **화면 변화**: 표의 별·깃발·삼각형이 벡터로 |
 | 문서가 말하는 개수·서술이 실물과 어긋나던 문제 (문서·CI 감사) | ✅ 2026-08-20 | 네 문서가 E2E 를 51·28·37·16건이라고 **서로 다르게** 말하고 있었다(실제 107). 개수를 `scripts/test-floors.mjs` 한 곳에 모으고, 실행 개수 게이트(`assert-test-floor.mjs`)와 문서 표기 게이트(`assert-doc-counts.mjs`)가 **같은 값**을 본다 — 반드시 함께 낡거나 함께 고쳐진다. 개수 표기를 지운 파일도 실패다(지우면 게이트가 아무것도 검사하지 못한다). 게이트가 볼 수 없는 숫자는 손으로 훑어 다섯 군데를 고쳤다(MCP 도구 13/12 → **16**, `App.jsx` ~880/~1000 → **599**, `AGENTS.md` 영속화 문구, `ROADMAP.md` ProjectSwitcher 대체). 날짜 박힌 기록 문서는 손대지 않는다 — 그 숫자는 그 시점의 사실이다. `docker-smoke` 잡에 복원 리허설 스텝을 얹어 스크립트 자체도 매 푸시마다 실행된다 |
 | 아무것도 재지 않던 접근성 — 대비·타깃 크기·지원 폭 (UI 결함 사냥) | ✅ 2026-08-20 | 실측으로 셋이 나왔다. ① 흰 글자가 `--color-primary` 위에서 **3.29:1**(활성 버튼·배지 아홉 곳), 회색 보조 텍스트가 **2.07:1**, 레일 배지의 노랑 색조가 **2.66:1** — 모두 AA(4.5:1) 미달. ② 타임라인 이름 목록의 펼침 토글이 20×20(WCAG 2.5.8 은 24×24). ③ 700px 아래에서 뷰 전환 버튼이 **클릭을 못 받았다**(겹친 형제가 포인터를 가로챈다). 사용자가 지원 범위를 **데스크톱 1024px 이상**으로 확정했으므로 ③ 은 고치지 않고 원인만 기록했다 — 대신 `tests/e2e/a11y-audit.spec.js` 가 그 1024 를 매번 잰다(`MIN_SUPPORTED_WIDTH` 가 곧 약속이다). ①은 `--color-primary-strong` 신설(흰 글자를 담는 배경만) + 회색 토큰을 **그 색이 앉는 가장 밝은 표면** 기준으로 재선정 + 배지 밝기를 색조별 대비 계산의 결과로 바꿨다(`projectLightness`, 색조 360 전수 단위테스트). 셋 다 되돌려서 가드가 실제로 **실패하는지** 확인했다 — 그 과정에서 표의 `.expand-toggle` 24px 수정이 `button.icon`(36×36)에 밀려 **아무 효과가 없던 것**을 발견해 되돌리고 진짜 20px 규칙을 고쳤다. **화면 변화**: 보조 텍스트가 진해지고, 활성 버튼·배지가 약간 어두운 파랑이 되고, 노랑·초록 계열 배지가 어두워진다 |
+| AI 가 쓰기만 할 수 있고 자기 결과를 확인할 수 없던 API (2026-08-31 검토가 남긴 8건) | ✅ 2026-08-31 | 마일스톤 `PATCH` · MCP 의 의존성 그래프 읽기(`edges` + flat 목록의 `dependencies`) · 마일스톤 `dependencies`/`labelPosition` 쓰기 · `POST /api/settings` 검증+병합 · 일괄 적용 `POST /batch`(리비전 하나, 전부 아니면 전무, `@ref`) · 캐스케이드(`?cascade=true&workdays=true`) · 텍스트 간트 `GET /chart` · 임계경로/여유 `GET /critical-path`. 설계 핵심은 `taskService.js` 를 **순수 변경자 OPS 표**로 바꾼 것이다 — 단건 라우트와 batch 가 **같은 변경자**를 쓰므로 둘이 조용히 갈라질 수 없다. 테스트 server 267→330 · E2E 112→122(새 `api-surface.spec.js` 가 HTTP 경계를 본다) |
+
 
 > 상태 색상 모드에서 **표(TableView)는 손대지 않았다.** 표는 이미 지연을 아이콘+색 이중으로
 > 인코딩하고 있고(P1-7), 색상 칩은 사용자가 작업 색을 고르는 입력이다. 색상 모드를 표에까지
@@ -2382,3 +2384,72 @@ API와 문서화 레벨이 충분한지 시스템 소프트웨어 전문가 관�
 검증: `npm run verify` — lint 0 error · unit 594 · server 267 · 빌드 · E2E 112/112 (skip 0).
 문서만 바뀌었지만 `aiGuide.js` 는 서버가 서빙하므로 `GET /api/guide` 가 v1.3 을 돌려주려면
 배포가 필요하다.
+
+### 2026-08-31 (같은 날, 이어서) — 검토가 찾은 8건을 전부 구현했다 (AI 쓰기 표면)
+
+사용자 요청: *"모든 항목에 대해서 제대로 계획하고 기획하고 검증플랜을 세워서 진행해줘, 각
+동작 수정별로 적절한 모델(Opus, sonnet) 활용하는편이 더 이득이면 그렇게 수정 및 검증 반영하고
+모든 항목 개선 진행해줘"*
+
+앞 항목(같은 날)의 검토는 **구현하지 않고 근거만 남긴** 상태였다. 그 8건이 여기서 전부 닫혔다.
+
+| 항목 | 무엇이 들어왔나 |
+|---|---|
+| P0 마일스톤 수정 | `PATCH /api/tasks/:id/milestones/:mid` + MCP `update-milestone` |
+| P0 의존성 그래프 읽기 | `/dependency-issues` 응답에 `edges`, `GET /tasks?flat=true` 가 세 레벨의 `dependencies` 를 투영 |
+| P1 마일스톤 `dependencies`·`labelPosition` 쓰기 | 생성 스펙 + PATCH + MCP `set-dependencies` |
+| P1 `POST /api/settings` | 구조 검증 + **병합**(덮어쓰기 아님) |
+| P1 일괄 적용 | `POST /api/projects/:pid/batch` + MCP `batch` |
+| P2 캐스케이드 | `PATCH .../time-ranges/:rid?cascade=true&workdays=true` |
+| P2 텍스트 렌더 | `GET /chart(?format=text)` + MCP `render-chart` |
+| P3 임계경로·작업일 | `GET /critical-path` + `lib/schedule.js` |
+
+**설계에서 하나만 기억할 것: `taskService.js` 가 순수 변경자 표(`OPS`)가 됐다.** 모든 변경이
+`(tasks, args, out) => tasks` 이고 `store` 를 모른다. 단건 함수는 `single()` 얇은 래퍼
+(스펙 검증 → 트리 무관 검사 → `assertRevision` → `withTasks` 한 번)이고, `applyBatch` 는
+**같은 변경자들**을 **한 `withTasks`** 안에서 이어 붙인다. 별도 구현을 두 벌 만들면 batch 와
+단건이 조용히 갈라지고, 그것은 `taskTreeMirror.test.js` 가 한 층 아래에서 막고 있는 바로 그
+실패다. 부수 효과로 400(스펙)이 409(리비전)보다 **먼저** 나는 기존 순서가 유지된다 —
+트리를 봐야 아는 검사만 `apply` 안에 있다.
+
+**판단 네 개는 되돌리기 쉬우니 근거를 남긴다.**
+① **캐스케이드는 앞으로만 민다.** `delta = diffDays(옛 종료, 새 종료)` 가 양수일 때만 후행
+(전이적)을 옮긴다. 앞당김까지 전파하면 사람이 일부러 둔 간격을 지우는데, 여유와 의도를
+데이터로 구별할 방법이 없다. ② **여유는 후진 패스만** 한다 — 날짜는 이미 사람의 결정이므로
+전진 패스로 날짜를 *만들지* 않는다(`LF = min(후행의 LS)`, 싱크는 프로젝트 종료). 순환이면
+위상 순서가 없으니 400 이다(틀린 숫자보다 낫다). ③ **작업일은 주말만** 안다(공휴일 달력
+없음 — `lib/schedule.js` 에 `ponytail:` 로 상한과 확장 경로를 적어 뒀다). `nextWorkday` 는
+단조라 시작이 종료를 앞지를 수 없다. ④ 차트의 `width`/`maxRows` 는 **거부하지 않고 clamp**
+한다 — 숫자를 짐작한 에이전트가 받아야 하는 것은 400 이 아니라 차트다. 한국어 이름은
+`displayWidth`(동아시아 전각) 로 재야 열이 맞는다(코드 유닛으로 채우면 모든 행이 어긋난다).
+
+**`POST /api/settings` 는 키 목록을 검사하지 않는다 — 일부러다.** 클라이언트
+`settingsStore.js` 의 `SETTING_DEFAULTS` 가 유일한 목록이고, 그것을 서버에 베껴 두면 설정을
+하나 추가할 때마다 두 곳이 갈라진다. 검사하는 것은 **구조**뿐(키 정규식 · ≤64개 · 스칼라 ·
+≤200자 · 유한수). 병합은 선택이 아니라 필수다: `importSettings` 와 모든 에이전트가 부분
+블롭을 보내는데, 예전 덮어쓰기는 언급하지 않은 키를 전부 지웠다.
+
+**검증 계획과 실제로 잡힌 것.** server 테스트 267→330(새 `scheduleService.test.js` 30건 +
+`validate.test.js` 설정 블록), E2E 112→122(새 `tests/e2e/api-surface.spec.js` 10건).
+그 E2E 를 따로 만든 이유가 곧바로 값을 했다: `server/test/` 는 서비스를 **직접** 부르므로
+라우트가 빠져 있어도 초록불인데, `server/index.js` 에서 `require('./lib/validate')` 한 줄이
+누락돼 `POST /api/settings` 가 **500** 이었다 — 그 스펙만 그것을 봤다. E2E 는 테스트마다
+자기 프로젝트를 만들고 지운다(브라우저 탭의 1.5초 자동저장이 `default` 의 리비전을 건드리면
+`revision === before + 1` 단언이 무의미해진다). 순환이 필요한 임계경로 400 테스트는 검사가
+없는 블롭 `POST /data` 로 심는다 — 단건 쓰기는 순환을 거부하기 때문이다.
+
+문서: `aiGuide.js` v1.4(`limitations` 를 **전면 교체** — 일곱 항목이 이제 거짓이다,
+새 워크플로 `createPlanInOneWrite`/`cascade`/`milestoneEdit`/`criticalPath`/`verifyVisually`,
+`donts` 3건 추가) · `openapi.yaml` 29경로(빠져 있던 `/snapshots/{id}`·`/settings` 포함) ·
+`AI_INTEGRATION.md`·`ARCHITECTURE.md`·`CLAUDE.md`·`timeline-api` 스킬 · `test-floors.mjs`
+와 개수 표기 다섯 파일.
+
+검증: `npm run verify` — lint 0 error · unit 594 · server 330 · 빌드 · E2E 122/122 (skip 0).
+운영 엔진으로도 돌렸다: `npm run test:e2e:sqlite` 122/122(새 쓰기 경로가 batch·cascade 라
+JSON 만 보고 넘길 수 없다). **관찰된 플레이크 하나**: 그 sqlite 전수 실행 4회 중 2회에서
+*"PNG 캡처 높이 — 계산된 높이가 마지막 행 바닥까지 덮는다"* 가 `contentPadTop === 0` 으로
+떨어졌다(단독 실행·JSON 전수·같은 조건 재실행에서는 통과). 그 테스트는 열린 탭이
+`default` 를 1.5초 디바운스로 자동저장하는 동안 같은 프로젝트에 블롭을 쓰므로 경합이 남아
+있다 — 내 변경과 무관한 기존 설계이고, 고치려면 `api-surface.spec.js` 처럼 자기 프로젝트를
+쓰게 해야 한다. 손대지 않았다(범위 밖).
+`GET /api/guide` 가 v1.4 를, 새 라우트가 응답하려면 **배포가 필요하다**.

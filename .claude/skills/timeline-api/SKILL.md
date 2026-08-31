@@ -46,10 +46,19 @@ MCP에서는 `get-guide` 도구가 동일 내용 반환.
 | `reschedule` | 날짜 변경 (`shiftDays`로 통째 밀기 가능) |
 | `move-task` | 재부모화/순서 변경 (`parentId: null` = 루트) |
 | `add-time-range` / `delete-time-range` | 한 작업의 복수 기간(바) 관리 |
-| `add-milestone` / `delete-milestone` | 마일스톤 마커 |
+| `add-milestone` / `update-milestone` / `delete-milestone` | 마일스톤 마커 — 수정은 **반드시 `update-milestone`** (지우고 다시 만들면 id 가 바뀌어 연결이 사라진다) |
 | `delete-task` | 서브트리 포함 삭제 |
-| `check-dependencies` | 의존성 점검 — 순환/일정 위반/끊어진 참조 (일정 대량 이동 후 확인) |
+| `check-dependencies` | 의존성 **그래프(`edges`)** + 점검 — 순환/일정 위반/끊어진 참조 |
+| `set-dependencies` | 기간·마일스톤의 선행 목록 **교체** (순환·미지의 id 는 400) |
+| `critical-path` | 임계경로와 여유(`slackDays`/`slackWorkdays`/`criticalIds`) |
+| `render-chart` | 텍스트 간트 — **자기 결과를 눈으로 확인하는 유일한 수단** |
+| `batch` | 여러 변경을 **한 번의 쓰기**로 (전부 아니면 전무). 계획을 처음부터 만들 때 기본 선택 |
 | `create-snapshot` | **대량 편집/삭제 전 반드시 백업** |
+
+**계획을 새로 만들 때는 `add-task` 를 N 번 부르지 말고 `batch` 하나로 보내라.** `ref` 로
+앞선 op 의 결과를 `@이름`(작업 id) / `@이름:range`(그 작업의 첫 기간 id)로 가리킬 수 있어서,
+부모-자식 트리와 의존성 연결까지 한 번에 만들어진다 — 리비전 하나, 감사 한 줄, 하나가
+실패하면 앞선 것까지 되돌아간다(최대 200개).
 
 ## 방법 2: REST API (curl)
 
@@ -71,10 +80,29 @@ curl -s -X PATCH -H 'Content-Type: application/json' \
   -d '{"startDate":"2026-08-05","endDate":"2026-08-20"}' \
   "$BASE/tasks/{taskId}/time-ranges/{rangeId}"
 
-# 마일스톤 추가
+# 마일스톤 추가 / 수정 (수정은 PATCH — 삭제+재생성 금지)
 curl -s -X POST -H 'Content-Type: application/json' \
-  -d '{"date":"2026-08-10","label":"1차 검토","shape":"diamond"}' \
+  -d '{"date":"2026-08-10","label":"1차 검토","shape":"diamond","labelPosition":"top"}' \
   "$BASE/tasks/{taskId}/milestones"
+curl -s -X PATCH -H 'Content-Type: application/json' \
+  -d '{"date":"2026-08-12"}' \
+  "$BASE/tasks/{taskId}/milestones/{milestoneId}"
+
+# 뒤로 밀면서 후행까지 함께 (주말 회피)
+curl -s -X PATCH -H 'Content-Type: application/json' \
+  -d '{"endDate":"2026-08-25"}' \
+  "$BASE/tasks/{taskId}/time-ranges/{rangeId}?cascade=true&workdays=true"
+
+# 계획을 한 번의 쓰기로 (ref 로 앞선 op 의 새 id 를 가리킨다)
+curl -s -X POST -H 'Content-Type: application/json' -d '{"ops":[
+  {"op":"createTask","ref":"design","body":{"name":"설계","startDate":"2026-09-01","endDate":"2026-09-10"}},
+  {"op":"createTask","ref":"dev","body":{"name":"개발","startDate":"2026-09-11","endDate":"2026-09-30"}},
+  {"op":"setDependencies","rangeId":"@dev:range","taskId":"@dev","body":{"dependencies":["@design:range"]}}
+]}' "$BASE/batch"
+
+# 결과를 눈으로 확인 · 임계경로
+curl -s "$BASE/chart?format=text&width=100"
+curl -s "$BASE/critical-path"
 ```
 
 ## 데이터 모델 핵심
@@ -83,15 +111,21 @@ curl -s -X POST -H 'Content-Type: application/json' \
 - `progress`: 0~100 정수 진행률. 100이면 지연(overdue) 표시가 해제된다. `PATCH /api/tasks/:id`로 수정.
 - 의존성(`dependencies`)은 **timeRange/milestone 레벨**에 있다 (task 레벨은 레거시, 항상 빈 배열).
 - 날짜는 `YYYY-MM-DD` 문자열. 색상은 `#RRGGBB`.
-- milestone `shape`: diamond | circle | triangle | square | star | flag
+- milestone `shape`: diamond | circle | triangle | square | star | flag,
+  `labelPosition`: auto | top | bottom | left | right (auto 가 겹치지 않게 배치하므로 보통 생략)
 
 ## API 로는 안 되는 것 (짐작해서 호출하지 말 것)
 
-- **마일스톤 수정 없음** — 지우고 다시 만들면 id 가 바뀌고, 삭제 시 그것을 가리키던 의존성이 함께 정리된다.
-- **마일스톤 dependencies·labelPosition 쓰기 없음** — 화면 전용. API 로 만들 수 있는 연결은 timeRange 가 든 것뿐.
-- **일괄 쓰기 없음** — 작업 N 개 = 호출 N 번 = 리비전 N 증가. 대량 작성 전 `create-snapshot`.
-- **의존성 따라 밀어 주지 않음** — `reschedule` 은 지정한 기간 하나만 바꾼다. 후행은 직접 옮기고 `check-dependencies` 로 확인.
-- **임계경로/여유 계산 없음**, **렌더 결과(이미지·HTML)를 받는 API 없음** — 그림 확인은 사용자에게 요청.
+- **공휴일 달력 없음** — 작업일 계산(`workdays=true`, `slackWorkdays`)은 주말(토·일)만 안다.
+- **전진 스케줄링 없음** — 의존성으로부터 날짜를 만들어 주지 않는다. 시작일은 사람이 정한 값이고,
+  연결은 판정(순환·위반·여유)에만 쓰인다. `cascade` 도 **뒤로 밀 때만** 움직인다(앞당김은 전파하지
+  않는다 — 사람이 잡아 둔 간격을 지우는 쪽이 더 큰 손실이다).
+- **이미지·HTML 렌더 없음** — 렌더는 텍스트 간트(`render-chart`)뿐이다. 색·라벨 겹침 같은 시각적
+  판정은 사용자에게 요청.
+- **가져오기(병합) 없음** — 다른 프로젝트의 트리를 복제하려면 읽어서 `batch` 로 다시 만들 것
+  (id 를 그대로 쓰면 두 프로젝트의 연결이 얽힌다).
+- **검색·필터 쿼리 없음** — `?flat=true` 로 전체를 받아 직접 거른다(작업 5000개 상한).
+- **통짜 `POST /api/data` 는 검증하지 않는다** — 순환·역방향 기간이 그대로 들어간다. 그 경로는 피하라.
 
 전체 목록은 `GET /api/guide` 의 `limitations`.
 

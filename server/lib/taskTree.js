@@ -301,6 +301,7 @@ module.exports = {
     pruneDependencies,
     collectEntities,
     dependencyEdgeKey,
+    entityWindow, // 서버 전용 추가 — schedule.js(임계경로)가 같은 창 판정을 써야 한다
     findDependencyIssues,
     wouldCreateDependencyCycle,
 };

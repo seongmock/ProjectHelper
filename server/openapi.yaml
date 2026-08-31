@@ -78,6 +78,14 @@ components:
         label: { type: string }
         color: { type: string, example: "#5CB85C" }
         shape: { type: string, enum: [diamond, circle, triangle, square, star, flag] }
+        labelPosition:
+          type: string
+          enum: [auto, top, bottom, left, right]
+          description: auto(기본)는 서로 겹치지 않게 자동 배치. 손으로 고른 값은 그 자리를 먼저 차지한다.
+        dependencies:
+          type: array
+          items: { type: string }
+          description: 선행 엔티티 ID 목록 (range/milestone ID)
     Task:
       type: object
       description: 재귀 트리 노드. 날짜 정보는 timeRanges가 원본이며 startDate/endDate는 파생 캐시.
@@ -379,9 +387,34 @@ paths:
         schema: { type: string }
     patch:
       summary: 기간 수정 (날짜/라벨/색/의존성)
-      parameters: [{ $ref: '#/components/parameters/IfMatch' }]
+      description: >
+        cascade=true 면 이 기간의 종료일이 **뒤로 밀린 일수만큼** 후행(전이적 포함)
+        전체를 같은 쓰기에서 민다 — 리비전 하나, 감사 한 줄. 앞당김(delta < 0)은
+        전파하지 않는다: 사람이 잡아 둔 간격을 지우는 쪽이 더 큰 손실이다.
+        응답에 cascaded(움직인 엔티티 id 목록)와 cascadeDays 가 붙는다.
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+        - name: cascade
+          in: query
+          schema: { type: boolean, default: false }
+        - name: workdays
+          in: query
+          schema: { type: boolean, default: false }
+          description: cascade 로 옮긴 날짜가 주말이면 다음 평일로 (공휴일 달력은 없다)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              minProperties: 1
+              properties:
+                startDate: { type: string, format: date }
+                endDate: { type: string, format: date }
+                label: { type: string }
+                color: { type: string, nullable: true }
+                dependencies: { type: array, items: { type: string } }
       responses:
-        '200': { description: '{ ok, revision, timeRange }' }
+        '200': { description: '{ ok, revision, timeRange, cascaded?, cascadeDays? }' }
         '400': { $ref: '#/components/responses/BadRequest' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
@@ -414,6 +447,8 @@ paths:
                 label: { type: string }
                 color: { type: string }
                 shape: { type: string, enum: [diamond, circle, triangle, square, star, flag] }
+                labelPosition: { type: string, enum: [auto, top, bottom, left, right] }
+                dependencies: { type: array, items: { type: string } }
       responses:
         '201': { description: '{ ok, revision, milestone }' }
         '400': { $ref: '#/components/responses/BadRequest' }
@@ -421,18 +456,43 @@ paths:
         '409': { $ref: '#/components/responses/Conflict' }
 
   /tasks/{id}/milestones/{milestoneId}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string }
+      - name: milestoneId
+        in: path
+        required: true
+        schema: { type: string }
+    patch:
+      summary: 마일스톤 수정 (날짜/라벨/도형/색/라벨위치/의존성)
+      description: >
+        **삭제 후 재생성으로 대신하지 마라** — id 가 바뀌고, 이 마일스톤을 가리키던
+        dependencies 는 삭제 시점에 함께 정리되므로(pruneDependencies) 연결이 사라진다.
+      parameters: [{ $ref: '#/components/parameters/IfMatch' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              minProperties: 1
+              properties:
+                date: { type: string, format: date }
+                label: { type: string }
+                color: { type: string }
+                shape: { type: string, enum: [diamond, circle, triangle, square, star, flag] }
+                labelPosition: { type: string, enum: [auto, top, bottom, left, right] }
+                dependencies: { type: array, items: { type: string } }
+      responses:
+        '200': { description: '{ ok, revision, milestone }' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
     delete:
       summary: 마일스톤 삭제
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema: { type: string }
-        - name: milestoneId
-          in: path
-          required: true
-          schema: { type: string }
-        - $ref: '#/components/parameters/IfMatch'
+      parameters: [{ $ref: '#/components/parameters/IfMatch' }]
       responses:
         '200': { description: '{ ok, revision }' }
         '404': { $ref: '#/components/responses/NotFound' }
@@ -447,13 +507,119 @@ paths:
         일정 위반과 (작업 삭제로 생긴) 끊어진 참조는 사후에만 드러나므로 여기서 본다.
         overlaps 의 days 는 후행 시작이 선행 종료보다 며칠 이른지다.
         같은 날 인계(후행 시작 = 선행 종료)는 위반으로 세지 않는다.
+        edges 는 문제와 무관한 **연결 전체**다 — 연결을 걸기 전에 현재 그래프를
+        읽는 유일한 경로이며, 끊어진 참조는 edges 가 아니라 dangling 이 말한다.
       responses:
         '200':
           description: >
             { ok, revision,
+            edges: [{fromId, fromName, toId, toName}],
             cycles: [{ids, names}],
             overlaps: [{fromId, toId, fromName, toName, fromEnd, toStart, days}],
             dangling: [{holderId, holderName, missingId}] }
+
+  /critical-path:
+    get:
+      summary: 임계경로와 여유(slack)
+      description: >
+        날짜는 이미 사람이 정한 값이므로 전진 계산(가장 이른 시작)을 하지 않는다 —
+        후진 계산만으로 "이것이 며칠 늦어도 프로젝트 종료가 밀리지 않는가"를 답한다.
+        LF(n) = min(후행들의 LS), 후행이 없으면 프로젝트 종료일.
+        slack 0 이하가 임계다. 순환이 있으면 위상 순서가 없으므로 400 —
+        /dependency-issues 로 먼저 고쳐야 한다. 주말은 여유로 세지 않은
+        slackWorkdays 를 함께 준다(공휴일 달력은 없다).
+      responses:
+        '200':
+          description: >
+            { ok, revision, projectEnd,
+            nodes: [{id, name, type, start, end, latestStart, latestFinish,
+            slackDays, slackWorkdays, critical}],
+            criticalIds: [id] }
+        '400': { $ref: '#/components/responses/BadRequest' }
+
+  /chart:
+    get:
+      summary: 텍스트 간트 렌더 — 에이전트가 자기가 쓴 결과를 확인하는 수단
+      description: >
+        AI 는 화면을 볼 수 없으므로, 쓰기만 있고 그림이 없으면 결과가 읽을 만한지
+        판정할 수단이 0 이다. 대량 편집 뒤 한 번 호출해 막대 위치를 확인한다.
+      parameters:
+        - name: width
+          in: query
+          schema: { type: integer, minimum: 40, maximum: 400, default: 100 }
+        - name: from
+          in: query
+          schema: { type: string, format: date }
+        - name: to
+          in: query
+          schema: { type: string, format: date }
+        - name: maxRows
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 1000, default: 200 }
+        - name: format
+          in: query
+          schema: { type: string, enum: [json, text], default: json }
+          description: text 면 text/plain 본문만 (JSON 이스케이프 없이 그대로 읽힌다)
+      responses:
+        '200': { description: '{ ok, revision, chart } — format=text 면 text/plain' }
+
+  /batch:
+    post:
+      summary: 여러 변경을 한 번의 쓰기로 (전부 아니면 전무)
+      description: >
+        ops 를 순서대로 **같은 트랜잭션** 안에서 적용한다 — 리비전 하나, 감사 한 줄,
+        하나가 실패하면 앞선 것까지 되돌린다. 단건 엔드포인트와 **같은 뮤테이터**를
+        쓰므로 검증·순환 차단이 동일하다. blob POST /data 를 대체하는 경로다:
+        저것은 트리 전체를 덮어써서 남의 편집을 지우지만, 이것은 조작만 보낸다.
+        ref: 이 op 이 만든 것을 뒤에서 가리킬 이름. 뒤의 op 은 `@이름`(작업 id) /
+        `@이름:range`(그 작업의 첫 기간 id)로 참조한다 — 부모-자식 트리와 연결을
+        한 번에 만들 수 있다. 최대 200개.
+      parameters: [{ $ref: '#/components/parameters/IfMatch' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ops]
+              properties:
+                ops:
+                  type: array
+                  minItems: 1
+                  maxItems: 200
+                  items:
+                    type: object
+                    required: [op]
+                    properties:
+                      op:
+                        type: string
+                        enum: [create-task, update-task, delete-task, move-task,
+                               add-time-range, update-time-range, delete-time-range,
+                               add-milestone, update-milestone, delete-milestone]
+                      ref: { type: string, pattern: '^[A-Za-z0-9_-]+$' }
+                      taskId: { type: string }
+                      rangeId: { type: string }
+                      milestoneId: { type: string }
+                      body: { type: object }
+            example:
+              ops:
+                - op: create-task
+                  ref: design
+                  body: { name: 설계, startDate: "2026-01-01", endDate: "2026-01-31" }
+                - op: create-task
+                  body: { name: 요구사항 정리, parentId: "@design", startDate: "2026-01-01", endDate: "2026-01-10" }
+                - op: create-task
+                  ref: dev
+                  body: { name: 개발, startDate: "2026-02-01", endDate: "2026-03-31" }
+                - op: update-time-range
+                  taskId: "@dev"
+                  rangeId: "@dev:range"
+                  body: { dependencies: ["@design:range"] }
+      responses:
+        '200': { description: '{ ok, revision, applied, results: [...] }' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
 
   /snapshots:
     get:
@@ -474,6 +640,66 @@ paths:
                 data: { type: array, items: { $ref: '#/components/schemas/Task' } }
       responses:
         '200': { description: '{ ok, snapshot }' }
+
+  /snapshots/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string }
+    put:
+      summary: 스냅샷 덮어쓰기 (같은 이름/자리에 현재 상태를 다시 저장)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+                data: { type: array, items: { $ref: '#/components/schemas/Task' } }
+      responses:
+        '200': { description: '{ ok, snapshot }' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      summary: 스냅샷 삭제
+      responses:
+        '200': { description: '{ ok }' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /settings:
+    get:
+      summary: 전역 뷰 설정 조회
+      description: >
+        **프로젝트 스코프 밖이다** — 서버에 하나뿐인 전역 blob 이고
+        `/projects/{pid}/settings` 는 없다. 다크모드·시간축·확대율 같은
+        화면 표시 설정만 들어 있으며 일정 데이터는 없다.
+      responses:
+        '200': { description: '{ ok, data: {키: 스칼라} }' }
+    post:
+      summary: 전역 뷰 설정 변경 (보낸 키만 **병합**)
+      description: >
+        보내지 않은 키는 그대로 남는다 — 통짜 덮어쓰기였을 때, 설정 하나만 담은
+        요청이 사용자의 나머지 뷰 설정을 전부 지웠다. 값은 문자열·숫자·불리언·null
+        만 허용하고(중첩 객체·배열은 400), 키는 `[A-Za-z0-9_]{1,40}`, 최대 64개다.
+        키 목록은 검증하지 않는다: 클라이언트 settingsStore.js 가 유일한 목록이고
+        그것을 서버에 베껴 두면 설정을 추가할 때마다 두 곳이 갈라진다.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties:
+                nullable: true
+                oneOf:
+                  - { type: string, maxLength: 200 }
+                  - { type: number }
+                  - { type: boolean }
+            example: { darkMode: true, timeScale: week }
+      responses:
+        '200': { description: '{ ok, data: 병합된 전체 설정 }' }
+        '400': { $ref: '#/components/responses/BadRequest' }
 
   /events:
     get:

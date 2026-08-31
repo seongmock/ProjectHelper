@@ -7,7 +7,7 @@ ProjectHelper는 AI 에이전트(Claude Code 등)가 프로젝트 일정을 직�
 | REST API (작업 단위 CRUD) | 모든 HTTP 클라이언트 | `server/routes/tasks.js` |
 | **셀프 디스커버리** (`GET /api` → `GET /api/guide`) | 사전 지식 없는 AI CLI | `server/lib/aiGuide.js` |
 | OpenAPI 3.0 스펙 | 스펙 기반 도구/코드젠 | `server/openapi.yaml` · `GET /api/openapi.yaml` |
-| MCP 서버 (16개 도구) | Claude Code, MCP 클라이언트 | `mcp/index.js` · `.mcp.json` |
+| MCP 서버 (21개 도구) | Claude Code, MCP 클라이언트 | `mcp/index.js` · `.mcp.json` |
 
 ## 셀프 디스커버리 — 사전 지식 없는 AI가 처음부터 계획을 작성하는 법
 
@@ -44,28 +44,33 @@ cd mcp && npm install
 
 브라우저 앱을 열어둔 상태라면 **AI의 변경이 10초 안에 화면에 자동 반영**된다 (리비전 폴링).
 
-## MCP 도구 16개 (데이터 13 + 프로젝트 2 + 가이드 1)
+## MCP 도구 21개 (데이터 18 + 프로젝트 2 + 가이드 1)
 
 | 도구 | 설명 |
 |---|---|
-| `list-tasks` | 평탄 목록(id/name/level/dates) — 작업 ID 탐색용. **모든 작업의 시작점** |
+| `list-tasks` | 평탄 목록(id/name/level/dates/**dependencies**) — 작업·기간 ID 탐색용. **모든 작업의 시작점**. `flat=false` 면 서버가 저장한 트리를 가공 없이 전부 |
 | `get-task` | 단건 상세 (timeRanges/milestones/children) |
 | `add-task` | 생성. `parentId`(하위), `position`, `startDate`+`endDate`(기간) 지원 |
-| `update-task` | 이름/색상(#RRGGBB)/설명/라벨 |
+| `update-task` | 이름/색상(#RRGGBB)/설명/라벨/진행률 |
 | `delete-task` | 서브트리 포함 삭제 |
 | `move-task` | 재부모화/순서 (`parentId: null` = 루트) |
-| `reschedule` | 기간 날짜 변경. `shiftDays`(±N일 밀기) 또는 start/end 직접 지정 |
+| `reschedule` | 기간 날짜 변경. `shiftDays`(±N일 밀기) 또는 start/end 직접 지정. `cascade`/`workdays` 로 후행까지 |
 | `add-time-range` | 한 작업에 기간(바) 추가 (멀티 타임라인) |
 | `delete-time-range` | 기간 삭제 |
-| `add-milestone` | 마일스톤 (shape: diamond/circle/triangle/square/star/flag) |
+| `add-milestone` | 마일스톤 (shape: diamond/circle/triangle/square/star/flag, `labelPosition`, `dependencies`) |
+| `update-milestone` | 마일스톤 수정 — **지우고 다시 만들지 말 것** (id 가 바뀌면 연결이 사라진다) |
 | `delete-milestone` | 마일스톤 삭제 |
-| `check-dependencies` | 의존성 정합성 점검 — 순환/일정 위반/끊어진 참조 |
+| `check-dependencies` | 의존성 **그래프**(`edges`) + 정합성 — 순환/일정 위반/끊어진 참조 |
+| `set-dependencies` | 기간·마일스톤의 선행 목록 **교체** (순환·미지의 id 는 400) |
+| `critical-path` | 임계경로와 여유(`slackDays`/`slackWorkdays`/`criticalIds`) |
+| `render-chart` | 텍스트 간트 — **AI 가 자기 결과를 눈으로 확인하는 유일한 수단** |
+| `batch` | 여러 변경을 한 번의 쓰기로 (`ref` 로 부모·연결까지). 전부 아니면 전무 |
 | `create-snapshot` | 전체 일정 이름 지정 백업 — **대량 편집 전 권장** |
 | `list-projects` | 프로젝트 목록 (id/name/updatedAt) |
 | `create-project` | 프로젝트 생성 |
 | `get-guide` | 기계가 읽는 사용 가이드 (`GET /api/guide` 와 같은 내용) |
 
-위 13개 데이터 도구는 모두 **선택 인자 `projectId`** 를 받고, 생략하면 `default` 프로젝트다.
+위 18개 데이터 도구는 모두 **선택 인자 `projectId`** 를 받고, 생략하면 `default` 프로젝트다.
 
 환경변수: `PH_API_BASE`(기본 `http://localhost:3000/api`), `PH_BASIC_AUTH`(`user:pass`, Caddy HTTPS 경유 시).
 
@@ -84,12 +89,41 @@ POST   /api/tasks/:id/move                          # {parentId*(null=루트), p
 POST   /api/tasks/:id/time-ranges                   # 기간 추가 {startDate*, endDate*, label?, color?}
 PATCH  /api/tasks/:id/time-ranges/:rangeId          # 기간 수정
 DELETE /api/tasks/:id/time-ranges/:rangeId          # 기간 삭제
-POST   /api/tasks/:id/milestones                    # {date*, label?, shape?, color?}
+POST   /api/tasks/:id/milestones                    # {date*, label?, shape?, color?, labelPosition?, dependencies?}
+PATCH  /api/tasks/:id/milestones/:milestoneId       # 마일스톤 수정 (id 유지 — 삭제+재생성 금지)
 DELETE /api/tasks/:id/milestones/:milestoneId
+POST   /api/batch         # 일괄 적용 {ops:[...]} — 리비전 하나, 전부 아니면 전무
+GET    /api/critical-path # 임계경로·여유(slack) (읽기 전용, 순환이면 400)
+GET    /api/chart?format=text&width=100  # 텍스트 간트 (읽기 전용)
 GET    /api/data          # 통짜 트리 (읽기는 자유롭게)
-POST   /api/data          # 통짜 교체 — AI는 가급적 금지 (작업 단위 사용)
+POST   /api/data          # 통짜 교체 — AI는 가급적 금지 (batch 또는 작업 단위 사용)
 GET    /api/events?limit=50   # 감사 로그 — 쓰기 이력 최신순 (읽기 전용)
-GET    /api/dependency-issues # 의존성 점검 — 순환/일정 위반/끊어진 참조 (읽기 전용)
+GET    /api/dependency-issues # 의존성 그래프(edges) + 점검 (읽기 전용)
+GET    /api/settings          # 전역 화면 설정 (프로젝트 스코프 밖 — 일정 데이터는 없다)
+POST   /api/settings          # 보낸 키만 병합 (스칼라만, 중첩은 400)
+```
+
+기간 수정은 `?cascade=true` 를 붙이면 **뒤로 밀린 일수만큼** 후행(전이적 포함) 전체를
+같은 쓰기에서 옮긴다(응답의 `cascaded`/`cascadeDays`). 앞당김은 전파하지 않는다 —
+사람이 잡아 둔 간격을 지우는 쪽이 더 큰 손실이다. `&workdays=true` 는 주말에 착지한
+날짜를 다음 평일로 민다(공휴일 달력은 없다).
+
+`POST /api/batch` 는 **단건 엔드포인트와 같은 변경자**를 한 트랜잭션 안에서 이어 붙인다 —
+리비전 하나, 감사 한 줄, 하나가 실패하면 앞선 것까지 되돌린다. `ref` 로 앞선 op 의 결과를
+`@이름`(작업 id) / `@이름:range`(그 작업의 첫 기간 id)로 가리킬 수 있어서, 부모-자식 트리와
+의존성 연결을 한 번에 만들 수 있다(최대 200개). 통짜 `POST /api/data` 를 대체하는 경로다:
+저것은 트리 전체를 덮어써서 같은 순간의 남의 편집을 지우지만, 이것은 조작만 보낸다.
+
+`GET /api/chart` 는 데이터가 아니라 **그림**을 돌려준다. AI 는 화면을 볼 수 없으므로,
+쓰기만 있고 렌더가 없으면 "결과가 읽을 만한지"를 판정할 수단이 0이다 — 대량 편집 뒤
+한 번 호출해 막대가 의도한 자리에 있는지 확인하는 용도다.
+
+```
+2026-01-05 ~ 2026-03-30 (84일, 1칸=1.3일)
+                        |2026-01             |2026-02              |2026-03
+설계                    ===============#############⚑
+  요구사항 정리          ############
+개발                                         ####################…
 ```
 
 `/api/events` 는 프로젝트별 append-only 로그(`data/projects/<pid>/events.jsonl`)를 읽는다.
@@ -106,20 +140,23 @@ GET    /api/dependency-issues # 의존성 점검 — 순환/일정 위반/끊어
 위반·끊어진 참조는 애초에 쓰기 하나만 봐서는 판정할 수 없어 이 조회가 유일한 창구다.
 일정을 대량으로 옮긴 뒤 한 번 호출할 것. 같은 날 인계(후행 시작 = 선행 종료)는 위반이 아니다.
 
-## API 가 못 하는 것 (화면에는 있는데 API 에는 없는 것)
+## API 가 못 하는 것
 
 없는 기능을 짐작해서 호출하면 400/404 만 받고 왜 틀렸는지 알 수 없다. 기계가 읽는 같은
 목록이 `GET /api/guide` 의 `limitations` 에 있다.
 
+2026-08-31 에 여섯 항목이 이 표에서 **빠졌다** — 마일스톤 수정(PATCH), 마일스톤의
+`dependencies`·`labelPosition` 쓰기, 일괄 쓰기(batch), 캐스케이드, 임계경로, 텍스트 렌더가
+전부 추가됐다. 남은 것은 아래다.
+
 | 못 하는 것 | 결과 / 우회 |
 |---|---|
-| **마일스톤 수정** (PATCH 없음) | 지우고 다시 만들어야 하고, 그러면 **id 가 바뀌며 삭제 시점에 그것을 가리키던 `dependencies` 가 함께 정리된다**. 연결이 있었다면 다시 걸어야 한다 |
-| **마일스톤의 `dependencies` 쓰기** | 생성 스펙에 없고 수정이 없다 — API 로 만들 수 있는 연결은 `timeRange` 가 든 것뿐이다(읽을 때는 화면에서 건 것이 나타난다) |
-| **`labelPosition`(라벨 위치)** | 화면 전용. auto 가 겹치지 않게 배치하므로 보통 지정할 필요가 없다 |
-| **일괄 쓰기(트랜잭션)** | 작업 N 개 = 호출 N 번 = 리비전 N 증가, 매 호출이 트리 전체를 다시 쓴다. 큰 계획은 몰아서 만들고 시작 전 스냅샷 |
-| **의존성 따라 밀기(캐스케이드)** | 기간 수정은 그 기간 하나만 바꾼다. 후행은 직접 계산해 각각 옮기고 끝난 뒤 `dependency-issues` 로 확인 |
-| **임계경로·여유(slack)** | 제공하지 않는다 — 필요하면 트리를 읽어 직접 계산 |
-| **렌더 결과(이미지·HTML) 받기** | 차트는 브라우저에서만 만들어진다. "그림이 제대로 나왔는지"는 API 로 볼 수 없으므로 데이터 수준(flat 목록의 날짜, `dependency-issues`)에서 확인하고 화면 확인은 사용자에게 요청 |
+| **공휴일 달력** | 작업일 계산은 주말(토·일)만 안다. `workdays=true` 와 `slackWorkdays` 는 공휴일을 평일로 센다 |
+| **전진 스케줄링** | 의존성으로부터 날짜를 만들어 주지 않는다. 연결은 판정(순환·위반·여유)에만 쓰이고 시작일은 사람이 정한 값이다 — "가능한 가장 이른 날로 배치"는 없다. `cascade` 도 뒤로 밀 때만 움직인다 |
+| **이미지·HTML 렌더** | 렌더는 텍스트 간트뿐이다. 색·라벨 겹침·화살표 모양 같은 시각적 판정은 API 로 볼 수 없으므로 화면 확인은 사용자에게 요청 |
+| **가져오기(병합)** | 서버에는 없다(브라우저 전용). 다른 프로젝트의 트리를 복제하려면 읽어서 `batch` 로 다시 만들 것 — id 를 그대로 쓰면 두 프로젝트의 연결이 얽힌다 |
+| **검색·필터 쿼리** | 없다. `GET /tasks?flat=true` 로 전체를 받아 직접 거른다 (작업 5000개 상한) |
+| **통짜 `POST /api/data` 의 검증** | 순환·역방향 기간을 검사하지 않는다 — 브라우저의 저장 경로이기도 해서 거부하면 사용자가 기존 데이터를 고칠 수 없다. 그 경로로 쓴 것은 `dependency-issues` 에만 드러난다 |
 
 ## 인증 — 에이전트는 사람 계정을 빌려 쓰지 않는다
 
@@ -164,9 +201,13 @@ PH_API_TOKEN=<token> node mcp/index.js
 ## 검증
 
 ```bash
-npx playwright test tests/e2e/ai-sync.spec.js   # API 서버 실행 중이어야 함
+npx playwright test tests/e2e/ai-sync.spec.js       # 브라우저 반영 + 의존성 HTTP 경계
+npx playwright test tests/e2e/api-surface.spec.js   # batch·cascade·critical-path·chart·settings
 ```
 - 외부 API 쓰기 → 열린 탭 10초 내 반영
 - 편집 충돌(409) → 서버 우선 재로드
+- `api-surface.spec.js` 는 **라우트가 붙어 있는지**를 본다 — `server/test/` 는 서비스를 직접
+  부르므로 라우트가 빠져도 초록불이고, 그 차이는 에이전트가 404 를 받는 순간에만 드러난다
+  (실제로 2026-08-31 에 `POST /api/settings` 의 누락된 `require` 를 이 스펙이 잡았다)
 
 수동 확인: 브라우저 열어둔 채 `curl -X POST .../api/tasks -d '{"name":"테스트"}'` → 화면에 나타나면 정상.

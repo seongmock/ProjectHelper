@@ -3,6 +3,7 @@ const path = require('path');
 const store = require('./lib/store');
 const registry = require('./lib/registry');
 const aiGuide = require('./lib/aiGuide');
+const { validateSettings, mergeSettings } = require('./lib/validate');
 const { router: tasksRouter } = require('./routes/tasks');
 const dataRouter = require('./routes/data');
 const projectsRouter = require('./routes/projects');
@@ -72,8 +73,9 @@ app.get('/api', (req, res) => {
             '/api/guide', '/api/openapi.yaml', '/api/projects',
             '/api/projects/{pid}/tasks', '/api/projects/{pid}/data', '/api/projects/{pid}/revision', '/api/projects/{pid}/snapshots',
             '/api/projects/{pid}/events', '/api/projects/{pid}/dependency-issues',
+            '/api/projects/{pid}/critical-path', '/api/projects/{pid}/chart', '/api/projects/{pid}/batch',
             '/api/tasks (→ default 프로젝트 별칭)', '/api/revision', '/api/data', '/api/snapshots',
-            '/api/events', '/api/health', '/api/metrics', '/api/auth/me',
+            '/api/events', '/api/settings', '/api/health', '/api/metrics', '/api/auth/me',
         ],
     });
 });
@@ -91,13 +93,20 @@ app.get('/api/openapi.yaml', (req, res) => {
 const readJson = (filename) => store.readJsonSafe(path.join(store.DATA_DIR, filename));
 const writeJson = (filename, data) => store.writeJsonAtomic(path.join(store.DATA_DIR, filename), data);
 
+// **부분 저장이 나머지를 지우지 않는다** — 예전에는 req.body 를 통짜로 덮어썼으므로,
+// 설정 하나만 담아 보내면(가져오기 경로가 그렇게 한다, AI 도 그렇게 한다) 사용자의
+// 다른 뷰 설정이 전부 사라졌다. 이제 기존 값에 **병합**한다(validate.js).
 app.get('/api/settings', (req, res) => {
     res.json({ ok: true, data: readJson('settings.json') });
 });
 
 app.post('/api/settings', (req, res) => {
-    writeJson('settings.json', req.body);
-    res.json({ ok: true });
+    const error = validateSettings(req.body);
+    if (error) return res.status(400).json({ ok: false, error });
+
+    const merged = mergeSettings(readJson('settings.json'), req.body);
+    writeJson('settings.json', merged);
+    res.json({ ok: true, data: merged });
 });
 
 // ── 헬스체크 ─────────────────────────────────────────

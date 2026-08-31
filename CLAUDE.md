@@ -27,8 +27,8 @@ npm run build        # Production build → dist/
 npm run lint         # ESLint 9 (flat config)
 npm run test:unit    # Vitest — 도메인 순수함수 + XSS 회귀 (594건)
 npm run test:coverage # 위 + 커버리지 게이트 (vitest.config.js 의 임계값 — CI 와 같은 조건)
-npm run test:server  # node:test — 검증·서비스·저장소·레지스트리·감사·의존성·인증·메트릭 (267건)
-npm run test:e2e     # Playwright E2E 112건 (API·dev 서버 자동 기동)
+npm run test:server  # node:test — 검증·서비스·저장소·레지스트리·감사·의존성·인증·메트릭 (330건)
+npm run test:e2e     # Playwright E2E 122건 (API·dev 서버 자동 기동)
 npm run test:e2e:sqlite # 같은 E2E 를 운영 엔진(PH_STORE=sqlite)으로 — CI 는 둘 다 돈다
 npm run verify       # 위 전부 + 빌드 — 변경 후 이것을 돌려라
 ```
@@ -47,8 +47,8 @@ npx playwright test -g "프로젝트"                   # by test-title substrin
 npx playwright test --headed --debug                # watch it / step through
 ```
 
-**변경 후에는 `npm run verify`** — 합격 기준은 lint 0 error · unit 594/594 · server 267/267 ·
-빌드 성공 · **E2E 112/112 (skip 0)**.
+**변경 후에는 `npm run verify`** — 합격 기준은 lint 0 error · unit 594/594 · server 330/330 ·
+빌드 성공 · **E2E 122/122 (skip 0)**.
 
 **테스트는 지워서 초록불을 만들 수 있다** — 그래서 CI 에 개수 바닥(`scripts/assert-test-floor.mjs`,
 unit/server/e2e 별)과 커버리지 임계값(`vitest.config.js`)이 함께 걸려 있다. 숫자를 낮추는 커밋은
@@ -359,10 +359,50 @@ and there is nothing behind this one to dismiss it to.
 ### AI integration surface
 
 AI agents manipulate timeline data via per-task REST endpoints (`server/openapi.yaml` is the
-spec) or the **MCP server** (`mcp/index.js`, 16 tools, registered via `.mcp.json` —
-`list-tasks`/`add-task`/`reschedule`/`check-dependencies`/etc.; the 13 data tools take an
+spec) or the **MCP server** (`mcp/index.js`, 21 tools, registered via `.mcp.json` —
+`list-tasks`/`add-task`/`reschedule`/`check-dependencies`/`batch`/etc.; the 18 data tools take an
 optional `projectId`, defaulting to the 'default' project).
 See `docs/AI_INTEGRATION.md` and the `timeline-api` skill. Prefer per-task endpoints over blob `POST /api/data`.
+
+**An agent that can only write is an agent that cannot check its own work.** The 2026-08-31
+review found the surface was write-shaped: milestones could be created but not *edited* (so the
+only way to fix a typo destroyed the milestone's id and, with it, every arrow pointing at it),
+`check-dependencies` reported *problems* but never the **graph** (so an agent rescheduled without
+knowing an arrow was already there, and made duplicates and cycles), and nothing returned a
+picture. Five things closed that, and the reasoning behind each is worth keeping:
+
+- **`PATCH .../milestones/:id` exists so that delete+recreate never has to.** Deletes prune the
+  references to what they removed (`pruneDependencies`, above) — correct for a delete, fatal as
+  an edit path. `updateMilestone` keeps the id and touches nothing else.
+- **`edges` rides along with `/dependency-issues`**, and `GET /tasks?flat=true` now emits every
+  level's `dependencies`. One derivation feeds both the diagnosis and the graph, for the same
+  reason the table and the inspector share `findDependencyIssues`.
+- **`POST /batch` chains the *same* mutators the single-op routes use, inside one
+  `store.withTasks`.** `services/taskService.js` is therefore an `OPS` table of pure
+  `(tasks, args, out) => tasks` functions that know nothing about `store`; the public functions
+  are a thin `single()` wrapper. Two mutator sets would let batch and single-op drift invisibly —
+  the failure `taskTreeMirror.test.js` exists to prevent, one layer down. N ops = **one**
+  revision, one audit line, all-or-nothing (a `throw` inside the mutator means nothing is
+  written). `ref: '@name'` / `'@name:range'` lets a later op point at an earlier op's new id, so
+  a tree *and* its arrows arrive in one write. Cap is 200.
+- **Cascade is forward-only.** `?cascade=true` shifts transitive successors by
+  `diffDays(old.endDate, new.endDate)` **only when that is positive**. Pulling predecessors'
+  successors *back* would erase gaps a human deliberately left; there is no way to tell slack
+  from intent. `?workdays=true` walks off weekends with a monotonic `nextWorkday`, so a start
+  can't overtake its end. There is no holiday calendar (marked `ponytail:` in `lib/schedule.js`).
+- **Slack is a backward pass only** (`lib/schedule.js`): dates are already the user's decision,
+  so no forward pass invents them. `LF(n) = min(LS of successors)`, sinks take the project end,
+  `slack = LF − end`, `critical = slack <= 0`. A cycle means no topological order — 400, not a
+  wrong number.
+- **`GET /chart` is the only place the app renders for a reader that has no screen.** Text gantt,
+  `?format=text` for text/plain. East-Asian names need `displayWidth` (code-unit padding
+  misaligns every Korean row), and `width`/`maxRows` are **clamped, not rejected** — an agent
+  guessing a number should get a chart, not a 400.
+
+`POST /api/settings` validates **structure only** (key regex, ≤64 keys, scalars, ≤200 chars) and
+**merges** instead of overwriting. It must never grow a copy of the client's `SETTING_DEFAULTS`
+list — that copy is what drifts. The merge is not a nicety: `importSettings` and every agent send
+a partial blob, and the old overwrite deleted every key they didn't mention.
 
 ### State management (`src/App.jsx`, ~600 lines — the hub)
 
