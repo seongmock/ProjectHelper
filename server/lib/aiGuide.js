@@ -3,7 +3,7 @@
 // 작성·수정할 수 있게 하는 "기계용 튜토리얼". (스펙 전문은 /api/openapi.yaml)
 module.exports = {
     name: 'ProjectHelper Timeline API — AI Guide',
-    version: '1.2',
+    version: '1.3',
     purpose:
         '프로젝트 타임라인(간트 차트)을 REST로 조회/수정한다. ' +
         '열린 브라우저는 10초 폴링으로 변경을 자동 반영하므로 사용자에게 새로고침을 요구할 필요 없음.',
@@ -84,7 +84,7 @@ module.exports = {
                 '3. 하위 작업은 POST /api/projects/{pid}/tasks {name, parentId: <상위 id>, startDate, endDate}',
                 '4. 주요 이벤트는 POST /api/projects/{pid}/tasks/{id}/milestones {date, label, shape?}',
                 '5. 진행 상황은 PATCH /api/projects/{pid}/tasks/{id} {progress: 0~100}',
-                '6. 확인은 GET /api/projects/{pid}/tasks?flat=true — 사용자는 헤더의 프로젝트 드롭다운에서 전환해 확인',
+                '6. 확인은 GET /api/projects/{pid}/tasks?flat=true — 사용자는 좌측 프로젝트 레일에서 클릭 한 번으로 전환해 확인(레일은 폴링과 함께 목록을 갱신하므로 새로고침 불필요)',
             ],
             example: [
                 "PID=$(curl -sX POST -H 'Content-Type: application/json' -d '{\"name\":\"신제품 출시\"}' $BASE/projects | jq -r .project.id)",
@@ -101,6 +101,31 @@ module.exports = {
             '존재하지 않는 id 이거나 순환을 닫는 연결은 400 으로 거부된다. ' +
             '일정을 옮긴 뒤에는 GET /api/projects/{pid}/dependency-issues 로 점검할 것 — ' +
             'overlaps(후행이 선행 종료보다 먼저 시작)와 dangling(삭제된 상대를 가리키는 참조)은 쓰기 시점에 막히지 않는다.',
+    },
+
+    // API 가 **못 하는 것**. 없는 기능을 짐작해서 호출하면 400/404 만 받고 이유를 알 수 없다 —
+    // 화면에는 있는데 API 에는 없는 것이 몇 가지 있으므로 여기에 적어 둔다.
+    limitations: {
+        milestonePatch:
+            '마일스톤은 추가/삭제만 된다(수정 엔드포인트 없음). 날짜나 라벨을 바꾸려면 지우고 다시 만들어야 하는데, ' +
+            '**id 가 바뀌고 삭제 시점에 그 마일스톤을 가리키던 dependencies 가 함께 정리된다** — 연결이 있었다면 다시 걸어야 한다.',
+        milestoneDependencies:
+            '마일스톤의 dependencies 는 API 로 쓸 수 없다(생성 스펙에 없고 수정이 없다). 화면에서는 걸 수 있으므로, ' +
+            '읽을 때는 나타날 수 있다. API 로 만들 수 있는 연결은 timeRange 가 들고 있는 것뿐이다.',
+        labelPosition:
+            '마일스톤 라벨 위치(labelPosition: auto|top|bottom|left|right)는 API 로 쓸 수 없다 — 화면 전용이다. ' +
+            'auto 는 겹치지 않게 자동 배치되므로 보통 지정할 필요가 없다.',
+        noBatch:
+            '일괄 쓰기(트랜잭션)가 없다. 작업 N 개 생성 = 호출 N 번 = 리비전 N 증가이고, 매 호출이 트리 전체를 다시 쓴다. ' +
+            '큰 계획은 한 번에 몰아서 만들고, 시작 전에 스냅샷을 남길 것.',
+        noCascade:
+            '의존성을 따라 후행 일정을 밀어 주는 연산이 없다. 기간 수정은 지정한 그 기간 하나만 바꾼다 — ' +
+            '후행 작업은 직접 계산해 각각 옮기고, 끝난 뒤 dependency-issues 로 확인할 것.',
+        noCriticalPath: '임계경로·여유(slack) 계산은 제공하지 않는다. 필요하면 트리를 읽어 직접 계산할 것.',
+        noRender:
+            '그려진 결과(이미지·HTML)를 돌려주는 엔드포인트가 없다 — 차트는 브라우저에서만 만들어진다. ' +
+            '"그림이 제대로 나왔는지"는 API 로 볼 수 없으므로 데이터 수준에서 확인할 것: ' +
+            'flat 목록의 날짜, dependency-issues, 그리고 사용자에게 화면 확인 요청.',
     },
 
     concurrency: {

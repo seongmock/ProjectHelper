@@ -2343,3 +2343,42 @@ activeProjectId && onSwitch(project.id)}` — 활성 프로젝트 클릭은 **�
 **떨어진다** — 전제가 바뀌었으므로 교체가 맞다. 단위테스트에 `preferBelow` describe 추가(+3).
 
 검증: `npm run verify` — lint 0 error · unit 594 · server 267 · 빌드 · E2E 112/112 (skip 0).
+
+### 2026-08-31 — AI 가 읽는 문서가 1년 된 화면을 설명하고 있었다 + API 한계를 처음으로 적었다
+
+사용자 요청: *"현재 프로젝트 문서 업데이트 해주고, 이를 봤을때, AI가 현재 일정에대한 데이터를
+이해해고, 수정 및 개선 가능하도록 혹은 원하는 일정이 있을때 다이어그램을 직접 잘 그릴수있도록
+API와 문서화 레벨이 충분한지 시스템 소프트웨어 전문가 관점에서 검토 해줘"*
+
+**드리프트 셋.** `aiGuide.js`(=`GET /api/guide`, AI 가 실행 중에 읽는 유일한 문서)·
+`docs/AI_INTEGRATION.md`·`timeline-api` 스킬이 셋 다 프로젝트 전환을 *"헤더 드롭다운"* 이라고
+말하고 있었다 — 2026-08-19 에 좌측 레일로 바뀐 자리다. `docs/ARCHITECTURE.md` 의 구성도에는
+`auth.js`·`eventLog.js`·`registry.js` 가 없었고 데이터 모델 줄에 마일스톤의 `labelPosition`·
+`dependencies` 가 빠져 있었다. 개수 게이트(`assert-doc-counts.mjs`)는 **숫자만** 본다 —
+서술이 늙는 것은 아무것도 검사하지 않는다.
+
+**한계를 문서에 처음 적었다.** `aiGuide` 를 v1.3 으로 올리고 `limitations` 블록을 넣었다
+(마일스톤 수정 불가 · 마일스톤 dependencies 쓰기 불가 · `labelPosition` 쓰기 불가 · 일괄
+쓰기 없음 · 캐스케이드 없음 · 임계경로 없음 · 렌더 결과를 돌려주는 엔드포인트 없음).
+같은 내용을 `AI_INTEGRATION.md` 에는 표로, 스킬에는 목록으로 넣었다. **AI 에게 "없는 것"을
+말해 주지 않으면 짐작해서 호출하고, 400 을 받고, 우회로로 `POST /api/data` 를 쓴다** —
+그 경로가 하필 순환 검사가 없는 경로다.
+
+**검토 결과(구현하지 않음, 사용자 판단 대기).** 읽기는 충분, 쓰기는 구멍, 그리기는 부족:
+1. **MCP 로는 의존성 그래프를 읽을 방법이 없다.** `list-tasks` 가 `dependencies`/`progress`/
+   `color`/`description`/`labels` 를 투영에서 떨어뜨리고, `check-dependencies` 는 *문제*만
+   돌려준다(간선 목록이 아니다). `GET /api/data` 에 해당하는 MCP 도구가 없다.
+2. **마일스톤 PATCH 가 없다.** 날짜 하나 고치려면 삭제+재생성 → id 가 바뀌고
+   `pruneDependencies` 가 그것을 가리키던 연결을 (정상 동작으로) 지운다. 옳은 삭제 동작이
+   수정 수단의 부재 때문에 데이터 손실 경로가 된다.
+3. **일괄 쓰기가 없다.** 40 노드 계획 = 40 왕복 + 40 회 전체 트리 재기록 + 리비전 40 증가,
+   그 사이 브라우저는 반쯤 지어진 계획을 폴링으로 본다. 유일한 벌크 경로는 순환 검사가
+   없는 `POST /api/data`.
+4. **AI 는 자기가 그린 차트를 볼 수 없다.** 렌더 결과를 돌려주는 엔드포인트가 없고
+   `labelPosition` 은 쓸 수 없다. 오늘 고친 첫 행 여백 같은 결함을 AI 는 영원히 못 본다.
+5. `POST /api/settings` 는 무검증·전체 덮어쓰기·리비전 미증가·openapi 미기재다. AI 가
+   부분 저장하면 사용자의 나머지 뷰 설정이 전부 날아간다. openapi 에는 `/snapshots/{id}` 도 없다.
+
+검증: `npm run verify` — lint 0 error · unit 594 · server 267 · 빌드 · E2E 112/112 (skip 0).
+문서만 바뀌었지만 `aiGuide.js` 는 서버가 서빙하므로 `GET /api/guide` 가 v1.3 을 돌려주려면
+배포가 필요하다.

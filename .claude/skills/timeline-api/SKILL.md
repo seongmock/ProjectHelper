@@ -24,7 +24,7 @@ npm run dev:api   # 또는 cd server && npm start (포트 3000)
 데이터는 프로젝트 단위로 격리된다. **새 일정 계획은 새 프로젝트에 작성하라**:
 `create-project`(MCP) 또는 `POST /api/projects {name}` → 반환된 id를 도구의 `projectId`
 파라미터 / `/api/projects/{pid}/...` 경로에 사용. projectId 생략 시 default 프로젝트.
-사용자는 헤더의 프로젝트 드롭다운에서 전환해 확인한다.
+사용자는 **좌측 프로젝트 레일**에서 클릭 한 번으로 전환해 확인한다(폴링이 목록도 갱신하므로 새로고침 불필요).
 
 ## 사용법을 모르면: 셀프 디스커버리
 
@@ -84,6 +84,16 @@ curl -s -X POST -H 'Content-Type: application/json' \
 - 의존성(`dependencies`)은 **timeRange/milestone 레벨**에 있다 (task 레벨은 레거시, 항상 빈 배열).
 - 날짜는 `YYYY-MM-DD` 문자열. 색상은 `#RRGGBB`.
 - milestone `shape`: diamond | circle | triangle | square | star | flag
+
+## API 로는 안 되는 것 (짐작해서 호출하지 말 것)
+
+- **마일스톤 수정 없음** — 지우고 다시 만들면 id 가 바뀌고, 삭제 시 그것을 가리키던 의존성이 함께 정리된다.
+- **마일스톤 dependencies·labelPosition 쓰기 없음** — 화면 전용. API 로 만들 수 있는 연결은 timeRange 가 든 것뿐.
+- **일괄 쓰기 없음** — 작업 N 개 = 호출 N 번 = 리비전 N 증가. 대량 작성 전 `create-snapshot`.
+- **의존성 따라 밀어 주지 않음** — `reschedule` 은 지정한 기간 하나만 바꾼다. 후행은 직접 옮기고 `check-dependencies` 로 확인.
+- **임계경로/여유 계산 없음**, **렌더 결과(이미지·HTML)를 받는 API 없음** — 그림 확인은 사용자에게 요청.
+
+전체 목록은 `GET /api/guide` 의 `limitations`.
 
 ## 동시성 규약 (중요)
 

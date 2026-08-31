@@ -21,8 +21,11 @@
                         │ /api/*  (dev: vite proxy → :3000, prod: Caddy)
 ┌───────────────────────▼─────────────────────────────────────────────────┐
 │  Express API (server/, CommonJS, :3000)                                 │
-│   index.js          — 블롭 /api/data + settings/snapshots (하위호환)     │
+│   index.js          — 블롭 /api/data + settings/snapshots + 인증 게이트   │
 │   routes/tasks.js   — 작업 단위 CRUD (AI 연동용, 검증 + If-Match/409)    │
+│   lib/auth.js       — 신원(계정 0개면 open, 첫 관리자부터 enforced)       │
+│   lib/eventLog.js   — 프로젝트별 append-only 감사 로그 events.jsonl       │
+│   lib/registry.js   — 프로젝트 레지스트리 + 부팅 시 레거시 마이그레이션    │
 │   lib/store.js      — 원자적 쓰기(tmp+rename) + 리비전 증가              │
 │   lib/sqliteStore.js — PH_STORE=sqlite 일 때의 대체 엔진 (기본은 JSON)   │
 │   lib/metrics.js     — 운영 지표 카운터 (GET /api/metrics)               │
@@ -41,13 +44,13 @@
 
 ## 데이터 모델
 
-Task는 재귀 트리(`children`). **날짜의 단일 진실은 `timeRanges[]`** — task 레벨 `startDate`/`endDate`는 파생 캐시이며 서버/클라이언트 모두 변경 시 재계산한다. 의존성은 range/milestone 레벨(작업 레벨 `dependencies`는 레거시, `migrateTaskData`가 첫 range로 이관 후 비움).
+Task는 재귀 트리(`children`). **날짜의 단일 진실은 `timeRanges[]`** — task 레벨 `startDate`/`endDate`는 파생 캐시이며 서버/클라이언트 모두 변경 시 재계산한다. 의존성은 range/milestone 레벨(작업 레벨 `dependencies`는 레거시, `migrateTaskData`가 첫 range로 이관 후 비움). **마일스톤의 `labelPosition`·`dependencies` 는 화면에서만 쓸 수 있다** — REST/MCP 의 마일스톤 생성 스펙에 없고 수정 엔드포인트 자체가 없다(`docs/AI_INTEGRATION.md` 의 한계 표).
 
 ```
 Task { id, name, timeRanges[{id, startDate, endDate, dependencies[], color, label}],
        color, description, progress(0~100), children[], expanded, labels[], parentId,
-       milestones[{id, date, label, color, shape}], dependencies[](레거시),
-       divider{enabled, thickness, style, color} }
+       milestones[{id, date, label, color, shape, labelPosition?, dependencies[]}],
+       dependencies[](레거시), divider{enabled, thickness, style, color} }
 ```
 
 `progress`(진행률 %)는 v1.1에 추가 — `migrateTaskData`가 구버전 데이터에 0으로 백필하고 0~100으로 클램프한다.
@@ -90,7 +93,7 @@ SSE/WebSocket 대신 폴링을 택한 이유: 단일 사용자 도구에서 10�
 
 ## 프론트엔드 상태 흐름
 
-- `App.jsx`가 모든 상태 소유: viewMode, 9개 뷰 설정(각 useState, localStorage 동기 캐시로 초기화 후 서버 값으로 갱신), 작업 트리(useUndoRedo)
+- `App.jsx`가 모든 상태 소유: viewMode, 10여 개 뷰 설정(각 useState, localStorage 동기 캐시로 초기화 후 서버 값으로 갱신), 작업 트리(useUndoRedo)
 - **`setState`(undo 기록) vs `setStateSilent`(기록 없음 — 드래그 중간, 외부 재로드)** 구분이 핵심 계약
 - 트리 변경은 반드시 `src/utils/taskTree.js`의 불변 헬퍼 사용 (뮤테이션은 undo 히스토리를 오염시킴)
 - 컴포넌트는 `Foo.jsx`+`Foo.css` 쌍, 다크 모드는 `[data-theme="dark"]` CSS 선택자
@@ -105,7 +108,7 @@ Docker Compose 3서비스: Caddy(443, `/api/*` → api, 나머지 → 정적 프
 |---|---|
 | ~~번들 >500kB 경고~~ | 해소 — 경고 없음(2026-08-20 측정: 엔트리 367kB/gzip 119kB, html2canvas 198kB·htmlExporter 65kB 는 각자 별도 청크로 지연 로드). 엔트리의 최대 지분은 이제 라이브러리가 아니라 앱 자신(`src/features` 40%, react-dom 18%, @dnd-kit 17%)이므로 더 쪼갤 이유가 없다. 되돌아가지 않게 `scripts/assert-bundle-budget.mjs` 가 CI·`npm test` 에서 엔트리 예산(500kB)과 캡처 라이브러리의 청크 분리를 검사한다 |
 | ~~TimelineView 1497줄~~ | 해소(P2-2) — 496줄. 드래그/캡처/연결선은 `useTimeline*` 훅과 순수 모듈로 나갔다 |
-| htmlExporter의 뷰 로직 중복 | 2026-08-19 일부 해소 — 순수 모듈 소스를 `?raw` 로 내보낸 스크립트에 **심어서** 공유한다(`milestoneLabels.js`, `dependencyPath.js`). 남은 불일치: 날짜 윈도우 패딩이 뷰(±14d)와 export(-14/+21d)로 다름 — 통합 시 화면 변경이라 보류 |
+| htmlExporter의 뷰 로직 중복 | 2026-08-19 일부 해소 — 순수 모듈 소스를 `?raw` 로 내보낸 스크립트에 **심어서** 공유한다(`milestoneLabels.js`, `dependencyPath.js`, `dependencyStyle.js`). 남은 불일치: 날짜 윈도우 패딩이 뷰(±14d)와 export(-14/+21d)로 다름 — 통합 시 화면 변경이라 보류 |
 | ~~마일스톤 도형 3중 구현~~ | 해소(2026-08-20) — `src/shared/milestoneShapes.js` 가 도형의 **서술**을 갖고, 표·차트·내보내기가 표현만 각자 한다. 표의 별·깃발이 텍스트 글리프(★·⚑)에서 벡터로 바뀐 것이 유일한 시각 변화다. 선택 목록도 같은 파일에서 나온다 |
 | ~~TableView 날짜 컬럼~~ | 해소 — `TaskRow` 는 첫 `timeRange` 를 편집한다(`firstRange`, 범위가 없으면 새로 만든다). 레거시 `startDate` 를 쓰지 않는다 |
 | ~~undo 히스토리~~ | 해소 — 접기/펴기는 `updateTaskSilent`(히스토리 밖), 연속 조작은 제스처 키로 한 칸에 합친다(`undoHistory.js`) |
