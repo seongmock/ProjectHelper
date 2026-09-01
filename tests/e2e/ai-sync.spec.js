@@ -131,3 +131,38 @@ test('저장이 실패한 동안 폴링은 미저장 편집을 덮어쓰지 않�
     await page.locator('button[data-testid="sync-indicator"]').click();
     await expect(page.getByText('폴링이 가져올 작업').first()).toBeVisible({ timeout: 15_000 });
 });
+
+test('늦게 도착한 초기 로드가 사용자의 편집을 되돌리지 않는다', async ({ page }) => {
+    // StrictMode 는 초기 로드 effect 를 두 번 돌린다 — 로드 사슬이 둘 뜨고, 먼저 끝난
+    // 쪽이 isLoading 을 내려 화면을 연다. 취소 가드가 없으면 남아 있던 사슬이 도착하면서
+    // applySettings/setTasks 로 **서버 값을 다시 씌운다** — 사용자가 그 사이에 한 조작이
+    // 조용히 사라진다. 실제로 2026-09-01 CI(e2e sqlite)에서 다크 모드 토글이 되돌아갔다.
+    // 응답 속도에 달린 레이스라 그냥 두면 재현되지 않는다. 첫 GET 만 늦춰서 순서를 고정한다.
+    let seen = 0;
+    await page.route('**/api/settings', async (route) => {
+        if (route.request().method() === 'GET' && ++seen === 1) {
+            // 요청이 아니라 **응답**을 늦춘다 — 요청을 늦추면 토글이 이미 저장된 뒤의
+            // 설정을 읽어 와서, 덮어써도 값이 같아 아무것도 드러나지 않는다.
+            const response = await route.fetch();
+            const body = await response.text();
+            await new Promise(resolve => setTimeout(resolve, 2500));
+            await route.fulfill({ response, body });
+            return;
+        }
+        await route.continue();
+    });
+    await page.goto('/');
+    await expect(page.getByText('데이터 불러오는 중')).toHaveCount(0);
+
+    const html = page.locator('html');
+    const before = await html.getAttribute('data-theme');
+    await page.getByTitle('테마 변경').click();
+    const flipped = before === 'dark' ? 'light' : 'dark';
+    await expect(html).toHaveAttribute('data-theme', flipped);
+
+    // 늦은 사슬이 도착할 시간을 준다 — 취소 가드가 있으면 아무것도 쓰지 않는다.
+    await page.waitForTimeout(3000);
+    await expect(html).toHaveAttribute('data-theme', flipped);
+
+    await page.getByTitle('테마 변경').click(); // 전역 설정이므로 뒷 스펙을 위해 되돌린다
+});

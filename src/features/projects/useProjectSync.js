@@ -106,7 +106,15 @@ export function useProjectSync({ tasks, setTasks, setTasksSilent, resetTasks, ap
     }, [emitSync, reloadFromServer, toast]);
 
     // ── 초기 로드 ────────────────────────────────────
+    // **취소 가드가 없으면 늦게 도착한 로드가 사용자의 편집을 되돌린다.** StrictMode 는
+    // 마운트 → 언마운트 → 마운트로 이 effect 를 두 번 돌리므로 로드 사슬이 둘 뜨고
+    // (설정 GET 이 실제로 두 번 나간다), 먼저 끝난 쪽이 isLoading 을 내려 화면이 열린다.
+    // 그 뒤 사용자가 무엇을 바꾸면, 남아 있던 사슬이 도착하면서 applySettings/setTasks 로
+    // **서버 값을 다시 덮어썼다** — 2026-09-01 CI 의 e2e(sqlite) 에서 다크 모드 토글이
+    // 되돌아간 것이 이것이다(json 은 응답이 빨라 토글 전에 도착했을 뿐, 같은 구멍이다).
+    // 취소된 사슬은 setIsLoading 까지 포함해 아무것도 쓰지 않는다.
     useEffect(() => {
+        let cancelled = false;
         (async () => {
             try {
                 // 1) 프로젝트 목록 해석 (저장된 활성 프로젝트 검증, 없으면 default → 첫 항목)
@@ -116,6 +124,7 @@ export function useProjectSync({ tasks, setTasks, setTasksSilent, resetTasks, ap
                 } catch {
                     list = [{ id: 'default', name: '기본 프로젝트' }]; // 오프라인 폴백
                 }
+                if (cancelled) return;
                 setProjects(list);
 
                 const saved = readActiveProjectId();
@@ -132,13 +141,15 @@ export function useProjectSync({ tasks, setTasks, setTasksSilent, resetTasks, ap
                     storage.loadSettings(),
                 ]);
 
+                if (cancelled) return;
                 applySettings(serverSettings);
                 const data = toTaskArray(serverData);
                 if (data) setTasks(migrateTaskData(data));
             } finally {
-                setIsLoading(false);
+                if (!cancelled) setIsLoading(false);
             }
         })();
+        return () => { cancelled = true; };
         // 마운트 시 1회만 — 의존성을 넣으면 재로드 루프가 된다
     }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
