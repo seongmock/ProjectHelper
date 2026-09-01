@@ -1035,6 +1035,15 @@ test.describe('접힌 가지의 요약 막대', () => {
 // (`--timeline-label-headroom`, 평소엔 0). 그 여백은 **세 곳이 같이** 내려가야 의미가 있다:
 // 막대가 있는 행, 왼쪽 작업명, 그리고 절대배치라 padding 을 따라오지 않는 화살표 레이어.
 // 하나라도 빠지면 이름과 막대가, 또는 화살표와 막대가 어긋난다 — 그래서 여기서 잰다.
+// 타임라인 폭(`contentWidth`)은 ResizeObserver 콜백으로 들어온다 — 그 전에는 0 이고,
+// 0 이면 `labelHeadroomPx` 가 null 이라 여백이 **아직 붙지 않았다**. "데이터 불러오는 중" 이
+// 사라진 직후를 한 번만 재면 그 프레임을 잡는다: 2026-09-01 CI 의 e2e(sqlite)가
+// `contentPadTop > 0` 에서 0 을 받고 실패한 것이 이것이다(로직은 멀쩡했다). 여백을 재기
+// 전에 폭이 실측됐는지 먼저 기다린다 — 여백이 정말 0 으로 회귀하면 이 대기는 통과하고
+// 뒤의 단언이 잡는다.
+const waitForTimelineWidth = (page) => page.waitForFunction(
+    () => (document.querySelector('.timeline-content')?.getBoundingClientRect().width ?? 0) > 0);
+
 test.describe('타임라인 위쪽 여백', () => {
     test('여백을 줘도 작업명·행·화살표 레이어가 같은 높이에 있다', async ({ page }) => {
         const geom = await page.evaluate(() => {
@@ -1086,7 +1095,9 @@ test.describe('타임라인 위쪽 여백', () => {
             color: '#e74c3c', shape: 'diamond',
             ...(i === 0 && labelPosition ? { labelPosition } : {}),
         }));
-        const measure = () => page.evaluate(() => {
+        const measure = async () => {
+            await waitForTimelineWidth(page);
+            return page.evaluate(() => {
             const rows = [...document.querySelectorAll('.timeline-row')];
             const labels = [...rows[0].querySelectorAll('.milestone-label')];
             return {
@@ -1095,7 +1106,8 @@ test.describe('타임라인 위쪽 여백', () => {
                 headerBottom: document.querySelector('.timeline-header').getBoundingClientRect().bottom,
                 padTop: parseFloat(getComputedStyle(document.querySelector('.timeline-content')).paddingTop),
             };
-        });
+            });
+        };
 
         target.milestones = stack(null);
         expect((await request.post('/api/data', { data })).ok()).toBe(true);
@@ -1138,6 +1150,7 @@ test.describe('PNG 캡처 높이', () => {
         expect((await request.post('/api/data', { data })).ok()).toBe(true);
         await page.reload();
         await expect(page.getByText('데이터 불러오는 중')).toHaveCount(0);
+        await waitForTimelineWidth(page);
 
         const m = await page.evaluate(() => {
             const cap = document.querySelector('.timeline-container');
