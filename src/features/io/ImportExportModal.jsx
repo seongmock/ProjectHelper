@@ -50,10 +50,15 @@ function ImportExportModal({ isOpen, onClose, mode, onImport, onExport, currentD
         }
     };
 
-    const handleCopy = () => {
-        navigator.clipboard.writeText(jsonText)
-            .then(() => toast.success('JSON 데이터가 클립보드에 복사되었습니다.'))
-            .catch(err => toast.error('복사 실패: ' + err));
+    // http 에서는 navigator.clipboard 가 없어 `.writeText` 가 동기적으로 던진다 —
+    // .catch() 밖이라 버튼이 조용히 죽었다(PromptGuideModal 과 같은 이유).
+    const handleCopy = async () => {
+        try {
+            await navigator.clipboard.writeText(jsonText);
+            toast.success('JSON 데이터가 클립보드에 복사되었습니다.');
+        } catch {
+            toast.error('복사에 실패했습니다. HTTPS 가 아니면 브라우저가 클립보드를 막습니다 — 아래 글을 직접 선택해 복사하세요.');
+        }
     };
 
     return (

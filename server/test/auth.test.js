@@ -151,6 +151,20 @@ describe('identify — 헤더는 명시적으로 신뢰할 때만 신원이다',
         assert.equal(auth.identify(req({ authorization: 'Bearer wrong' })), null);
     });
 
+    // 무심한 split(':') 은 토큰을 잘라 내고 **접두어만** 기대값으로 삼는다 — 비밀이
+    // 조용히 짧아지고, 그 짧은 조각만 알아도 통과한다.
+    test('토큰 안의 콜론은 토큰의 일부다 (잘리지 않는다)', () => {
+        process.env.PH_API_TOKENS = 'ai-agent:editor:s3c:ret:token';
+        assert.equal(auth.identify(req({ authorization: 'Bearer s3c:ret:token' })).name, 'ai-agent');
+        assert.equal(auth.identify(req({ authorization: 'Bearer s3c' })), null);
+    });
+
+    // 이 파서는 모든 요청이 지난다 — 잘못 인코딩된 쿠키 하나가 던지면 그 브라우저는
+    // 모든 경로에서 500 을 받는다.
+    test('깨진 퍼센트 인코딩 쿠키가 예외를 내지 않는다', () => {
+        assert.equal(auth.identify(req({ cookie: 'foo=%E0%A4%A; bar=1' })), null);
+    });
+
     test('쿠키가 서비스 토큰보다 앞선다', () => {
         process.env.PH_API_TOKENS = 'ai-agent:editor:s3cret-token';
         auth.createUser({ name: 'kim', password: 'password123', role: 'admin' });

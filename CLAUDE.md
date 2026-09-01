@@ -27,7 +27,7 @@ npm run build        # Production build → dist/
 npm run lint         # ESLint 9 (flat config)
 npm run test:unit    # Vitest — 도메인 순수함수 + XSS 회귀 (594건)
 npm run test:coverage # 위 + 커버리지 게이트 (vitest.config.js 의 임계값 — CI 와 같은 조건)
-npm run test:server  # node:test — 검증·서비스·저장소·레지스트리·감사·의존성·인증·메트릭 (352건)
+npm run test:server  # node:test — 검증·서비스·저장소·레지스트리·감사·의존성·인증·메트릭 (356건)
 npm run test:e2e     # Playwright E2E 125건 (API·dev 서버 자동 기동)
 npm run test:e2e:sqlite # 같은 E2E 를 운영 엔진(PH_STORE=sqlite)으로 — CI 는 둘 다 돈다
 npm run verify       # 위 전부 + 빌드 — 변경 후 이것을 돌려라
@@ -47,7 +47,7 @@ npx playwright test -g "프로젝트"                   # by test-title substrin
 npx playwright test --headed --debug                # watch it / step through
 ```
 
-**변경 후에는 `npm run verify`** — 합격 기준은 lint 0 error · unit 594/594 · server 352/352 ·
+**변경 후에는 `npm run verify`** — 합격 기준은 lint 0 error · unit 594/594 · server 356/356 ·
 빌드 성공 · **E2E 125/125 (skip 0)**.
 
 **테스트는 지워서 초록불을 만들 수 있다** — 그래서 CI 에 개수 바닥(`scripts/assert-test-floor.mjs`,

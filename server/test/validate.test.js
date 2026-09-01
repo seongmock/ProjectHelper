@@ -102,6 +102,15 @@ describe('validate — 필드 단위 검증', () => {
         assert.match(validate({ bogus: 1 }, { name: { type: 'string' } }), /unknown field/);
     });
 
+    // 상한이 없으면 요청 하나가 임의 길이를 실어 온다. dependencies 처럼 원소마다
+    // 트리를 BFS 하는 필드에서는 그것이 곧 CPU 고갈이다.
+    test('max 는 문자열과 배열의 길이를 함께 막는다', () => {
+        assert.equal(validate({ p: 'abc' }, { p: { type: 'string', max: 3 } }), null);
+        assert.match(validate({ p: 'abcd' }, { p: { type: 'string', max: 3 } }), /exceeds max length of 3/);
+        assert.equal(validate({ p: ['a', 'b'] }, { p: { type: 'stringArray', max: 2 } }), null);
+        assert.match(validate({ p: ['a', 'b', 'c'] }, { p: { type: 'stringArray', max: 2 } }), /exceeds max length of 2/);
+    });
+
     test('null 은 nullable 일 때만 허용', () => {
         assert.match(validate({ p: null }, { p: { type: 'string' } }), /must not be null/);
         assert.equal(validate({ p: null }, { p: { type: 'string', nullable: true } }), null);

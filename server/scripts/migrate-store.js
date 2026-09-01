@@ -116,11 +116,25 @@ console.log(`데이터: ${store.DATA_DIR}`);
 console.log(`${source} → ${target}${write ? '' : '  (예행연습 — 실제로 옮기려면 --write)'}`);
 console.log(`프로젝트 ${pids.length}건\n`);
 
+// 읽기 실패와 "정말 비어 있다"를 이 스크립트는 구분하지 못한다 — readSide 는 DB 파일이
+// 없거나 행이 없으면 조용히 빈 payload 를 돌려준다. 그것을 그대로 쓰면 되돌리기
+// (`--to json --write`)가 **살아 있는 data.json 을 [] 로 덮는다**. 그리고 검증은
+// [] === [] 이라 ✓ 를 찍는다. 원본이 비었는데 대상에 데이터가 있으면 그 프로젝트는
+// 건너뛰고 실패로 센다 — 사람이 무엇을 옮기려는지 다시 보게 만드는 편이 낫다.
+const isEmpty = (p) => p.tasks.length === 0 && p.snapshots.length === 0 && p.revision <= 1;
+
 let failed = 0;
 for (const pid of pids) {
     const payload = readSide(source, pid);
+    const before = readSide(target, pid);
     const line = `  ${pid.padEnd(20)} 노드 ${String(countNodes(payload.tasks)).padStart(5)}`
         + `  스냅샷 ${String(payload.snapshots.length).padStart(3)}  리비전 ${payload.revision}`;
+
+    if (isEmpty(payload) && !isEmpty(before)) {
+        console.log(`${line}  ✗ 건너뜀 — ${source} 가 비었는데 ${target} 에는 데이터가 있다`);
+        failed++;
+        continue;
+    }
     if (!write) { console.log(line); continue; }
 
     writeSide(target, pid, payload);
@@ -134,7 +148,7 @@ for (const pid of pids) {
 
 if (!write) {
     console.log('\n아무것도 쓰지 않았다. --write 를 붙이면 옮긴다.');
-    process.exit(0);
+    process.exit(failed ? 1 : 0);
 }
 if (failed) {
     console.error(`\n${failed}건이 옮긴 뒤 원본과 달랐다 — 환경변수를 바꾸지 마라.`);

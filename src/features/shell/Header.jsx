@@ -24,13 +24,16 @@ function Header({
                 <div className="header-right flex items-center gap-sm">
                     {/* 실행 취소/다시 실행 및 프롬프트 가이드 */}
                     <div className="undo-redo-buttons flex gap-sm">
+                        {/* 이 버튼만 글자를 단다 — 문제가 "AI 연동이 있는 줄도 몰랐다"
+                            였으므로, 로봇 아이콘 하나로는 그 문제를 그대로 남긴다. */}
                         <button
-                            className="icon tooltip"
+                            className="tooltip"
                             onClick={onOpenPromptGuide}
                             data-tooltip="AI 연동 · 프롬프트 가이드"
                             title="AI 가이드"
                         >
-                            <Bot size={18} aria-hidden="true" />
+                            <Bot size={15} aria-hidden="true" />
+                            <span>AI</span>
                         </button>
                         <button
                             className="icon tooltip"

@@ -48,12 +48,17 @@ const mustWrite = (result) => {
 // holderId 는 dependencies 를 **들고 있는 쪽**(후행)이다 — 간선은 dep → holder.
 // tasks 는 변경 전 트리다. holder 의 기존 의존성은 전부 holder 로 들어오는 간선이라,
 // 그것을 교체해도 holder 에서 나가는 경로(순환 판정이 보는 방향)는 달라지지 않는다.
+// 한 항목이 들 수 있는 의존성 상한. 아래 반복문은 원소마다 트리를 BFS 하므로,
+// 상한이 없으면 요청 하나가 서버를 붙잡아 둘 수 있다(중복 id 를 채우면 트리 크기와도
+// 무관하게 늘어난다 — 그래서 Set 으로 한 번 걸러서 돈다).
+const MAX_DEPENDENCIES = 200;
+
 const assertDependenciesWritable = (tasks, holderId, dependencies) => {
     if (!dependencies || dependencies.length === 0) return;
     const known = new Set(tree.collectEntities(tree.flattenAll(tasks)).map(e => e.id));
     const { successors } = tree.findDependencyIssues(tasks);
 
-    for (const depId of dependencies) {
+    for (const depId of new Set(dependencies)) {
         if (!known.has(depId)) throw badRequest(`unknown dependency id: ${depId}`);
         if (tree.wouldCreateDependencyCycle(successors, depId, holderId)) {
             throw badRequest(`dependency would create a cycle: ${depId} -> ${holderId}`);
@@ -147,7 +152,7 @@ const RANGE_SPEC = {
     endDate: { type: 'date', required: true },
     label: { type: 'string' },
     color: { type: 'color', nullable: true },
-    dependencies: { type: 'stringArray' },
+    dependencies: { type: 'stringArray', max: MAX_DEPENDENCIES },
 };
 
 const RANGE_PATCH_SPEC = {
@@ -155,7 +160,7 @@ const RANGE_PATCH_SPEC = {
     endDate: { type: 'date' },
     label: { type: 'string' },
     color: { type: 'color', nullable: true },
-    dependencies: { type: 'stringArray' },
+    dependencies: { type: 'stringArray', max: MAX_DEPENDENCIES },
 };
 
 const SHAPES = ['diamond', 'circle', 'triangle', 'square', 'star', 'flag'];
@@ -169,7 +174,7 @@ const MILESTONE_SPEC = {
     color: { type: 'color' },
     shape: { enum: SHAPES },
     labelPosition: { enum: LABEL_POSITIONS },
-    dependencies: { type: 'stringArray' },
+    dependencies: { type: 'stringArray', max: MAX_DEPENDENCIES },
 };
 
 const MILESTONE_PATCH_SPEC = {
@@ -178,7 +183,7 @@ const MILESTONE_PATCH_SPEC = {
     color: { type: 'color' },
     shape: { enum: SHAPES },
     labelPosition: { enum: LABEL_POSITIONS },
-    dependencies: { type: 'stringArray' },
+    dependencies: { type: 'stringArray', max: MAX_DEPENDENCIES },
 };
 
 // timeRanges가 바뀌면 상위 startDate/endDate도 다시 계산해야 한다 (뷰가 이 값을 읽는다)

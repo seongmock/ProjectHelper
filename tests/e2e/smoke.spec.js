@@ -481,8 +481,10 @@ test.describe('AI 프롬프트 가이드', () => {
         await expect(prompt).toContainText(activeId);
         await expect(prompt).toContainText(`${new URL(page.url()).origin}/api`);
 
-        // 링크는 상대 경로가 아니라 실제로 열리는 주소여야 한다
-        await expect(page.getByTestId('ai-guide-link')).toHaveAttribute('href', /\/api\/guide$/);
+        // 링크는 상대 경로가 아니라 실제로 열리는 주소여야 한다 — 정규식 끝맞춤은
+        // 상대 경로('/api/guide')도 통과시키므로 오리진까지 통째로 비교한다.
+        await expect(page.getByTestId('ai-guide-link'))
+            .toHaveAttribute('href', `${new URL(page.url()).origin}/api/guide`);
 
         // 계정이 없는 배포(E2E 서버가 그렇다)에서는 열려 있다는 사실을 같은 자리에서 말한다
         await expect(page.getByTestId('ai-auth-note')).toBeVisible();

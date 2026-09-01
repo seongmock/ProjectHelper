@@ -138,10 +138,16 @@ const API_EXAMPLES = [
 ];
 
 function PromptGuideModal({ isOpen, onClose, toast, projectId, projectName, authStatus }) {
-    const handleCopy = (text) => {
-        navigator.clipboard.writeText(text)
-            .then(() => toast.success('프롬프트가 복사되었습니다! 📋'))
-            .catch(() => toast.error('복사에 실패했습니다.'));
+    // http 로 열면 `navigator.clipboard` 자체가 없다(보안 컨텍스트 전용) — 그 경우
+    // `.writeText` 는 **동기적으로** TypeError 를 던지므로 .catch() 로는 안 잡히고,
+    // 버튼이 아무 반응 없이 죽었다. Docker 없이 뜨는 HTTP:8080 폴백이 그 상태다.
+    const handleCopy = async (text) => {
+        try {
+            await navigator.clipboard.writeText(text);
+            toast.success('프롬프트가 복사되었습니다! 📋');
+        } catch {
+            toast.error('복사에 실패했습니다. HTTPS 가 아니면 브라우저가 클립보드를 막습니다 — 아래 글을 직접 선택해 복사하세요.');
+        }
     };
 
     // 링크로도 쓰이므로 절대 주소여야 한다 — storage.js 의 '/api' 는 상대 경로다.

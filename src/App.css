@@ -9,6 +9,10 @@
      테두리·포커스링·아이콘처럼 글자를 담지 않는 곳은 --color-primary 그대로다. */
   --color-primary-strong: #3E78BD;
   --color-primary-dark: #2E6DA9;
+  /* 링크 **글자**는 또 다른 문제다: --color-primary-strong 은 흰 글자를 담는 면의 색이라
+     흰 배경 위에서는 4.59:1 이지만 카드(#F8F9FA) 위에서는 4.36:1 로 다시 미달이다.
+     텍스트로 쓰는 파랑은 이 토큰 하나로 정하고, 다크 모드는 방향이 반대라 아래에서 뒤집는다. */
+  --color-link: #2E6DA9;
   --color-accent: #7B68EE;
   --color-success: #5CB85C;
   --color-warning: #F0AD4E;
@@ -99,6 +103,8 @@
   --color-border: #404040;
   --color-grid: #333333;
   --color-overdue: #FF6B6B;
+  /* 어두운 면 위에서는 라이트용 파랑(#2E6DA9)이 3:1 아래로 떨어진다 — 밝은 쪽으로 뒤집는다 */
+  --color-link: #7FB3EE;
 
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
   --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.4);

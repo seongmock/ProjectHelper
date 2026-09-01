@@ -19,6 +19,9 @@ const fail = (res, status, error) => res.status(status).json({ ok: false, error 
 const ATTEMPT_WINDOW_MS = 15 * 60 * 1000;
 const MAX_ATTEMPTS = 10;
 const attempts = new Map(); // key -> { count, first }
+// 이름을 매번 바꿔 가며 실패시키면 키가 계속 새로 생긴다 — 창이 지난 항목은 다시
+// 조회될 때만 지워지므로, 아무 상한이 없으면 그 Map 이 프로세스 수명 동안 자란다.
+const MAX_TRACKED = 5000;
 
 const attemptKey = (req, name) => `${req.ip || 'unknown'}|${name}`;
 
@@ -31,8 +34,14 @@ const throttled = (key, now = Date.now()) => {
 
 const noteFailure = (key, now = Date.now()) => {
     const rec = attempts.get(key);
-    if (!rec || now - rec.first > ATTEMPT_WINDOW_MS) attempts.set(key, { count: 1, first: now });
-    else rec.count += 1;
+    if (rec && now - rec.first <= ATTEMPT_WINDOW_MS) { rec.count += 1; return; }
+    if (!rec && attempts.size >= MAX_TRACKED) {
+        for (const [k, r] of attempts) if (now - r.first > ATTEMPT_WINDOW_MS) attempts.delete(k);
+        // 쓸어내고도 가득하면 **새 키만** 받지 않는다. 통째로 비우면 이미 걸려 있는
+        // 시도까지 풀려나므로, 그쪽이 공격자에게 더 싼 우회가 된다.
+        if (attempts.size >= MAX_TRACKED) return;
+    }
+    attempts.set(key, { count: 1, first: now });
 };
 
 const validCredentials = (body) => {

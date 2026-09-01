@@ -9,6 +9,6 @@
 // 내리는지 커밋 메시지에 적어라. 그 한 줄이 이 파일의 존재 이유다.
 export const FLOOR = {
     unit: 594,      // vitest — tests/unit/**
-    server: 352,    // node:test — server/test/**
+    server: 356,    // node:test — server/test/**
     e2e: 125,       // playwright — tests/e2e/** (skip 0 은 별도 게이트)
 };

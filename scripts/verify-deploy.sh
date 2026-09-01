@@ -5,6 +5,11 @@
 # 사용법: ./scripts/verify-deploy.sh [호스트]   (기본값: 로컬 IP 자동 탐지)
 set -uo pipefail
 
+# 아래 [1]·[15] 는 Caddyfile 과 .env 를 **상대 경로로** 읽는다 — 다른 디렉토리에서 부르면
+# grep 이 조용히 빈손으로 돌아와 인증이 꺼진 것으로 판정하고, 스크립트가 통째로 거짓말을
+# 한다(그 실패는 아래 주석이 경계하는 바로 그것이다). 저장소 루트로 옮기고 시작한다.
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
+
 HOST="${1:-$(hostname -I | awk '{print $1}')}"
 GREEN='\033[0;32m'; RED='\033[0;31m'; YELLOW='\033[1;33m'; NC='\033[0m'
 

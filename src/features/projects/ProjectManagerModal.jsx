@@ -56,8 +56,16 @@ function ProjectManagerModal({
         setNewProjectName('');
         setSaveName(`백업 ${new Date().toLocaleString()}`);
         onRefreshProjects?.();
-        refreshSnapshots();
     }, [isOpen, initialTab]);
+
+    // 버전 목록은 **활성 프로젝트의** 것이다. 모달 안에서 프로젝트를 만들면 그 자리에서
+    // 활성 프로젝트가 바뀌는데(useProjectSync.createProject 가 곧바로 전환한다) 모달은
+    // 열린 채로 남는다 — 다시 읽지 않으면 버전 탭이 **이전 프로젝트의 버전**을 새
+    // 프로젝트 이름 아래 늘어놓고, 복원을 누르면 남의 사본이 여기로 들어온다.
+    useEffect(() => {
+        if (!isOpen) return;
+        refreshSnapshots();
+    }, [isOpen, activeProjectId]);
 
     const refreshSnapshots = async () => {
         setSnapshots((await storage.loadSnapshots()) || []);

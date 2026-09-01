@@ -220,6 +220,13 @@ describe('의존성 쓰기 차단 (REST/MCP 경로)', () => {
             400, 'would create a cycle');
     });
 
+    // 상한이 없던 동안 요청 하나가 원소마다 트리를 BFS 시킬 수 있었다 — 같은 id 를
+    // 반복해 채우면 트리 크기와도 무관하게 늘어난다(그래서 Set 으로 걸러서 돈다).
+    test('의존성 개수에 상한이 있다 (요청 하나로 CPU 를 붙잡지 못하게)', () => {
+        assertFails(() => svc.updateTimeRange(s, a.id, r1, { dependencies: Array(201).fill(r2) }),
+            400, 'exceeds max length of 200');
+    });
+
     test('사슬을 더 잇는 정상 의존성은 통과한다', () => {
         const c = svc.createTask(s, { name: 'c', startDate: '2026-01-21', endDate: '2026-01-30' }).task;
         const { timeRange } = svc.updateTimeRange(s, c.id, c.timeRanges[0].id, { dependencies: [r2] });

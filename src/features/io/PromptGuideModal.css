@@ -133,7 +133,7 @@
 }
 
 .api-links a {
-    color: var(--color-primary);
+    color: var(--color-link);
     text-decoration: none;
     font-weight: 600;
 }

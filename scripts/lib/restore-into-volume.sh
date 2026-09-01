@@ -9,13 +9,17 @@
 # SQLite 정합 스냅샷(projecthelper.db.snapshot)이 들어 있으면 그것을 제자리에 놓고,
 # 짝이 맞지 않는 -wal/-shm 을 버린다. 그러지 않으면 tar 에 함께 담긴 '쓰기 도중의'
 # 원본이 복원되어 정합 사본을 뜬 의미가 사라진다.
+#
+# **지우기 전에 아카이브를 먼저 읽는다**(`tar tzf`). 예전에는 `rm -rf /data/*` 가 맨 앞에
+# 있어서, 아카이브가 잘렸거나 깨졌으면 볼륨을 비운 뒤에야 그 사실을 알았다 — 실전 복원의
+# 대상은 api_data(운영)이고, 하필 복원이 필요한 날에 남은 사본까지 지우는 셈이다.
 restore_into_volume() {
     local volume="$1" archive_dir="$2" archive_name="$3"
     docker_cmd run --rm \
         -v "$volume":/data \
         -v "$archive_dir":/backup:ro \
         alpine:3.20 \
-        sh -c "rm -rf /data/* && tar xzf /backup/$archive_name -C /data && \
+        sh -c "tar tzf /backup/$archive_name >/dev/null && rm -rf /data/* && tar xzf /backup/$archive_name -C /data && \
                if [ -f /data/projecthelper.db.snapshot ]; then \
                    mv -f /data/projecthelper.db.snapshot /data/projecthelper.db && \
                    rm -f /data/projecthelper.db-wal /data/projecthelper.db-shm; \

@@ -162,7 +162,12 @@ const parseCookies = (header) => {
         const i = part.indexOf('=');
         if (i < 0) return;
         const k = part.slice(0, i).trim();
-        if (k) out[k] = decodeURIComponent(part.slice(i + 1).trim());
+        if (!k) return;
+        const raw = part.slice(i + 1).trim();
+        // 잘못 인코딩된 쿠키('%')는 decodeURIComponent 가 **던진다** — 이 함수는 모든
+        // 요청이 지나므로, 그 예외 하나면 그 브라우저는 모든 경로에서 500 을 받는다.
+        // 값이 우리 것이 아닐 수도 있다는 뜻일 뿐이니 원문 그대로 넘긴다.
+        try { out[k] = decodeURIComponent(raw); } catch { out[k] = raw; }
     });
     return out;
 };
@@ -189,8 +194,11 @@ const serviceTokens = () => String(process.env.PH_API_TOKENS || '')
     .map(s => s.trim())
     .filter(Boolean)
     .map(entry => {
-        const [name, role, token] = entry.split(':');
-        return { name, role: isRole(role) ? role : 'editor', token };
+        // 토큰 자체에 ':' 이 들어 있을 수 있다 — 무심한 split 은 그것을 조용히 잘라
+        // 내고, 서버는 **접두어만** 기대값으로 삼는다(짧아진 비밀). 앞 둘만 떼고
+        // 나머지는 도로 붙인다.
+        const [name, role, ...rest] = entry.split(':');
+        return { name, role: isRole(role) ? role : 'editor', token: rest.join(':') };
     })
     .filter(t => t.name && t.token);
 

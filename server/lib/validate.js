@@ -49,6 +49,12 @@ const validate = (body, spec, { allowUnknown = false } = {}) => {
         const check = validators[rule.type];
         if (!check) return `unknown validator type for field: ${field}`;
         if (!check(value)) return `field '${field}' must be a valid ${rule.type}`;
+        // 상한은 타입 검사 뒤에만 의미가 있다 — 길이는 문자열/배열에만 있다.
+        // 없으면 한 요청이 임의 길이를 실어 보낼 수 있고, dependencies 처럼 원소마다
+        // 트리를 BFS 하는 필드에서는 그것이 곧 CPU 고갈이다.
+        if (rule.max !== undefined && value.length > rule.max) {
+            return `field '${field}' exceeds max length of ${rule.max}`;
+        }
     }
 
     if (!allowUnknown) {

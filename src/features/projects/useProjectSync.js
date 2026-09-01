@@ -90,8 +90,11 @@ export function useProjectSync({ tasks, setTasks, setTasksSilent, resetTasks, ap
         if (syncRef.current.phase === SYNC_GONE) return null;
         savingRef.current = true;
         emitSync('saving');
+        // 보낸 트리를 붙잡아 둔다 — 응답이 돌아왔을 때 화면이 그 사이에 바뀌었는지
+        // 판정할 기준이 이것뿐이다.
+        const sent = tasksRef.current;
         try {
-            const result = await storage.saveData(tasksRef.current);
+            const result = await storage.saveData(sent);
             if (result?.conflict) {
                 emitSync('conflict');
                 toast.info('외부에서 데이터가 변경되어 최신 상태를 불러왔습니다.');
@@ -102,8 +105,23 @@ export function useProjectSync({ tasks, setTasks, setTasksSilent, resetTasks, ap
             return result;
         } finally {
             savingRef.current = false;
+            // 요청이 나가 있는 동안 들어온 편집은 이 응답에 담겨 있지 않다. 그런데
+            // 응답은 'saved' 를 찍고, 그 사이 디바운스가 깨운 attemptSave 는 savingRef
+            // 때문에 그냥 돌아갔다 — 화면은 "저장됨"인데 마지막 편집은 localStorage
+            // 에만 남고 다음 편집이 있을 때까지 서버에 닿지 않았다(저장이 1.5초보다
+            // 오래 걸리는 회선에서 재현된다). 여기서 다시 예약하는 것이 그 구멍이다.
+            if (tasksRef.current !== sent) {
+                emitSync('edit');
+                clearTimeout(saveTimerRef.current);
+                saveTimerRef.current = setTimeout(() => attemptSaveRef.current?.(), AUTOSAVE_DEBOUNCE_MS);
+            }
         }
     }, [emitSync, reloadFromServer, toast]);
+
+    // 자기 자신을 다시 예약하기 위한 우회 — useCallback 안에서 자신을 의존성으로
+    // 참조하면 매 렌더 새 함수가 되어 자동저장 effect 가 매번 재실행된다.
+    const attemptSaveRef = useRef(null);
+    attemptSaveRef.current = attemptSave;
 
     // ── 초기 로드 ────────────────────────────────────
     // **취소 가드가 없으면 늦게 도착한 로드가 사용자의 편집을 되돌린다.** StrictMode 는
