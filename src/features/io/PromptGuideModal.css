@@ -93,6 +93,55 @@
     /* 줄바꿈 유지 */
 }
 
+/* ── API 섹션 ─────────────────────────────────────── */
+
+.api-intro {
+    font-size: 13px;
+    color: var(--color-text-secondary);
+    line-height: 1.6;
+    margin-bottom: 8px;
+}
+
+/* 인증이 꺼진 상태는 경고이지 장식이 아니다 — 색만으로 말하지 않고 테두리로도 구분한다 */
+.api-auth-note {
+    font-size: 12px;
+    color: var(--color-text-primary);
+    line-height: 1.5;
+    background-color: var(--color-bg-secondary);
+    border-left: 3px solid var(--color-warning);
+    border-radius: 4px;
+    padding: 8px 10px;
+    margin-bottom: 12px;
+}
+
+.api-examples {
+    list-style: none;
+    padding: 0;
+    margin: 12px 0 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 12px;
+    color: var(--color-text-secondary);
+}
+
+.api-links {
+    display: flex;
+    gap: 16px;
+    margin-top: 12px;
+    font-size: 13px;
+}
+
+.api-links a {
+    color: var(--color-primary);
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.api-links a:hover {
+    text-decoration: underline;
+}
+
 /* 다크 모드 스크롤바 스타일링 (옵션) */
 .prompt-categories::-webkit-scrollbar {
     width: 8px;

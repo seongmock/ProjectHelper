@@ -17,7 +17,7 @@ import { test, expect } from '@playwright/test';
 const OVERLAY_TRIGGERS = [
     { name: '표시 옵션', trigger: 'button[title="표시 옵션"]', panel: '.display-options-menu' },
     { name: '프로젝트 관리', trigger: 'button[title="프로젝트 관리"]', panel: '.modal-content' },
-    { name: '프롬프트 도우미', trigger: 'button[title="프롬프트 도우미"]', panel: '.modal-content' },
+    { name: 'AI 가이드', trigger: 'button[title="AI 가이드"]', panel: '.modal-content' },
     { name: '가져오기', trigger: 'button[title="가져오기"]', panel: '.modal-content' },
     { name: '내보내기', trigger: 'button[title="내보내기"]', panel: '.modal-content' },
 ];

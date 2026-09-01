@@ -27,8 +27,8 @@ function Header({
                         <button
                             className="icon tooltip"
                             onClick={onOpenPromptGuide}
-                            data-tooltip="AI 프롬프트 가이드"
-                            title="프롬프트 도우미"
+                            data-tooltip="AI 연동 · 프롬프트 가이드"
+                            title="AI 가이드"
                         >
                             <Bot size={18} aria-hidden="true" />
                         </button>

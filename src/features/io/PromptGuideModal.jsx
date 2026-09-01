@@ -86,7 +86,7 @@ const SYSTEM_PROMPT = `**역할 (Role)**:
 
 const PROMPTS = [
     {
-        category: "📅 원클릭 AI 일정 생성 (통합 프롬프트)",
+        category: "📋 프롬프트를 복사해 붙여넣기 (수동 — 받은 JSON 은 [가져오기]로)",
         items: [
             {
                 title: "🖼️ 이미지/스크린샷 분석 및 변환",
@@ -116,25 +116,98 @@ const PROMPTS = [
     }
 ];
 
-function PromptGuideModal({ isOpen, onClose, toast }) {
+// 세션에 그대로 붙여넣을 문장. **프로젝트 id 를 문장에 박는 것이 핵심이다** — API 도구는
+// projectId 를 생략하면 'default' 프로젝트에 쓰므로, 지금 보고 있는 것이 아니라 엉뚱한
+// 프로젝트가 바뀐다. 사용법 본문은 여기에 적지 않는다: /api/guide 가 단일 출처이고,
+// 그것을 JSX 에 옮겨 적은 사본은 드리프트한다.
+const buildSessionPrompt = (apiBase, projectId, projectName) => [
+    'ProjectHelper 타임라인 API 로 작업해 줘.',
+    `- API 베이스: ${apiBase}`,
+    `- 프로젝트 id: ${projectId || '‹프로젝트를 먼저 선택하세요›'}${projectName ? ` (${projectName})` : ''}`,
+    `- 사용법은 GET ${apiBase}/guide 를 먼저 읽어. 전체 스펙은 GET ${apiBase}/openapi.yaml.`,
+    '- 쓰기는 작업 단위 엔드포인트를 쓰고, 통짜 POST /data 는 쓰지 마.',
+    '',
+    '요청: ‹여기에 하고 싶은 일을 적으세요›',
+].join('\n');
+
+const API_EXAMPLES = [
+    '"RTL Stable 마일스톤을 2주 미루고, 후행 작업도 주말 피해서 같이 밀어줘"',
+    '"지금 일정의 임계경로와 여유 없는 작업을 알려줘"',
+    '"의존성에 순환이나 날짜 역전이 있는지 점검해줘"',
+    '"전체 일정을 텍스트 간트로 보여줘"',
+];
+
+function PromptGuideModal({ isOpen, onClose, toast, projectId, projectName, authStatus }) {
     const handleCopy = (text) => {
         navigator.clipboard.writeText(text)
             .then(() => toast.success('프롬프트가 복사되었습니다! 📋'))
             .catch(() => toast.error('복사에 실패했습니다.'));
     };
 
+    // 링크로도 쓰이므로 절대 주소여야 한다 — storage.js 의 '/api' 는 상대 경로다.
+    const apiBase = `${window.location.origin}/api`;
+    const sessionPrompt = buildSessionPrompt(apiBase, projectId, projectName);
+
     return (
         <Modal
             isOpen={isOpen}
             onClose={onClose}
-            title={<><Bot size={17} aria-hidden="true" /> AI 프롬프트 가이드</>}
+            title={<><Bot size={17} aria-hidden="true" /> AI 가이드</>}
             className="prompt-guide-modal"
         >
             <p className="guide-description">
-                상황에 맞는 프롬프트를 복사하여 AI 어시스턴트에게 붙여넣기 하세요.
+                AI 에게 일정을 맡기는 방법은 두 가지입니다 — <strong>API 로 직접 맡기거나</strong>,
+                프롬프트를 복사해 붙여넣고 결과를 가져오거나.
             </p>
 
             <div className="prompt-categories">
+                <div className="prompt-category">
+                    <h3>🤖 AI 가 직접 편집하게 하기 (API)</h3>
+                    <p className="api-intro">
+                        이 화면의 데이터는 REST API 로 열려 있습니다. Claude Code 같은 AI 세션에
+                        아래 문장을 붙여넣으면 복사·가져오기 없이 AI 가 직접 읽고 고치며,
+                        바뀐 내용은 열려 있는 화면에 자동으로 반영됩니다.
+                    </p>
+                    {/* 인증 상태는 주소와 같은 자리에서 말한다. 'open' 은 서버에 닿지 못할 때도
+                        나오는 값이라, 배포 상태를 단정하지 않는 문구를 쓴다. */}
+                    {authStatus === 'open' && (
+                        <p className="api-auth-note" data-testid="ai-auth-note">
+                            지금 이 서버는 로그인 계정이 없는 상태로 열려 있습니다 — 주소에 닿을 수
+                            있는 사람은 누구나 읽고 쓸 수 있습니다.
+                        </p>
+                    )}
+                    <div className="prompt-item">
+                        <div className="prompt-header">
+                            <span className="prompt-title">세션에 붙여넣을 문장</span>
+                            <button
+                                className="copy-button"
+                                onClick={() => handleCopy(sessionPrompt)}
+                            >
+                                복사
+                            </button>
+                        </div>
+                        <div className="prompt-preview" data-testid="ai-session-prompt">
+                            {sessionPrompt}
+                        </div>
+                    </div>
+                    <ul className="api-examples">
+                        {API_EXAMPLES.map((example, idx) => <li key={idx}>{example}</li>)}
+                    </ul>
+                    <div className="api-links">
+                        <a
+                            href={`${apiBase}/guide`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            data-testid="ai-guide-link"
+                        >
+                            API 가이드 열기 →
+                        </a>
+                        <a href={`${apiBase}/openapi.yaml`} target="_blank" rel="noopener noreferrer">
+                            전체 스펙 (OpenAPI) →
+                        </a>
+                    </div>
+                </div>
+
                 {PROMPTS.map((category, idx) => (
                     <div key={idx} className="prompt-category">
                         <h3>{category.category}</h3>

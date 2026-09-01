@@ -461,10 +461,31 @@ test.describe('프로젝트 관리 모달', () => {
 
 test.describe('AI 프롬프트 가이드', () => {
     test('가이드 모달 열림/닫힘', async ({ page }) => {
-        await page.getByTitle('프롬프트 도우미').click();
+        await page.getByTitle('AI 가이드').click();
         await expect(page.locator('.modal-overlay')).toBeVisible();
         await page.locator('.modal-close').first().click();
         await expect(page.locator('.modal-overlay')).toHaveCount(0);
+    });
+
+    // API 도구는 projectId 를 생략하면 'default' 프로젝트에 쓴다. 그래서 이 문장에 **지금 보고
+    // 있는 프로젝트의 id** 가 들어 있지 않으면, 사용자는 멀쩡해 보이는 문장을 복사해 가서
+    // 엉뚱한 프로젝트를 고치게 된다 — 화면 어디에도 드러나지 않는 실패라 여기서 잡는다.
+    test('API 섹션이 지금 보고 있는 프로젝트의 id 를 문장에 박아 준다', async ({ page }) => {
+        const activeId = await page.evaluate(
+            () => localStorage.getItem('project-timeline-active-project'));
+        expect(activeId).toBeTruthy();
+
+        await page.getByTitle('AI 가이드').click();
+
+        const prompt = page.getByTestId('ai-session-prompt');
+        await expect(prompt).toContainText(activeId);
+        await expect(prompt).toContainText(`${new URL(page.url()).origin}/api`);
+
+        // 링크는 상대 경로가 아니라 실제로 열리는 주소여야 한다
+        await expect(page.getByTestId('ai-guide-link')).toHaveAttribute('href', /\/api\/guide$/);
+
+        // 계정이 없는 배포(E2E 서버가 그렇다)에서는 열려 있다는 사실을 같은 자리에서 말한다
+        await expect(page.getByTestId('ai-auth-note')).toBeVisible();
     });
 });
 
@@ -472,7 +493,7 @@ test.describe('AI 프롬프트 가이드', () => {
 // 섞여 있었다. 공용 Modal 로 통일한 뒤로는 전부 동일하게 동작해야 한다.
 test.describe('모달 공통 동작', () => {
     test('Escape 로 닫히고 dialog 역할을 갖는다', async ({ page }) => {
-        await page.getByTitle('프롬프트 도우미').click();
+        await page.getByTitle('AI 가이드').click();
         const dialog = page.getByRole('dialog');
         await expect(dialog).toBeVisible();
         await expect(dialog).toHaveAttribute('aria-modal', 'true');

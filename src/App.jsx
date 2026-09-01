@@ -544,6 +544,9 @@ function App() {
                 isOpen={isPromptGuideOpen}
                 onClose={ui.closePromptGuide}
                 toast={toast}
+                projectId={activeProjectId}
+                projectName={activeProjectName}
+                authStatus={authStatus}
             />
 
             <ProjectManagerModal
