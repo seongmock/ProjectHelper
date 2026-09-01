@@ -9,6 +9,7 @@ const express = require('express');
 const svc = require('../services/taskService');
 const { route } = require('../lib/httpAdapter');
 const { renderAsciiChart } = require('../lib/asciiChart');
+const { validators } = require('../lib/validate');
 
 const router = express.Router({ mergeParams: true });
 
@@ -40,12 +41,31 @@ router.get('/critical-path', route((req) => svc.getCriticalPath(req.projectStore
 // AI 가 자기가 만든 일정을 **볼** 수 있는 유일한 경로다. 그림을 돌려주는 엔드포인트가
 // 없던 동안, 에이전트는 데이터를 쓸 수는 있어도 그 결과가 읽을 만한지 판정할 수단이
 // 0이었다. `?format=text` 면 text/plain, 기본은 JSON(다른 응답과 형태를 맞춘다).
+//
+// **날짜는 clamp 하지 않는다.** 폭·행수는 추측해도 차트가 나오지만, 추측한 날짜로 그린
+// 차트는 그냥 틀린 차트다. 검증이 없던 동안 셋이 함께 새어 나갔다: 반복 파라미터
+// (`?from=a&from=b`)는 배열로 와서 `from.split` 이 TypeError → **500**(클라이언트 잘못이
+// 5xx 카운터와 에러 로그를 오염시킨다), `to=1002026-01-01` 은 월 눈금 루프를 1200만 회
+// 돌려 이벤트 루프를 7초 세웠고, 뒤집힌 범위는 "(-364일, 1칸=-4.8일)" 짜리 정상 응답이
+// 됐다 — 이 경로는 에이전트가 자기 일정을 **볼 수 있는 유일한 창**이라 그 침묵이 가장 나쁘다.
 router.get('/chart', (req, res, next) => {
     try {
+        const range = {};
+        for (const key of ['from', 'to']) {
+            const raw = req.query[key];
+            if (raw === undefined) continue;
+            if (!validators.date(raw)) {
+                return res.status(400).json({ ok: false, error: `${key} must be a valid YYYY-MM-DD date` });
+            }
+            range[key] = raw;
+        }
+        if (range.from && range.to && range.to < range.from) {
+            return res.status(400).json({ ok: false, error: 'to must be >= from' });
+        }
         const chart = renderAsciiChart(req.projectStore.readTasks(), {
             width: clampInt(req.query.width, 40, 400, 100),
-            from: req.query.from,
-            to: req.query.to,
+            from: range.from,
+            to: range.to,
             maxRows: clampInt(req.query.maxRows, 1, 1000, 200),
         });
         if (req.query.format === 'text') return res.type('text/plain; charset=utf-8').send(chart);

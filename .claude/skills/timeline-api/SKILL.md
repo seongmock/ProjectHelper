@@ -95,9 +95,9 @@ curl -s -X PATCH -H 'Content-Type: application/json' \
 
 # 계획을 한 번의 쓰기로 (ref 로 앞선 op 의 새 id 를 가리킨다)
 curl -s -X POST -H 'Content-Type: application/json' -d '{"ops":[
-  {"op":"createTask","ref":"design","body":{"name":"설계","startDate":"2026-09-01","endDate":"2026-09-10"}},
-  {"op":"createTask","ref":"dev","body":{"name":"개발","startDate":"2026-09-11","endDate":"2026-09-30"}},
-  {"op":"setDependencies","rangeId":"@dev:range","taskId":"@dev","body":{"dependencies":["@design:range"]}}
+  {"op":"create-task","ref":"design","body":{"name":"설계","startDate":"2026-09-01","endDate":"2026-09-10"}},
+  {"op":"create-task","ref":"dev","body":{"name":"개발","startDate":"2026-09-11","endDate":"2026-09-30"}},
+  {"op":"update-time-range","taskId":"@dev","rangeId":"@dev:range","body":{"dependencies":["@design:range"]}}
 ]}' "$BASE/batch"
 
 # 결과를 눈으로 확인 · 임계경로

@@ -146,3 +146,35 @@ test('한글/영문 이름이 섞여도 이름 칸의 표시 폭이 같다', () 
     assert.equal(widths[0], widths[1]);
     assert.equal(widths[0], 24);
 });
+
+// 이 출력은 터미널로 읽힌다 — 색·벨을 주입할 수 있으면 읽는 쪽의 판단이 흔들리고,
+// 개행은 **행을 하나 더 만든다**: 헤더처럼 보이는 가짜 줄을 넣어 차트가 자기 자신에
+// 대해 거짓말하게 만들 수 있었다.
+describe('이름 소독 · 들여쓰기 상한', () => {
+    const bar = (extra = {}) => ({
+        timeRanges: [{ id: `r${Math.random()}`, startDate: '2026-01-01', endDate: '2026-01-10' }],
+        children: [], ...extra,
+    });
+
+    test('ANSI·제어문자는 차트에 실리지 않는다', () => {
+        const out = renderAsciiChart(
+            [{ id: 'a', name: '\u001b[31mRED\u001b[0m\u0007', ...bar() }], { width: 60 });
+        // eslint-disable-next-line no-control-regex -- 제어문자가 남았는지 보는 것이 이 검사다
+        assert.ok(!/[\u0000-\u001F\u007F]/.test(out.replace(/\n/g, '')), out);
+        assert.ok(out.includes('RED'));
+    });
+
+    test('이름의 개행이 행을 늘리지 않는다', () => {
+        const fake = 'inject\n2026-01-01 ~ 2026-12-31 (365일, 1칸=1일)\nFAKE';
+        const out = renderAsciiChart([{ id: 'a', name: fake, ...bar() }], { width: 60 });
+        assert.equal(out.split('\n').length, 3, '헤더 2줄 + 작업 1줄');
+    });
+
+    // MAX_DEPTH(20)가 허용하는 깊이에서 '  '.repeat 이 이름 칸 24를 통째로 먹었다 —
+    // 그 행에는 이름이 한 글자도 남지 않는다.
+    test('깊은 들여쓰기에도 이름이 남는다', () => {
+        const out = renderAsciiChart(
+            [{ id: 'a', name: '깊은작업', level: 19, ...bar() }], { width: 60 });
+        assert.ok(out.includes('깊은'), out);
+    });
+});

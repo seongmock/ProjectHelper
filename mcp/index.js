@@ -214,6 +214,9 @@ server.tool(
         endDate: DATE,
         label: z.string().optional(),
         color: z.string().optional(),
+        // 서버는 생성과 동시에 연결을 받는다 — 이게 없으면 기간을 만든 뒤
+        // set-dependencies 를 한 번 더 불러야 하고, 리비전과 감사 줄이 둘로 늘어난다.
+        dependencies: z.array(z.string()).optional().describe('선행 기간/마일스톤 id 목록'),
         projectId: PROJECT,
     },
     run(({ taskId, projectId, ...body }) => api(`${pp(projectId)}/tasks/${taskId}/time-ranges`, { method: 'POST', body }))
@@ -304,10 +307,12 @@ server.tool(
     'render-chart',
     '현재 일정을 텍스트 간트로 그려서 반환 — **자기가 쓴 결과를 눈으로 확인하는 수단이다**. 대량 편집 뒤에 한 번 호출해서 막대가 의도한 자리에 있는지 보라.',
     {
-        width: z.number().int().min(40).max(400).optional().describe('차트 폭(문자, 기본 100)'),
+        // min/max 를 두지 않는 것은 의도다 — 서버는 **클램프**한다(routes/tasks.js). 여기서
+        // 거절하면 숫자를 짐작한 에이전트가 그림 대신 스키마 오류를 받는다.
+        width: z.number().int().optional().describe('차트 폭(문자, 기본 100 — 40~400 으로 자동 조정)'),
         from: DATE.optional().describe('이 날짜부터만 (생략 시 전체)'),
         to: DATE.optional(),
-        maxRows: z.number().int().min(1).max(1000).optional().describe('그릴 작업 수 상한 (기본 200)'),
+        maxRows: z.number().int().optional().describe('그릴 작업 수 상한 (기본 200 — 1~1000 으로 자동 조정)'),
         projectId: PROJECT,
     },
     run(({ projectId, ...q }) => {

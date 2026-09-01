@@ -3,7 +3,7 @@ const path = require('path');
 const store = require('./lib/store');
 const registry = require('./lib/registry');
 const aiGuide = require('./lib/aiGuide');
-const { validateSettings, mergeSettings } = require('./lib/validate');
+const { applySettingsPatch } = require('./lib/validate');
 const { router: tasksRouter } = require('./routes/tasks');
 const dataRouter = require('./routes/data');
 const projectsRouter = require('./routes/projects');
@@ -43,16 +43,30 @@ app.use('/api', (req, res, next) => {
 const PUBLIC_PATHS = new Set(['/api', '/api/guide', '/api/openapi.yaml', '/api/health']);
 // 프로젝트 삭제는 그 프로젝트를 쓰는 전원의 데이터를 지운다 — editor 로는 부족하다.
 const ADMIN_ONLY = (method, p) => method === 'DELETE' && /^\/api\/projects\/[^/]+$/.test(p);
+// 자기 비밀번호 변경은 routes/auth.js 가 스스로 판정한다(본인 또는 admin). 여기서
+// "GET 이 아니면 editor" 로 잘라 내면 viewer 는 자격증명이 새어도 스스로 대응할 수 없다.
+const SELF_SERVICE = (method, p) => method === 'PATCH' && /^\/api\/users\/[^/]+$/.test(p);
+
+// **게이트는 라우터와 같은 경로를 봐야 한다.** Express 4 의 기본값은 `strict:false`·
+// `caseSensitive:false` 라 `/api/projects/x/` 와 `/API/projects/x` 를 같은 핸들러로
+// 보내는데, 게이트만 원문을 앵커 정규식으로 판정하던 동안 그 둘이 ADMIN_ONLY 를
+// 비껴갔다 — editor 한 명이 모두의 데이터를 지울 수 있었다(fail-open). 라우터보다
+// 좁은 판정은 그 자체로 우회로다. (PUBLIC_PATHS 쪽은 지금은 fail-closed 라 무해했지만
+// 같은 불일치이므로 함께 정규화한다 — 다음 변경에서 뒤집히지 않도록.)
+const normalizePath = (url) => {
+    const p = url.split('?')[0].toLowerCase();
+    return p.length > 1 ? p.replace(/\/+$/, '') : p;
+};
 
 app.use('/api', (req, res, next) => {
     if (auth.mode() === 'open') return next();
-    const p = req.originalUrl.split('?')[0];
+    const p = normalizePath(req.originalUrl);
     if (PUBLIC_PATHS.has(p) || p.startsWith('/api/auth/')) return next();
     if (!req.authUser) {
         return res.status(401).json({ ok: false, error: 'authentication required', mode: 'enforced' });
     }
     const need = ADMIN_ONLY(req.method, p) ? 'admin'
-        : (req.method === 'GET' || req.method === 'HEAD' ? 'viewer' : 'editor');
+        : (SELF_SERVICE(req.method, p) || req.method === 'GET' || req.method === 'HEAD' ? 'viewer' : 'editor');
     if (!auth.atLeast(req.authUser.role, need)) {
         return res.status(403).json({ ok: false, error: `${need} role required`, role: req.authUser.role });
     }
@@ -101,10 +115,8 @@ app.get('/api/settings', (req, res) => {
 });
 
 app.post('/api/settings', (req, res) => {
-    const error = validateSettings(req.body);
+    const { error, merged } = applySettingsPatch(readJson('settings.json'), req.body);
     if (error) return res.status(400).json({ ok: false, error });
-
-    const merged = mergeSettings(readJson('settings.json'), req.body);
     writeJson('settings.json', merged);
     res.json({ ok: true, data: merged });
 });
@@ -168,11 +180,15 @@ app.use('/api', (req, res) => {
 // next 인자는 쓰지 않지만 생략할 수 없다 — Express는 4-arity 함수만 에러 핸들러로 인식한다.
 // (eslint 설정에서 `next` 를 unused-args 예외로 허용하고 있다)
 app.use((err, req, res, next) => {
-    // body-parser의 JSON 파싱 실패는 클라이언트 잘못이므로 400
-    const isClientError = err.type === 'entity.parse.failed' || err.status === 400;
-    const status = isClientError ? 400 : err.status || 500;
+    // body-parser의 JSON 파싱 실패(400)와 본문 크기 초과(413)는 클라이언트 잘못이다.
+    // 4xx 전체를 그렇게 보지 않으면 413 이 본문에는 "internal server error" 라고 적힌 채
+    // 나가고, 클라이언트 잘못이 error 로그와 5xx 조사에 섞인다.
+    const status = err.type === 'entity.parse.failed' ? 400 : (err.status || 500);
+    const isClientError = status >= 400 && status < 500;
+    const clientMessage = err.type === 'entity.too.large'
+        ? 'request body too large' : 'malformed request body';
 
-    logger.error('unhandled error', {
+    logger[isClientError ? 'warn' : 'error']('unhandled error', {
         method: req.method,
         path: req.originalUrl,
         status,
@@ -182,7 +198,7 @@ app.use((err, req, res, next) => {
 
     res.status(status).json({
         ok: false,
-        error: isClientError ? 'malformed request body' : 'internal server error',
+        error: isClientError ? clientMessage : 'internal server error',
         // 스택은 어떤 환경에서도 응답에 포함하지 않는다. 필요하면 서버 로그를 본다.
     });
 });

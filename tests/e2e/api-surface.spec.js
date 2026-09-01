@@ -70,6 +70,9 @@ test('batch — 하나가 실패하면 앞선 op 까지 되돌아간다 (리비�
         },
     });
     expect(res.status()).toBe(404);
+    // 라우트를 통째로 떼어 내도 404 다 — 본문까지 봐야 "실패했다"와 "그런 경로가 없다"가
+    // 구별된다. 그 구별이 없으면 이 테스트는 batch 가 존재하는지조차 보증하지 않는다.
+    expect((await res.json()).error).toContain('task');
 
     const { tasks } = await (await request.get(`${base()}/tasks`)).json();
     expect(tasks).toEqual([]);
@@ -223,9 +226,43 @@ test('chart — JSON 과 text/plain 두 형태로 나오고, 작업 이름과 �
     // width 를 지켰는지 — 가장 긴 줄이 상한을 넘지 않아야 한다
     expect(Math.max(...drawn.split('\n').map(l => l.length))).toBeLessThanOrEqual(60 + 30);
 
-    // 범위를 벗어난 폭은 거절이 아니라 상한으로 잘린다 (쿼리에는 무엇이든 온다)
-    expect((await request.get(`${base()}/chart?width=99999`)).status()).toBe(200);
-    expect((await request.get(`${base()}/chart?width=abc`)).status()).toBe(200);
+    // 범위를 벗어난 폭은 거절이 아니라 상한으로 잘린다 (쿼리에는 무엇이든 온다).
+    // **status 만 보면 clamp 를 통째로 지워도 이 테스트는 통과한다** — 그린 폭을 잰다.
+    const widthOf = async (q) => {
+        const res = await request.get(`${base()}/chart?format=text&${q}`);
+        expect(res.status()).toBe(200);
+        return Math.max(...(await res.text()).split('\n').map(l => l.length));
+    };
+    const clamped = await widthOf('width=99999');   // → 상한 400
+    const fallback = await widthOf('width=abc');    // → 기본 100
+    expect(clamped).toBeLessThanOrEqual(400);
+    expect(clamped).toBeGreaterThan(fallback + 100);
+    expect(fallback).toBeLessThanOrEqual(100);
+});
+
+// 폭·행수와 달리 날짜는 clamp 할 수 없다 — 추측한 날짜로 그린 차트는 그냥 틀린 차트다.
+// 검증이 없던 동안 셋이 함께 새어 나갔다: 반복 파라미터는 배열로 와서 500, 여섯 자리
+// 연도는 월 눈금 루프를 1200만 회 돌려 이벤트 루프를 몇 초 세웠고, 뒤집힌 범위는
+// "(-364일, 1칸=-4.8일)" 짜리 정상 응답이 됐다.
+test('chart — from/to 는 검증한다: 배열·달력에 없는 날짜·뒤집힌 범위는 400', async ({ request }) => {
+    await addTask(request, { name: '설계', startDate: '2026-01-05', endDate: '2026-01-30' });
+
+    for (const q of [
+        'from=2026-01-01&from=x',            // 반복 파라미터 → 배열 (예전엔 500)
+        'to=2026-01-01&to=x',
+        'from=zzz&to=2026-02-01',
+        'from=2026-02-30&to=2026-03-05',     // 달력에 없는 날짜
+        'from=1002026-01-01&to=1002026-02-01',
+        'from=2026-12-31&to=2026-01-01',     // 뒤집힘
+    ]) {
+        const res = await request.get(`${base()}/chart?${q}`);
+        expect(res.status(), q).toBe(400);
+        expect((await res.json()).ok).toBe(false);
+    }
+
+    const ok = await request.get(`${base()}/chart?from=2026-01-01&to=2026-03-01`);
+    expect(ok.status()).toBe(200);
+    expect((await ok.json()).chart).toContain('2026-01-01 ~ 2026-03-01');
 });
 
 // ── 전역 설정 ────────────────────────────────────────

@@ -11,7 +11,7 @@
 // 다른 판정을 하게 되고, 그 차이는 화면에 안 나온다.
 const tree = require('../lib/taskTree');
 const schedule = require('../lib/schedule');
-const { validate } = require('../lib/validate');
+const { validate, validateTaskTree } = require('../lib/validate');
 const { badRequest, notFound, conflict } = require('../lib/errors');
 
 // ── 공통 ─────────────────────────────────────────────
@@ -335,7 +335,14 @@ const OPS = {
                     const moved = schedule.collectTransitiveSuccessors(successors, rangeId);
                     out.cascaded = [...moved];
                     out.cascadeDays = delta;
-                    next = schedule.shiftEntities(next, moved, delta, { workdays: options.workdays });
+                    // 편집한 그 기간은 제외한다 — 작업 레벨 dependencies(레거시)가 있으면
+                    // 후행 집합에 소유 작업이 되돌아오고, 그러면 방금 쓴 값이 delta 만큼
+                    // 한 번 더 밀린 채 저장된다. 응답은 인자로 만들어지므로 200 이 저장소와
+                    // 다른 날짜를 말하고, 되돌릴 근거가 응답 어디에도 남지 않는다.
+                    next = schedule.shiftEntities(next, moved, delta, {
+                        workdays: options.workdays,
+                        exclude: new Set([rangeId]),
+                    });
                 } else {
                     out.cascaded = [];
                     out.cascadeDays = 0;
@@ -414,6 +421,19 @@ const OPS = {
     },
 };
 
+// 쓰기 직전에 결과 트리를 `POST /api/data` 와 **같은 잣대**로 본다.
+// validateTaskTree 가 blob 경로에만 걸려 있던 동안, batch 25개로 깊이 25 트리를
+// 만들 수 있었고 — 그 순간부터 그 프로젝트를 열고 있는 브라우저의 자동저장이
+// 영구히 400 이 됐다(구제 수단인 스냅샷 생성도 같은 검증을 지난다). AI 의 한 번의
+// 쓰기가 사람의 모든 쓰기를 막는 자리라, 상한은 트리를 만드는 **모든** 경로가 봐야 한다.
+const commit = (store, mutator) => store.withTasks((tasks) => {
+    const next = mutator(tasks);
+    if (!Array.isArray(next)) return next;
+    const err = validateTaskTree(next);
+    if (err) throw badRequest(`resulting tree invalid: ${err}`);
+    return next;
+});
+
 // 공개 함수 한 개를 만드는 껍데기. 검증 → 리비전 → 한 번의 withTasks.
 const single = (opName, args, store, ifMatch) => {
     const op = OPS[opName];
@@ -421,7 +441,7 @@ const single = (opName, args, store, ifMatch) => {
     if (op.check) op.check(args.body);
     assertRevision(store, ifMatch);
     const out = {};
-    const result = mustWrite(store.withTasks((tasks) => op.apply(tasks, args, out)));
+    const result = mustWrite(commit(store, (tasks) => op.apply(tasks, args, out)));
     return { revision: result.meta.revision, ...out };
 };
 
@@ -480,7 +500,9 @@ const parseOps = (ops) => ops.map((raw, i) => {
     const unknown = Object.keys(raw).filter(k => !BATCH_KEYS.has(k));
     if (unknown.length > 0) throw badRequest(`${at}: unknown field(s): ${unknown.join(', ')}`);
 
-    const op = OPS[raw.op];
+    // hasOwn 이어야 한다 — `OPS['constructor']` 는 truthy 라서 `op.ids` 에서 TypeError 가
+    // 나고, 클라이언트 잘못이 500 으로 새어 나갔다(에러 로그와 5xx 카운터까지 함께).
+    const op = Object.hasOwn(OPS, raw.op) ? OPS[raw.op] : null;
     if (!op) throw badRequest(`${at}.op must be one of: ${Object.keys(OPS).join(', ')}`);
     if (raw.ref !== undefined && (typeof raw.ref !== 'string' || !/^[A-Za-z0-9_-]+$/.test(raw.ref))) {
         throw badRequest(`${at}.ref must match [A-Za-z0-9_-]+`);
@@ -509,10 +531,18 @@ const applyBatch = (store, payload, ifMatch) => {
 
     // 1) 전부 형식 검증. 하나라도 틀리면 리비전 검사에도 못 간다 — 아무것도 안 쓴다.
     const parsed = parseOps(payload.ops);
+    // 같은 ref 이름을 두 번 쓰면 조용히 뒤엣것으로 덮였다 — 200 op 짜리 계획에서
+    // 첫 노드에 붙어야 할 자식이 오류 없이 다른 노드로 간다. 화면에도 응답에도 안 나온다.
+    const seenRefs = new Set();
+    for (const p of parsed) {
+        if (!p.ref) continue;
+        if (seenRefs.has(p.ref)) throw badRequest(`${p.at}.ref is already used: ${p.ref}`);
+        seenRefs.add(p.ref);
+    }
     assertRevision(store, ifMatch);
 
     const results = [];
-    const result = mustWrite(store.withTasks((tasks) => {
+    const result = mustWrite(commit(store, (tasks) => {
         const refs = new Map();
         results.length = 0;
         return parsed.reduce((acc, p) => {

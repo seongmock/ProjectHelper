@@ -197,20 +197,51 @@ const entityWindow = (entity) => {
 };
 
 // startId 에서 goalId 까지 후행 방향으로 내려가는 경로(BFS, 최단). 없으면 null.
+// 경로를 큐에 통째로 복사하면(`[...path, next]`) 탐색 하나가 경로 길이만큼 더 비싸지고,
+// 간선마다 이 BFS 를 도는 findDependencyIssues 는 그래서 O(N^3) 이었다 — 상한(5000노드)
+// 안의 합법적인 체인 하나가 GET 한 번으로 이벤트 루프를 50초 막았다. 부모만 기록하고
+// 끝에서 되짚는다. 반환하는 최단 경로는 같다.
 const findDependencyPath = (successors, startId, goalId) => {
-    const queue = [[startId]];
+    const parent = new Map();
     const visited = new Set([startId]);
-    while (queue.length > 0) {
-        const path = queue.shift();
-        const tail = path[path.length - 1];
+    const queue = [startId];
+    for (let head = 0; head < queue.length; head++) {
+        const tail = queue[head];
         for (const next of successors.get(tail) || []) {
-            if (next === goalId) return [...path, next];
+            if (next === goalId) {
+                const path = [goalId];
+                for (let at = tail; at !== undefined; at = parent.get(at)) path.unshift(at);
+                return path;
+            }
             if (visited.has(next)) continue;
             visited.add(next);
-            queue.push([...path, next]);
+            parent.set(next, tail);
+            queue.push(next);
         }
     }
     return null;
+};
+
+// 간선마다 역경로를 찾는 일은 순환이 **하나라도** 있을 때만 필요하다. 위상정렬(칸)
+// 한 번으로 먼저 판정하면 흔한 경우(순환 없음)가 O(V+E) 로 끝난다.
+const hasDependencyCycle = (successors) => {
+    const indegree = new Map();
+    successors.forEach((tos, from) => {
+        if (!indegree.has(from)) indegree.set(from, 0);
+        tos.forEach(to => indegree.set(to, (indegree.get(to) || 0) + 1));
+    });
+    const queue = [];
+    indegree.forEach((deg, id) => { if (deg === 0) queue.push(id); });
+    let settled = 0;
+    for (let head = 0; head < queue.length; head++) {
+        settled += 1;
+        for (const to of successors.get(queue[head]) || []) {
+            const deg = indegree.get(to) - 1;
+            indegree.set(to, deg);
+            if (deg === 0) queue.push(to);
+        }
+    }
+    return settled < indegree.size;
 };
 
 // 같은 순환을 어느 간선에서 발견하든 한 번만 보고하기 위한 정규화.
@@ -248,8 +279,15 @@ const findDependencyIssues = (tasks) => {
     const seenCycles = new Set();
     const overlaps = [];
 
+    // 위상정렬 한 번으로 흔한 경우(순환 없음)를 O(V+E) 에 끝낸다 — 순환이 **하나라도**
+    // 있을 때만 간선마다 역경로를 찾는다.
+    // ponytail: 순환이 있을 때는 여전히 간선당 BFS 라 O(V·E) 다(5000노드 사슬 기준 ~1초).
+    // 순환 데이터는 blob POST /api/data 로만 들어오고, 들어온 뒤 사용자가 할 일은 그것을
+    // 고치는 것이다 — 더 빠르게 하려면 SCC(타잔) 한 번으로 순환 성분을 먼저 뽑아라.
+    const cyclic = hasDependencyCycle(successors);
     edges.forEach(({ fromId, toId }) => {
-        const back = fromId === toId ? [] : findDependencyPath(successors, toId, fromId);
+        const back = fromId === toId ? []
+            : (cyclic ? findDependencyPath(successors, toId, fromId) : null);
         if (fromId === toId || back) {
             edgeIssues[dependencyEdgeKey(fromId, toId)] = 'cycle';
             const ids = fromId === toId ? [fromId] : [fromId, ...back.slice(0, -1)];

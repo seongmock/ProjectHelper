@@ -6,7 +6,17 @@ const validators = {
     string: (v) => typeof v === 'string',
     bool: (v) => typeof v === 'boolean',
     int: (v) => Number.isInteger(v),
-    date: (v) => typeof v === 'string' && DATE_RE.test(v) && !isNaN(Date.parse(v)),
+    // 달력에 없는 날짜(2026-02-30)는 Date.parse 를 통과한 뒤 3월 2일로 굴러간다 —
+    // 저장은 원문, 투영(recalcTaskBounds)은 굴러간 값이라 API 가 같은 것에 대해 두
+    // 날짜를 말했다. 왕복 대조가 그것을 막는다('YYYY-MM-DD' 는 UTC 자정으로 파싱된다).
+    // Date.parse 를 먼저 통과시켜야 한다 — DATE_RE 는 `\d{2}` 라 '2026-99-99' 도 지나가고,
+    // 그런 값에 곧바로 .toISOString() 을 부르면 RangeError 가 나 **검증기가 던진다**.
+    // 클라이언트 잘못이 400 이 아니라 500 으로 나가는 것은 검증이 없는 것보다 나쁘다.
+    date: (v) => {
+        if (typeof v !== 'string' || !DATE_RE.test(v)) return false;
+        const t = Date.parse(v);
+        return Number.isFinite(t) && new Date(t).toISOString().slice(0, 10) === v;
+    },
     color: (v) => typeof v === 'string' && HEX_RE.test(v),
     stringArray: (v) => Array.isArray(v) && v.every(s => typeof s === 'string'),
     object: (v) => v !== null && typeof v === 'object' && !Array.isArray(v),
@@ -42,7 +52,10 @@ const validate = (body, spec, { allowUnknown = false } = {}) => {
     }
 
     if (!allowUnknown) {
-        const unknown = Object.keys(body).filter(k => !(k in spec));
+        // hasOwn 이어야 한다 — `k in spec` 은 프로토타입 체인을 타므로 `constructor`·
+        // `toString`·`__proto__` 같은 이름이 미지의 키 검사를 통과했고, spec 순회에도
+        // 안 걸려 **타입 검사 없이** 트리에 그대로 저장됐다.
+        const unknown = Object.keys(body).filter(k => !Object.hasOwn(spec, k));
         if (unknown.length > 0) return `unknown field(s): ${unknown.join(', ')}`;
     }
     return null;
@@ -145,7 +158,21 @@ const mergeSettings = (current, patch) => ({
     ...patch,
 });
 
+// 검증 → 병합 → **병합 결과 재검증**. 셋이 한 함수인 것이 요점이다.
+// 요청 단위로만 세면 상한 이내의 쓰기를 반복해 서버 쪽 키를 무한히 누적할 수 있고,
+// 브라우저는 캐시와 병합한 **전체** blob 을 보내므로 그 순간부터 사용자의 설정 저장이
+// 전부 400 이 된다(그 실패는 storage.js 가 console.warn 으로 삼킨다 — 화면에 남는 것은
+// "설정이 저장되지 않는다"뿐이다). 나눠 두면 호출부가 재검증을 잊는다.
+const applySettingsPatch = (current, patch) => {
+    const error = validateSettings(patch);
+    if (error) return { error };
+    const merged = mergeSettings(current, patch);
+    const mergedError = validateSettings(merged);
+    if (mergedError) return { error: `merged settings invalid: ${mergedError}` };
+    return { merged };
+};
+
 module.exports = {
-    validate, validators, validateTaskTree, validateSettings, mergeSettings,
+    validate, validators, validateTaskTree, validateSettings, mergeSettings, applySettingsPatch,
     MAX_TASKS, MAX_DEPTH, MAX_SETTING_KEYS,
 };

@@ -6,7 +6,8 @@ module.exports = {
     version: '1.4',
     purpose:
         '프로젝트 타임라인(간트 차트)을 REST로 조회/수정한다. ' +
-        '열린 브라우저는 10초 폴링으로 변경을 자동 반영하므로 사용자에게 새로고침을 요구할 필요 없음.',
+        '열린 브라우저는 10초 폴링으로 **일정 데이터의** 변경을 자동 반영하므로 새로고침을 요구할 필요 없음 ' +
+        '(설정은 그 폴링 대상이 아니다 — settings 항목 참조).',
 
     discovery: {
         guide: 'GET /api/guide (이 문서)',
@@ -20,7 +21,10 @@ module.exports = {
         criticalPath: 'GET /api/projects/{pid}/critical-path (임계경로와 여유 slack — 무엇이 늦으면 종료가 밀리는지)',
         chart: 'GET /api/projects/{pid}/chart?format=text (텍스트 간트 — **자기가 쓴 결과를 눈으로 확인하는 수단**)',
         batch: 'POST /api/projects/{pid}/batch {ops:[...]} (여러 변경을 한 번의 쓰기로 — 전부 아니면 전무)',
-        settings: 'GET/POST /api/settings (전역 화면 설정 — 프로젝트 스코프 밖이고 일정 데이터는 없다)',
+        settings: 'GET/POST /api/settings (전역 화면 설정 — 프로젝트 스코프 밖이고 일정 데이터는 없다). ' +
+            '**리비전도 폴링도 감사 로그도 없다**: 열려 있는 탭은 마운트 때 읽은 값을 들고 있다가 사용자가 설정을 하나 ' +
+            '바꾸는 순간 그 전체를 되쓰므로, 여기 쓴 값이 조용히 되돌아갈 수 있다. 바꿨으면 사용자에게 새로고침을 요청하라. ' +
+            '키는 최대 64개이고 그 상한은 병합된 결과에 걸린다(모르는 키를 늘리지 마라).',
         mcp: '프로젝트 루트 .mcp.json 등록 시 21개 MCP 도구 사용 가능 (get-guide, list-projects, create-project, add-task, reschedule, batch, render-chart, critical-path 등)',
         auth: 'GET /api/auth/me — { mode:"open"|"enforced", user }. open 이면 인증 불필요.',
     },
@@ -129,7 +133,8 @@ module.exports = {
             'PATCH /api/projects/{pid}/tasks/{id}/time-ranges/{rangeId}?cascade=true — 종료일이 **뒤로 밀린 일수만큼** ' +
             '후행(전이적 포함) 전체를 같은 쓰기에서 민다. 응답의 cascaded/cascadeDays 가 무엇이 얼마나 움직였는지 말한다. ' +
             '앞당김은 전파하지 않는다(사람이 잡아 둔 간격을 지우지 않는다). ' +
-            '&workdays=true 를 더하면 주말에 착지한 날짜를 다음 평일로 민다 — 공휴일 달력은 없다.',
+            '&workdays=true 를 더하면 주말에 착지한 날짜를 다음 평일로 민다 — 공휴일 달력은 없다. ' +
+            'batch 의 update-time-range 에는 이 두 옵션이 없다(쿼리 파라미터라서) — cascade 가 필요하면 단건 PATCH 를 쓴다.',
         milestoneEdit:
             'PATCH /api/projects/{pid}/tasks/{id}/milestones/{milestoneId} {date?, label?, shape?, color?, labelPosition?, dependencies?}. ' +
             '**지우고 다시 만들지 말 것** — id 가 바뀌고, 삭제는 그 마일스톤을 가리키던 dependencies 를 함께 정리하므로 연결이 사라진다.',

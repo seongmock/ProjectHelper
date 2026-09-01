@@ -4,6 +4,7 @@
 const fs = require('fs');
 const path = require('path');
 const eventLog = require('./eventLog');
+const { logger } = require('./logger');
 
 // 데이터 위치를 주입 가능하게 둔다 — E2E/통합 테스트가 실제 데이터를 건드리지 않고
 // 격리된 디렉토리에서 돌 수 있어야 한다 (playwright.config.js 의 webServer 참조).
@@ -82,11 +83,16 @@ const generationBackup = (dataFile, prevTasks, nextCount) => {
     return true;
 };
 
+// null 은 "파일이 없다"와 "파싱에 실패했다" 둘 다를 뜻한다 — 호출부는 대부분 그
+// 구분이 필요 없지만(빈 트리로 시작하면 된다), **손상은 흔적을 남겨야 한다**.
+// settings.json 이 깨진 채 병합되면 나머지 설정이 조용히 전량 소실되고, 그 사실을
+// 말해 주는 것이 이 한 줄뿐이다(settings.json 에는 세대 백업이 없다).
 const readJsonSafe = (filepath) => {
     if (!fs.existsSync(filepath)) return null;
     try {
         return JSON.parse(fs.readFileSync(filepath, 'utf-8'));
-    } catch {
+    } catch (err) {
+        logger.warn('corrupt json file — treated as empty', { file: filepath, error: err.message });
         return null;
     }
 };

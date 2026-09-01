@@ -228,9 +228,15 @@ describe('HTTP — 게이트가 실제 라우트에 걸려 있다', () => {
         assert.equal((await call('GET', '/api')).status, 200);
         assert.equal((await call('GET', '/api/guide')).status, 200);
         // 접두어 매처였다면 여기가 열린다.
-        assert.equal((await call('GET', '/api/health/')).status, 401);
+        assert.equal((await call('GET', '/api/health/secret')).status, 401);
+        assert.equal((await call('GET', '/api/healthz')).status, 401);
         assert.equal((await call('GET', '/api/data')).status, 401);
         assert.equal((await call('GET', '/api/settings')).status, 401);
+        // 끝 슬래시는 **같은 핸들러**다(Express 4 기본값 strict:false) — 게이트가 라우터와
+        // 다르게 판정하면 그 차이 자체가 우회로가 된다. 열려야 맞고, 본문은 {ok,time} 뿐이다.
+        assert.equal((await call('GET', '/api/health/')).status, 200);
+        assert.deepEqual(
+            Object.keys((await call('GET', '/api/health/')).json).sort(), ['ok', 'time']);
     });
 
     test('로그인은 틀린 비밀번호를 구분해 주지 않고, 맞으면 쿠키를 준다', async () => {
@@ -273,7 +279,35 @@ describe('HTTP — 게이트가 실제 라우트에 걸려 있다', () => {
         const writerCookie = cookie;
         assert.equal((await call('POST', `/api/projects/${pid}/tasks`, { name: '쓸 수 있다' }, { Cookie: writerCookie })).status, 201);
         assert.equal((await call('DELETE', `/api/projects/${pid}`, undefined, { Cookie: writerCookie })).status, 403);
+
+        // 게이트가 `req.originalUrl` 을 앵커 정규식으로 보던 동안, 라우터가 같은 핸들러로
+        // 보내는 두 표기가 ADMIN_ONLY 를 통째로 비껴갔다(끝 슬래시 · 대문자 마운트).
+        // 둘 다 실제로 200 을 받아 프로젝트가 지워졌다 — editor 한 명이 모두의 데이터를.
+        assert.equal((await call('DELETE', `/api/projects/${pid}/`, undefined, { Cookie: writerCookie })).status, 403);
+        assert.equal((await call('DELETE', `/API/projects/${pid}`, undefined, { Cookie: writerCookie })).status, 403);
+        assert.equal((await call('GET', `/api/projects/${pid}/tasks`, undefined, { Cookie: adminCookie })).status, 200);
+
         assert.equal((await call('DELETE', `/api/projects/${pid}`, undefined, { Cookie: adminCookie })).status, 200);
+        cookie = adminCookie;
+    });
+
+    test('viewer 도 자기 비밀번호는 바꾼다 — 못 바꾸면 유출에 스스로 대응할 수 없다', async () => {
+        const adminCookie = cookie;
+        cookie = '';
+        await call('POST', '/api/auth/login', { name: 'reader', password: 'password123' });
+        const readerCookie = cookie;
+
+        // 남의 계정은 여전히 못 건드린다.
+        assert.equal((await call('PATCH', '/api/users/admin',
+            { password: 'hijacked-pw' }, { Cookie: readerCookie })).status, 403);
+        // 역할 승급도 못 한다 — 그건 스스로 관리자가 되는 문이다.
+        assert.equal((await call('PATCH', '/api/users/reader',
+            { role: 'admin' }, { Cookie: readerCookie })).status, 403);
+
+        assert.equal((await call('PATCH', '/api/users/reader',
+            { password: 'reader-new-pw' }, { Cookie: readerCookie })).status, 200);
+        assert.equal((await call('POST', '/api/auth/login',
+            { name: 'reader', password: 'reader-new-pw' })).status, 200);
         cookie = adminCookie;
     });
 

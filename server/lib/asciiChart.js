@@ -21,7 +21,11 @@ const glyphFor = (shape) => SHAPE_GLYPH[shape] || SHAPE_GLYPH.diamond;
 // 'YYYY-MM-DD' 를 UTC 로 파싱한다 — 로컬 파싱은 타임존에 따라 하루가 밀린다.
 const parseUtc = (dateStr) => Date.parse(`${dateStr}T00:00:00Z`);
 
-const isValidDateStr = (d) => typeof d === 'string' && !Number.isNaN(parseUtc(d));
+// DATE_RE 도 함께 본다 — 축의 from/to 는 데이터에서 뽑히고, 규약을 벗어난 문자열
+// ('+010000-01' 같은 것)이 하나만 섞여도 사전순 정렬이 그것을 축의 시작으로 골라
+// 차트 전체가 한 칸으로 붕괴한다.
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const isValidDateStr = (d) => typeof d === 'string' && DATE_RE.test(d) && !Number.isNaN(parseUtc(d));
 
 // b - a, 일수. 둘 중 하나라도 파싱 불가면 null.
 const diffDays = (a, b) => {
@@ -40,8 +44,18 @@ const WIDE_RE = /[\u1100-\u115F\u2E80-\uA4CF\uA960-\uA97F\uAC00-\uD7A3\uF900-\uF
 const charWidth = (ch) => (WIDE_RE.test(ch) ? 2 : 1);
 const displayWidth = (s) => [...s].reduce((w, ch) => w + charWidth(ch), 0);
 
+// 이 출력은 터미널로 읽힌다. 이름의 제어문자를 그대로 흘리면 ANSI 색·벨이 주입되고,
+// 개행은 **행을 하나 더 만든다** — 헤더처럼 보이는 가짜 줄을 넣어 차트가 자기 자신에
+// 대해 거짓말하게 만들 수 있다. displayWidth 도 그 바이트를 폭 1로 세어 정렬이 어긋난다.
+// eslint-disable-next-line no-control-regex -- 제어문자를 지우는 것이 이 정규식의 용도다
+const CONTROL_RE = /[\u0000-\u001F\u007F]/g;
+// 들여쓰기에도 상한이 필요하다 — MAX_DEPTH 가 허용하는 깊이 19 에서는 '  '.repeat 이
+// NAME_WIDTH(24)를 통째로 먹어 이름이 한 글자도 남지 않는다.
+const MAX_INDENT = 8;
+
 const formatName = (name, level) => {
-    const indented = '  '.repeat(level || 0) + (name || '');
+    const indented = '  '.repeat(Math.min(level || 0, MAX_INDENT))
+        + (name || '').replace(CONTROL_RE, ' ');
     const full = displayWidth(indented);
     if (full <= NAME_WIDTH) return indented + ' '.repeat(NAME_WIDTH - full);
 

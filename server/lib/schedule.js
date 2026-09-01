@@ -11,7 +11,17 @@ const tree = require('./taskTree');
 const DAY_MS = 86_400_000;
 
 const parseDay = (d) => (typeof d === 'string' ? Date.parse(`${d}T00:00:00Z`) : NaN);
-const toDay = (ms) => new Date(ms).toISOString().slice(0, 10);
+
+// `toISOString().slice(0,10)` 이 전제하는 것은 **네 자리 연도**뿐이다. 그 밖으로 나가면
+// ISO 는 확장연도 `+010000-01-01` / `-000001-11-27` 를 내놓고 slice 가 가운데를 잘라
+// `'+010000-01'` 같은 값이 저장된다 — 그 문자열은 이후 어떤 date 검증도 통과하지 못해
+// 그 기간을 다시 쓰려는 모든 요청이 400 이 되고, 차트의 사전순 정렬에서 `'+'`(0x2B)가
+// 모든 숫자보다 작아 축 전체가 무너진다(한 번의 캐스케이드가 그 둘을 함께 만들었다).
+// 그래서 포화시킨다: 9999년을 넘겨야 하는 일정은 없고, 넘겼을 때 필요한 것은 규약을
+// 깬 문자열이 아니라 규약 안의 값이다.
+const MIN_DAY_MS = Date.parse('0001-01-01T00:00:00Z');
+const MAX_DAY_MS = Date.parse('9999-12-31T00:00:00Z');
+const toDay = (ms) => new Date(Math.min(MAX_DAY_MS, Math.max(MIN_DAY_MS, ms))).toISOString().slice(0, 10);
 
 const diffDays = (a, b) => {
     const ta = parseDay(a);
@@ -37,24 +47,45 @@ const isWeekend = (d) => {
 // 순서가 뒤집히지 않는다(뒤집힌 range 는 차트에서 0px 이다).
 // ponytail: 주말만 안다 — 공휴일 달력은 데이터 모델에 없다. 필요해지면 여기에
 // 휴일 집합을 주입하는 인자를 붙이는 것이 최소 변경이다.
+// 상한(9999-12-31)에서 addDays 가 포화하므로 `while` 은 거기서 영원히 돈다 — 종료
+// 조건은 날짜가 아니라 횟수여야 한다. 주말은 연속 이틀이니 7회면 충분하다.
 const nextWorkday = (d) => {
     let out = d;
-    while (isWeekend(out)) out = addDays(out, 1);
+    for (let i = 0; i < 7 && isWeekend(out); i++) out = addDays(out, 1);
     return out;
 };
 
 // a..b 사이의 평일 수(a 제외, b 포함 — diffDays 와 같은 셈법).
+//
+// **하루씩 세면 안 된다.** criticalPath 가 노드마다 이 함수를 부르고 그 구간은 각 노드의
+// 종료일부터 **프로젝트 종료일**까지다 — 마일스톤 하나에 '9999-12-31'(TBD 자리표시자로
+// 흔하다)이 들어간 20작업 프로젝트의 `GET /critical-path` 한 번이 싱글스레드 이벤트
+// 루프를 3분 세웠다(그동안 /api/health 도 안 나간다). 5000노드 상한 안의 평범한
+// 트리로도 35초였다. 주 단위 산술로 접으면 남는 순회는 나머지 6일뿐이다.
+const EPOCH_DOW = 4; // 1970-01-01 은 목요일 (0=일)
+const isWeekendDay = (dayNum) => {
+    const w = ((dayNum % 7) + EPOCH_DOW + 7) % 7;
+    return w === 0 || w === 6;
+};
+
 const diffWorkdays = (a, b) => {
-    const total = diffDays(a, b);
-    if (total === null) return null;
-    const step = total >= 0 ? 1 : -1;
-    let count = 0;
-    let cur = a;
-    for (let i = 0; i < Math.abs(total); i++) {
-        cur = addDays(cur, step);
-        if (!isWeekend(cur)) count += step;
-    }
-    return count;
+    const ta = parseDay(a);
+    const tb = parseDay(b);
+    if (isNaN(ta) || isNaN(tb)) return null;
+    const da = Math.round(ta / DAY_MS);
+    const db = Math.round(tb / DAY_MS);
+    if (da === db) return 0;
+
+    // 세는 구간은 'a 를 뺀, b 쪽 |총일수|일' — 앞으로면 [da+1, db], 뒤로면 [db, da-1].
+    const forward = db > da;
+    const lo = forward ? da + 1 : db;
+    const hi = forward ? db : da - 1;
+
+    const weeks = Math.floor((hi - lo + 1) / 7);
+    let count = weeks * 5;
+    for (let d = lo + weeks * 7; d <= hi; d++) if (!isWeekendDay(d)) count += 1;
+    if (count === 0) return 0; // -0 은 0 과 strict-equal 이 아니다 — 호출부가 그것에 걸린다
+    return forward ? count : -count;
 };
 
 // ── 후행 전파 ────────────────────────────────────────
@@ -78,7 +109,11 @@ const collectTransitiveSuccessors = (successors, startId) => {
 // 작업 id 가 들어오면 그 작업이 **직접** 가진 기간·마일스톤을 민다(작업 레벨
 // dependencies 는 레거시지만 옛 데이터에 남아 있다). 하위 작업은 따라가지 않는다 —
 // 계층은 의존이 아니다.
-const shiftEntities = (tasks, idSet, days, { workdays = false } = {}) => {
+// exclude: 이동 대상에서 명시적으로 뺄 엔티티 id. 캐스케이드가 **방금 편집한 그 기간**을
+// 한 번 더 미는 것을 막는다 — 작업 레벨 dependencies(레거시)가 후행 집합에 그 기간의
+// 소유 작업을 되돌려 넣으면 아래 `wholeTask` 분기가 그 작업의 모든 기간을 밀었고, 그러면
+// 200 응답이 저장소와 다른 날짜를 말한다(사용자는 종료일만 밀었는데 시작일까지 밀렸다).
+const shiftEntities = (tasks, idSet, days, { workdays = false, exclude = null } = {}) => {
     if (days === 0 || idSet.size === 0) return tasks;
     const land = (d) => {
         const moved = addDays(d, days);
@@ -94,6 +129,7 @@ const shiftEntities = (tasks, idSet, days, { workdays = false } = {}) => {
         if (ranges) {
             const next = ranges.map(r => {
                 if (!wholeTask && !idSet.has(r.id)) return r;
+                if (exclude && exclude.has(r.id)) return r;
                 touched = true;
                 return { ...r, startDate: land(r.startDate), endDate: land(r.endDate) };
             });
@@ -103,6 +139,7 @@ const shiftEntities = (tasks, idSet, days, { workdays = false } = {}) => {
             let msTouched = false;
             const next = milestones.map(m => {
                 if (!wholeTask && !idSet.has(m.id)) return m;
+                if (exclude && exclude.has(m.id)) return m;
                 msTouched = true;
                 return { ...m, date: land(m.date) };
             });
@@ -196,9 +233,23 @@ const criticalPath = (tasks) => {
         lf.set(id, value);
     }
 
+    // 의존성은 기간·마일스톤 레벨에 있으므로 **기간을 가진 작업 노드에는 간선이 하나도
+    // 없다** — 그대로 두면 LF 가 프로젝트 종료일이 되어 API 가 같은 구간에 대해 두 개의
+    // 다른 여유를 답한다(작업 t1 은 10일, 그 t1 의 유일한 기간 r1 은 5일). "이 작업을
+    // 며칠 미룰 수 있나"의 답은 그 작업의 **모든** 항목이 미룰 수 있는 일수다.
+    const slackOf = (id) => diffDays(nodes.get(id).end, lf.get(id) ?? projectEnd) ?? 0;
+    const ownSlack = new Map();
+    for (const e of entities) {
+        if (!e.type || !nodes.has(e.id)) continue;
+        const s = slackOf(e.id);
+        const cur = ownSlack.get(e.parentId);
+        if (cur === undefined || s < cur) ownSlack.set(e.parentId, s);
+    }
+
     const out = [...nodes.values()].map(n => {
-        const latestFinish = lf.get(n.id) ?? projectEnd;
-        const slackDays = diffDays(n.end, latestFinish) ?? 0;
+        const inherited = n.type === 'task' ? ownSlack.get(n.id) : undefined;
+        const slackDays = inherited !== undefined ? inherited : slackOf(n.id);
+        const latestFinish = addDays(n.end, slackDays);
         return {
             ...n,
             latestFinish,

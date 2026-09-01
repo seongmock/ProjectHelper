@@ -86,7 +86,7 @@ POST   /api/tasks                                   # 생성 {name*, parentId?, 
 PATCH  /api/tasks/:id                               # 부분 수정 {name?, color?, description?, expanded?, labels?, divider?}
 DELETE /api/tasks/:id                               # 서브트리 삭제
 POST   /api/tasks/:id/move                          # {parentId*(null=루트), position?}
-POST   /api/tasks/:id/time-ranges                   # 기간 추가 {startDate*, endDate*, label?, color?}
+POST   /api/tasks/:id/time-ranges                   # 기간 추가 {startDate*, endDate*, label?, color?, dependencies?}
 PATCH  /api/tasks/:id/time-ranges/:rangeId          # 기간 수정
 DELETE /api/tasks/:id/time-ranges/:rangeId          # 기간 삭제
 POST   /api/tasks/:id/milestones                    # {date*, label?, shape?, color?, labelPosition?, dependencies?}

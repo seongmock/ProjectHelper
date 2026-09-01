@@ -173,8 +173,18 @@ paths:
         schema: { type: string }
     patch:
       summary: 프로젝트 이름 변경
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string, description: 비어 있지 않은 새 이름 }
       responses:
         '200': { description: '{ ok, project }' }
+        '400': { $ref: '#/components/responses/BadRequest' }
         '404': { $ref: '#/components/responses/NotFound' }
     delete:
       summary: 프로젝트 삭제 (마지막 프로젝트는 400, 데이터는 _trash로 보존)
@@ -183,9 +193,17 @@ paths:
         '400': { $ref: '#/components/responses/BadRequest' }
         '404': { $ref: '#/components/responses/NotFound' }
 
-  # 아래 모든 경로는 두 형태로 제공된다:
+  # 아래 경로 중 **프로젝트 데이터에 속하는 것**은 두 형태로 제공된다:
   #   /projects/{pid}/...  — 프로젝트 스코프 (권장)
   #   /...                 — default 프로젝트 별칭 (하위호환)
+  # 서버 전역인 것에는 스코프 형태가 없다 — 있는 줄 알고 부르면 404 다:
+  #   /guide  /openapi.yaml  /health  /metrics  /settings  /auth/*  /users*
+
+  /openapi.yaml:
+    get:
+      summary: 이 스펙 문서 자체 (text/yaml, 인증 예외)
+      responses:
+        '200': { description: OpenAPI 3.0 문서 }
 
   /guide:
     get:
@@ -238,6 +256,7 @@ paths:
               items: { $ref: '#/components/schemas/Task' }
       responses:
         '200': { description: 'OK { ok, revision }' }
+        '400': { $ref: '#/components/responses/BadRequest' }
         '409': { $ref: '#/components/responses/Conflict' }
 
   /tasks:
@@ -640,6 +659,7 @@ paths:
                 data: { type: array, items: { $ref: '#/components/schemas/Task' } }
       responses:
         '200': { description: '{ ok, snapshot }' }
+        '400': { $ref: '#/components/responses/BadRequest' }
 
   /snapshots/{id}:
     parameters:

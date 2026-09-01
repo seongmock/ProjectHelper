@@ -63,6 +63,49 @@ describe('schedule 날짜 산술', () => {
         assert.equal(schedule.diffWorkdays('2026-08-24', '2026-08-31'), 5); // 월→월 = 평일 5
         assert.equal(schedule.diffWorkdays('2026-08-28', '2026-08-31'), 1); // 금→월 = 1
     });
+
+    // 예전에는 하루씩 세면서 매 반복 Date 를 새로 만들었다. criticalPath 는 이 함수를
+    // **노드마다** 부르고 구간은 프로젝트 종료일까지라, 마일스톤 하나에 '9999-12-31'
+    // (TBD 자리표시자로 흔하다)이 든 20작업 프로젝트가 GET 한 번으로 이벤트 루프를
+    // 3분 세웠다 — 그동안 /api/health 도 안 나간다. 산술로 접었으니 그 사실을 잰다.
+    test('diffWorkdays 는 구간 길이와 무관하게 즉시 답한다', () => {
+        const t0 = Date.now();
+        assert.equal(schedule.diffWorkdays('2026-01-01', '9999-12-31'), 2080316);
+        assert.ok(Date.now() - t0 < 100, `${Date.now() - t0}ms — 하루씩 세고 있다`);
+    });
+
+    test('diffWorkdays 는 하루씩 세던 옛 구현과 같은 답을 낸다', () => {
+        const slow = (a, b) => {
+            const total = schedule.diffDays(a, b);
+            const step = total >= 0 ? 1 : -1;
+            let count = 0;
+            let cur = a;
+            for (let i = 0; i < Math.abs(total); i++) {
+                cur = schedule.addDays(cur, step);
+                if (!schedule.isWeekend(cur)) count += step;
+            }
+            return count;
+        };
+        for (let i = 0; i < 200; i++) {
+            const a = schedule.addDays('2026-01-01', Math.floor(Math.random() * 800) - 400);
+            const b = schedule.addDays(a, Math.floor(Math.random() * 200) - 100);
+            assert.equal(schedule.diffWorkdays(a, b), slow(a, b), `${a} → ${b}`);
+        }
+    });
+
+    // toISOString().slice(0,10) 은 네 자리 연도만 전제한다. 밖으로 나가면 ISO 가
+    // '+010000-01-01' 을 내놓고 slice 가 가운데를 잘라 '+010000-01' 이 저장됐다 —
+    // 그 문자열은 이후 어떤 date 검증도 통과하지 못해 그 기간이 영구히 잠긴다.
+    test('addDays 는 YYYY-MM-DD 규약 밖으로 나가지 않는다', () => {
+        assert.equal(schedule.addDays('9999-12-31', 1), '9999-12-31');
+        assert.equal(schedule.addDays('9999-12-01', 40), '9999-12-31');
+        assert.equal(schedule.addDays('0001-01-01', -400), '0001-01-01');
+        assert.equal(schedule.addDays('2026-01-01', 1e12), '9999-12-31'); // RangeError 였다
+    });
+
+    test('nextWorkday 는 상한에서 멈춘다 — 포화한 addDays 로 영원히 돌지 않는다', () => {
+        assert.equal(schedule.nextWorkday('9999-12-31'), '9999-12-31');
+    });
 });
 
 // ── 마일스톤 수정 ────────────────────────────────────
@@ -211,6 +254,57 @@ describe('일괄 적용(batch)', () => {
         }), 400, 'too many ops');
     });
 
+    // OPS['constructor'] 는 truthy 다 — 존재 검사를 `OPS[raw.op]` 로 하던 동안 그 이름은
+    // 통과해 `op.ids` 에서 TypeError 가 났고, 클라이언트 잘못이 500 으로 나갔다.
+    test('Object.prototype 의 이름은 op 가 아니다 — 500 이 아니라 400', () => {
+        for (const name of ['constructor', 'toString', 'hasOwnProperty', 'valueOf']) {
+            assertFails(() => svc.applyBatch(s, { ops: [{ op: name }] }), 400, 'must be one of');
+        }
+    });
+
+    // 같은 ref 이름을 두 번 쓰면 조용히 뒤엣것으로 덮였다 — 200 op 짜리 계획에서 첫 노드에
+    // 붙어야 할 자식이 오류 없이 다른 노드로 간다. 화면에도 응답에도 아무 흔적이 없다.
+    test('같은 ref 이름을 두 번 쓰면 400 — 조용히 덮어쓰지 않는다', () => {
+        assertFails(() => svc.applyBatch(s, {
+            ops: [
+                { op: 'create-task', ref: 'x', body: { name: 'A' } },
+                { op: 'create-task', ref: 'x', body: { name: 'B' } },
+            ],
+        }), 400, 'already used');
+        assert.equal(s.readTasks().length, 0);
+    });
+
+    // batch 200 op 으로 깊이 200 트리를 만들 수 있었고, 그 순간부터 그 프로젝트를 열고
+    // 있는 브라우저의 자동저장(POST /api/data)이 영구히 400 이 됐다 — 구제 수단인
+    // 스냅샷 생성도 같은 검증을 지나므로 함께 막힌다. AI 의 한 번의 200 응답이 사람의
+    // 모든 쓰기를 잠그는 자리다. 상한은 트리를 만드는 **모든** 경로가 봐야 한다.
+    test('batch 도 트리 상한(깊이)을 넘지 못한다 — 사람의 저장을 잠그던 구멍', () => {
+        const before = s.readMeta().revision;
+        const ops = [{ op: 'create-task', ref: 'n0', body: { name: 'n0' } }];
+        for (let i = 1; i <= 25; i++) {
+            ops.push({ op: 'create-task', ref: `n${i}`, body: { name: `n${i}`, parentId: `@n${i - 1}` } });
+        }
+        assertFails(() => svc.applyBatch(s, { ops }), 400, 'max depth');
+        assert.equal(s.readTasks().length, 0, '전부 아니면 전무여야 한다');
+        assert.equal(s.readMeta().revision, before);
+    });
+
+    test('단건 쓰기도 같은 상한을 본다 — batch 만 막으면 30번 나눠 보내면 된다', () => {
+        let parentId;
+        let blocked = false;
+        for (let i = 0; i < 30; i++) {
+            try {
+                parentId = svc.createTask(s, { name: `d${i}`, parentId }).task.id;
+            } catch (err) {
+                assert.equal(err.status, 400);
+                assert.match(err.message, /max depth/);
+                blocked = true;
+                break;
+            }
+        }
+        assert.ok(blocked, '30단계를 그대로 만들 수 있었다');
+    });
+
     test('If-Match 불일치는 409 — 하나도 적용되지 않는다', () => {
         assertFails(() => svc.applyBatch(s, { ops: [{ op: 'create-task', body: { name: 'A' } }] }, '9999'), 409);
         assert.equal(s.readTasks().length, 0);
@@ -233,9 +327,9 @@ describe('일괄 적용(batch)', () => {
         svc.applyBatch(audited, {
             ops: Array.from({ length: 5 }, (_, i) => ({ op: 'create-task', body: { name: `T${i}` } })),
         });
-        if (audited.readEvents) {
-            assert.equal(audited.readEvents().length, before + 1);
-        }
+        // 조건 안에 넣으면 readEvents 가 사라지는 날 단언이 통째로 없어진다.
+        assert.ok(audited.readEvents, '감사 로그를 읽을 수 없으면 이 테스트는 아무것도 보증하지 않는다');
+        assert.equal(audited.readEvents().length, before + 1);
     });
 });
 
@@ -305,6 +399,27 @@ describe('캐스케이드 이동', () => {
         assert.equal(task.milestones.find(m => m.id === milestone.id).date, '2026-02-12');
     });
 
+    // 작업 레벨 dependencies(레거시)가 있으면 후행 집합에 **소유 작업**이 되돌아오고,
+    // shiftEntities 의 wholeTask 분기가 방금 편집한 그 기간을 delta 만큼 한 번 더 밀었다.
+    // 응답은 인자로 만들어지므로 200 이 저장소와 다른 날짜를 말했다 — 사용자는 종료일만
+    // 3일 밀었는데 시작일까지 3일 밀렸고, 되돌릴 근거가 응답 어디에도 없었다.
+    test('캐스케이드가 방금 편집한 기간을 다시 밀지 않는다 — 응답과 저장이 같다', () => {
+        s.writeTasks([
+            { id: 'T1', name: 'A', children: [], milestones: [], dependencies: ['T2'],
+              timeRanges: [{ id: 'r1', startDate: '2026-01-01', endDate: '2026-01-05', dependencies: [] }] },
+            { id: 'T2', name: 'B', children: [], milestones: [],
+              timeRanges: [{ id: 'r2', startDate: '2026-01-06', endDate: '2026-01-10', dependencies: ['r1'] }] },
+        ]);
+        const res = svc.updateTimeRange(s, 'T1', 'r1', { endDate: '2026-01-08' }, undefined, { cascade: true });
+
+        assert.equal(res.timeRange.startDate, '2026-01-01');
+        assert.equal(res.timeRange.endDate, '2026-01-08');
+        const stored = rangeOf('T1');
+        assert.equal(stored.startDate, res.timeRange.startDate, '응답이 저장소와 다른 값을 말했다');
+        assert.equal(stored.endDate, res.timeRange.endDate);
+        assert.equal(rangeOf('T2').startDate, '2026-01-09', '후행은 정상적으로 3일 밀린다');
+    });
+
     test('순환이 있어도 무한히 돌지 않는다', () => {
         // 순환은 서비스가 막으므로 트리를 직접 심어서 만든다
         s.writeTasks([
@@ -366,6 +481,23 @@ describe('임계경로 / 여유(slack)', () => {
     test('날짜 없는 항목은 계산에서 빠진다 (판정할 근거가 없다)', () => {
         s.writeTasks([{ id: 't1', name: '날짜 없음', children: [], milestones: [], timeRanges: [] }]);
         assert.deepEqual(svc.getCriticalPath(s).nodes, []);
+    });
+
+    // 의존성은 기간 레벨에 있으므로 기간을 가진 작업 노드에는 간선이 하나도 없다 —
+    // 그대로 두면 LF 가 프로젝트 종료일이 되어 API 가 **같은 구간에 대해 두 개의 다른
+    // 여유**를 답했다(작업 10일, 그 작업의 유일한 기간 5일). "이 작업을 며칠 미룰 수
+    // 있나"에 10 이라고 답하면 그 계획은 5일째에 깨진다.
+    test('작업의 여유가 자기 기간의 여유와 어긋나지 않는다', () => {
+        const a = mkTask('A', '2026-01-01', '2026-01-05');
+        const b = mkTask('B', '2026-01-10', '2026-01-15');
+        svc.updateTimeRange(s, b.id, b.timeRanges[0].id, { dependencies: [a.timeRanges[0].id] });
+
+        const by = new Map(svc.getCriticalPath(s).nodes.map(n => [n.id, n]));
+        assert.equal(by.get(a.timeRanges[0].id).slackDays, 5);
+        assert.equal(by.get(a.id).slackDays, 5, '작업이 자기 기간보다 여유가 많을 수는 없다');
+        assert.equal(by.get(a.id).latestFinish, by.get(a.timeRanges[0].id).latestFinish);
+        assert.equal(by.get(b.id).slackDays, 0);
+        assert.ok(svc.getCriticalPath(s).criticalIds.includes(b.id));
     });
 });
 

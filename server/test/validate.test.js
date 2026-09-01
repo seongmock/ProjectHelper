@@ -3,7 +3,7 @@
 const { test, describe } = require('node:test');
 const assert = require('node:assert/strict');
 const {
-    validate, validateTaskTree, validateSettings, mergeSettings,
+    validate, validateTaskTree, validateSettings, mergeSettings, applySettingsPatch,
     MAX_TASKS, MAX_DEPTH, MAX_SETTING_KEYS,
 } = require('../lib/validate');
 
@@ -175,5 +175,71 @@ describe('validateSettings / mergeSettings — POST /api/settings', () => {
     test('기존 값이 없거나 깨져 있어도 새 설정만 남는다', () => {
         assert.deepEqual(mergeSettings(undefined, { darkMode: true }), { darkMode: true });
         assert.deepEqual(mergeSettings('garbage', { darkMode: true }), { darkMode: true });
+    });
+});
+
+// 2026-09-01 레드팀. 프로토타입 체인을 타는 키 이름이 검사 자체를 통과했다.
+describe('validate — Object.prototype 의 키 이름', () => {
+    const spec = { name: { type: 'string', required: true } };
+
+    test('constructor·toString·__proto__ 는 미지의 필드로 거부된다', () => {
+        // `k in spec` 이던 동안 이 이름들은 미지 키 검사도, spec 순회도 지나치지 못해
+        // **타입 검사 없이** 트리에 그대로 저장됐다.
+        for (const key of ['constructor', 'toString', 'hasOwnProperty', 'valueOf']) {
+            assert.match(validate({ name: 'a', [key]: 'PWNED' }, spec), /unknown field/);
+        }
+        // __proto__ 는 리터럴로 쓰면 own 속성이 안 되므로 JSON 이 오는 실제 경로로 만든다.
+        assert.match(validate(JSON.parse('{"name":"a","__proto__":"x"}'), spec), /unknown field/);
+    });
+
+    test('정상 필드는 그대로 통과한다', () => {
+        assert.equal(validate({ name: 'a' }, spec), null);
+    });
+});
+
+describe('validators.date — 달력에 없는 날짜', () => {
+    test('2026-02-30 은 거부된다 (저장은 원문, 투영은 3월 2일이 됐다)', () => {
+        const spec = { d: { type: 'date' } };
+        assert.match(validate({ d: '2026-02-30' }, spec), /valid date/);
+        assert.match(validate({ d: '2026-04-31' }, spec), /valid date/);
+        assert.match(validate({ d: '2025-02-29' }, spec), /valid date/);
+    });
+
+    test('실재하는 날짜는 통과한다 (윤년 포함)', () => {
+        const spec = { d: { type: 'date' } };
+        for (const d of ['2026-02-28', '2024-02-29', '2026-12-31', '2026-01-01']) {
+            assert.equal(validate({ d }, spec), null, d);
+        }
+    });
+});
+
+describe('applySettingsPatch — 병합 결과에 걸리는 상한', () => {
+    const keys = (n, prefix) => Object.fromEntries(
+        Array.from({ length: n }, (_, i) => [`${prefix}${i}`, i]));
+
+    test('요청은 상한 이내여도 병합 결과가 넘으면 거부한다', () => {
+        // 상한을 요청 단위로만 세면, 상한 이내의 쓰기를 반복해 무한히 누적할 수 있었다.
+        const current = keys(MAX_SETTING_KEYS - 10, 'a');
+        const { error, merged } = applySettingsPatch(current, keys(20, 'b'));
+        assert.match(error, /merged settings invalid/);
+        assert.match(error, /too many settings keys/);
+        assert.equal(merged, undefined);
+    });
+
+    test('누적이 상한을 넘지 않으면 통과한다', () => {
+        const { error, merged } = applySettingsPatch(keys(10, 'a'), keys(10, 'b'));
+        assert.equal(error, undefined);
+        assert.equal(Object.keys(merged).length, 20);
+    });
+
+    test('덮어쓰는 키는 개수를 늘리지 않는다', () => {
+        const current = keys(MAX_SETTING_KEYS, 'a');
+        const { error } = applySettingsPatch(current, { a0: 99 });
+        assert.equal(error, undefined);
+    });
+
+    test('patch 자체의 오류는 병합 전에 잡힌다', () => {
+        assert.match(applySettingsPatch({}, { 'bad key': 1 }).error, /invalid settings key/);
+        assert.match(applySettingsPatch({}, null).error, /must be a JSON object/);
     });
 });
