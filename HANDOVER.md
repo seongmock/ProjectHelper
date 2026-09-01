@@ -2564,3 +2564,21 @@ StrictMode 는 마운트 → 언마운트 → 마운트로 effect 를 두 번 �
 검증: lint 0 error · 단위 594 · 서버 **352** · 빌드 성공 · **E2E 124/124 (skip 0)** ·
 sqlite 엔진 E2E 동일. `test-floors.mjs` 와 개수 표기 다섯 파일을 같은 커밋에서 올렸다
 (123 → 124).
+
+### 2026-09-01 — 배포 (사용자 승인)
+
+레드 팀 수정(`eecbebd`)과 위 취소 가드(`080df24`)를 운영에 올렸다. 순서는 절대 규칙대로
+`backup-data.sh` → `start_server.sh` → `verify-deploy.sh` 다. 백업은
+`ph-data-20260901-170450.tar.gz`(28K, SQLite 정합 스냅샷 포함, 무결성 검증 통과, 보관 38건),
+검증은 **39/39 · 실패 0** 이다. 확인된 상태: 컨테이너 셋 기동, `PH_STORE=sqlite` 가
+컨테이너와 `.env` 에서 일치하고 리비전 40 이 저장소와 API 응답에서 같다, non-root(`node`)
+실행, Node v22.23.2, SNI 없는 연결이 `10.178.21.120` 용 인증서를 받는다.
+
+**인증은 여전히 꺼져 있다** — 사내망의 누구나 읽고 쓸 수 있는 상태이고, 이것은
+2026-08-18 사용자 결정이다(`Caddyfile` 주석의 4줄로 복구, 해시는 `.env` 에 남아 있다).
+`verify-deploy.sh` 는 `Caddyfile` 을 읽어 그 상태를 단언하므로 검증이 거짓말하지 않는다.
+이번 배포로 운영에 처음 반영된 것: 인증 게이트의 `normalizePath()` 우회 차단,
+이벤트 루프를 막던 셋(`diffWorkdays`·`findDependencyPath`·월 눈금 루프), 캐스케이드의
+자기 자신 재이동, `2026-99-99` 의 500, `GET /chart` 의 제어문자 주입, 그리고 새 라우트
+(`PATCH .../milestones/:id`, `POST /batch`, `/chart`, `/critical-path`)와 고친 `aiGuide`·
+`openapi.yaml`.
