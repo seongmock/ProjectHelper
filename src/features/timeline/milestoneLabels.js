@@ -66,13 +66,19 @@ export function labelHeadroom(placements) {
 
 // 한글은 라틴 문자보다 넓다. 정확한 측정은 DOM 이 필요하고(그러면 순수함수가 아니다),
 // 배치 판정에는 **넉넉한 추정**이 안전하다 — 좁게 잡으면 겹치지 않는다고 판단한 뒤 겹친다.
+//
+// 배수 1.9 의 근거: CJK 는 전각이라 한 글자가 대략 font-size(12px) 다. 1.6(=11.2px)은
+// 그보다 **좁아서** 추정이 실제보다 작았고, 그러면 잘림 방지 클램프가 그 차이의 절반만큼
+// 모자라게 민다. 축이 여유 없이 시작하도록 바뀌자(2026-09-17 computeDateRange) 왼쪽 끝의
+// 라벨이 CI 에서 2px 넘쳤다 — **내 기기에서는 통과했다**. 폰트가 다르면 실폭도 다르므로
+// 추정은 어느 쪽으로 틀릴지가 아니라 **어느 쪽으로 틀려도 안전한지**로 정한다.
 export function estimateLabelWidth(label) {
     const text = String(label ?? '');
     let raw = LABEL_PADDING;
     for (const ch of text) {
         // 한글/한자/가나 + CJK 기호 구간 (직접 적으면 전각 공백이 섞여 lint 가 막는다)
         raw += /[\u1100-\u11FF\u3000-\u303F\u3040-\u30FF\u3400-\u4DBF\u4E00-\u9FFF\uAC00-\uD7AF]/.test(ch)
-            ? LABEL_CHAR_WIDTH * 1.6
+            ? LABEL_CHAR_WIDTH * 1.9
             : LABEL_CHAR_WIDTH;
     }
     return raw * MARKER_SCALE;
