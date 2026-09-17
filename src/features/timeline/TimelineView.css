@@ -356,3 +356,15 @@
     pointer-events: none;
     opacity: 0.8;
 }
+/* 구간 드래그 줌 — 고르는 동안만 보인다(파형 뷰어의 선택 영역과 같은 역할).
+   포인터를 먹으면 드래그 도중 mouseup 대상이 바뀌므로 통과시킨다. */
+.zoom-selection {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    background-color: var(--color-primary-transparent);
+    border-left: 1px solid var(--color-primary);
+    border-right: 1px solid var(--color-primary);
+    z-index: var(--z-timeline-marker);
+    pointer-events: none;
+}

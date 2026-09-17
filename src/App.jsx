@@ -7,7 +7,7 @@
 //   - 파일 입출력     → hooks/useImportExport
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { getSampleData } from './utils/dataModel';
-import { flattenAll, planDependencyRemoval, expandAncestors, findDependencyIssues, filterTasksByQuery, taskMatchesQuery } from './utils/taskTree';
+import { flattenAll, planDependencyRemoval, expandAncestors, findDependencyIssues, filterTasksByQuery, taskMatchesQuery, treeDepth } from './utils/taskTree';
 import { resolveGlobalShortcut, isTextEditableTarget, hasOverlay } from './shared/keyboard';
 import { useUndoRedo } from './shared/hooks/useUndoRedo';
 import { useToast } from './shared/hooks/useToast';
@@ -16,6 +16,7 @@ import { useTaskActions } from './features/tasks/useTaskActions';
 import { useTaskKeyboard, scrollSelectedTaskIntoView } from './features/tasks/useTaskKeyboard';
 import { useImportExport } from './features/io/useImportExport';
 import { useSettingsStore } from './stores/settingsStore';
+import { clampZoom } from './features/timeline/zoomRange';
 import { useUiStore } from './stores/uiStore';
 import Header from './features/shell/Header';
 import Toolbar from './features/shell/Toolbar';
@@ -273,6 +274,15 @@ function App() {
     // 검색 중이 아니면 트리에 쓴다 — 단 **히스토리에는 남기지 않는다**. 접기는 시각적
     // 상태라(드래그 중 접기와 같은 판단) 되돌리기 20칸을 접기로 채우면 정작 직전의 편집을
     // 되돌릴 수 없다.
+    // 배율을 쓰는 곳이 넷이다(툴바 +/-, 숫자 입력, 명령 팔레트, 구간 드래그 줌) —
+    // 한계 판단은 clampZoom 한 곳에만 둔다.
+    const setZoom = useCallback((zoom) => setSetting({ zoomLevel: clampZoom(zoom) }), [setSetting]);
+
+    // 레벨 버튼은 트리 깊이만큼 그린다. 접기와 같은 판단이라 히스토리에 남기지 않고
+    // (actions.expandToDepth), 검색 중에는 꺼진다 — 필터가 조상을 강제로 펼치므로
+    // 화면에는 아무 일도 일어나지 않고 저장 데이터의 expanded 만 뒤집힌다.
+    const expandDepth = useMemo(() => treeDepth(tasks), [tasks]);
+
     const handleToggleExpand = useCallback((taskId, nextExpanded) => {
         if (isSearching) {
             toggleSearchCollapsed(taskId);
@@ -326,8 +336,8 @@ function App() {
             setViewMode,
             setSetting,
             toggleSetting,
-            zoomIn: () => setSetting({ zoomLevel: zoomLevel + 0.1 }),
-            zoomOut: () => setSetting({ zoomLevel: Math.max(zoomLevel - 0.1, 0.1) }),
+            zoomIn: () => setZoom(zoomLevel + 0.1),
+            zoomOut: () => setZoom(zoomLevel - 0.1),
             copyImage: () => timelineRef.current?.copyToClipboard(),
             exportFile: io.exportToFile,
             importFile: ui.openImport,
@@ -339,7 +349,7 @@ function App() {
     }), [
         viewMode, showInspector, darkMode, timeScale, colorMode, showTaskNames, showBarLabels,
         showBarDates, showToday, isCompact, snapEnabled, zoomLevel, canUndo, canRedo,
-        projects, activeProjectId, handleAddTask, undo, redo, setViewMode, setSetting, toggleSetting,
+        projects, activeProjectId, handleAddTask, undo, redo, setViewMode, setSetting, setZoom, toggleSetting,
         io, switchProject,
     ]);
 
@@ -395,8 +405,9 @@ function App() {
                     onAddTask={() => handleAddTask()}
                     // 타임라인 컨트롤
                     zoomLevel={zoomLevel}
-                    onZoomIn={() => setSetting({ zoomLevel: zoomLevel + 0.1 })}
-                    onZoomOut={() => setSetting({ zoomLevel: Math.max(zoomLevel - 0.1, 0.1) })}
+                    onZoomIn={() => setZoom(zoomLevel + 0.1)}
+                    onZoomOut={() => setZoom(zoomLevel - 0.1)}
+                    onZoomChange={setZoom}
                     showToday={showToday}
                     onToggleToday={() => toggleSetting('showToday')}
                     isCompact={isCompact}
@@ -436,6 +447,8 @@ function App() {
                                     onUpdateTaskSilent={actions.updateTaskSilent}
                                     onUpdateTasks={actions.updateTasks}
                                     onToggleExpand={handleToggleExpand}
+                                    expandDepth={expandDepth}
+                                    onSetExpandDepth={actions.expandToDepth}
                                     onDeleteTask={actions.deleteTask}
                                     onAddTask={handleAddTask}
                                     onReorderTasks={actions.reorderTasks}
@@ -472,8 +485,11 @@ function App() {
                                     // 접기는 표와 같은 게이트를 쓴다 — 검색 중 여부에 따라
                                     // 기록 위치가 다르고, 그 판단은 handleToggleExpand 에만 있다
                                     onToggleExpand={handleToggleExpand}
+                                    expandDepth={expandDepth}
+                                    onSetExpandDepth={actions.expandToDepth}
                                     timeScale={timeScale}
                                     zoomLevel={zoomLevel}
+                                    onZoomChange={setZoom}
                                     showToday={showToday}
                                     isCompact={isCompact}
                                     showTaskNames={showTaskNames}

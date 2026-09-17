@@ -16,6 +16,7 @@ import {
     pruneDependencies,
     removeRange,
     removeMilestone,
+    setExpandedToDepth,
 } from '../../utils/taskTree';
 
 export function useTaskActions({ setTasks, setTasksSilent, onSelect }) {
@@ -38,6 +39,11 @@ export function useTaskActions({ setTasks, setTasksSilent, onSelect }) {
     // 히스토리에 남기지 않는 갱신 (드래그 중 접기/펼치기 등 시각적 임시 상태)
     const updateTaskSilent = useCallback((taskId, updates) => {
         setTasksSilent(prev => updateTaskInTree(prev, taskId, updates));
+    }, [setTasksSilent]);
+
+    // 레벨별 일괄 접기/펼치기. 한 작업의 접기와 같은 판단이라 히스토리에 남기지 않는다.
+    const expandToDepth = useCallback((depth) => {
+        setTasksSilent(prev => setExpandedToDepth(prev, depth));
     }, [setTasksSilent]);
 
     // 여러 작업을 한 번의 상태 변경으로 — undo 한 번에 되돌아가야 한다
@@ -111,6 +117,7 @@ export function useTaskActions({ setTasks, setTasksSilent, onSelect }) {
         addTask,
         updateTask,
         updateTaskSilent,
+        expandToDepth,
         updateTasks,
         deleteTask,
         deleteRange,
@@ -120,6 +127,6 @@ export function useTaskActions({ setTasks, setTasksSilent, onSelect }) {
         moveTask,
         reorderTasks,
         addMilestone,
-    }), [addTask, updateTask, updateTaskSilent, updateTasks, deleteTask, deleteRange,
+    }), [addTask, updateTask, updateTaskSilent, expandToDepth, updateTasks, deleteTask, deleteRange,
         deleteMilestone, indent, outdent, moveTask, reorderTasks, addMilestone]);
 }

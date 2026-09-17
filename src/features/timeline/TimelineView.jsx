@@ -7,7 +7,7 @@
 //   useTimelineCapture PNG 캡처
 //   timelineGeometry   좌표 계산 (순수)
 //   timelineMutations  드롭 결과 계산 (순수)
-import React, { useMemo, useRef, useState, forwardRef, useImperativeHandle } from 'react';
+import React, { useEffect, useMemo, useRef, useState, forwardRef, useImperativeHandle } from 'react';
 import {
     DndContext,
     closestCenter,
@@ -38,6 +38,8 @@ import { useBarDrag } from './useBarDrag';
 import { useDependencyLink } from './useDependencyLink';
 import { useSidebarResize } from './useSidebarResize';
 import { useTimelineCapture } from './useTimelineCapture';
+import { zoomToSelection } from './zoomRange';
+import ExpandLevelControl from '../../shared/ui/ExpandLevelControl';
 import './TimelineView.css';
 
 // 작업명 한 줄 — dnd-kit 정렬 대상
@@ -147,9 +149,12 @@ const TimelineView = forwardRef(({
     onContextMenu,
     onMilestoneContextMenu,
     onToggleExpand,
+    expandDepth = 0,
+    onSetExpandDepth,
     onOpenMilestoneAdd,
     timeScale,
     zoomLevel = 1.0,
+    onZoomChange,
     showToday = true,
     isCompact = false,
     showTaskNames = true,
@@ -213,6 +218,56 @@ const TimelineView = forwardRef(({
         const items = visibleMilestoneItems(first, dateRange, contentWidth);
         return labelHeadroom(placeMilestoneLabels(items, contentWidth, { preferBelow: true }));
     }, [flatTasks, dateRange, contentWidth]);
+
+    // ── 구간 드래그 줌 (파형 뷰어와 같은 조작) ─────────────────────────────
+    // 빈 곳을 좌우로 끌면 그 구간이 화면을 가득 채운다. 판정은 순수 zoomToSelection 이
+    // 하고 여기서는 좌표만 잰다. 뷰포트 폭은 DOM 을 다시 재지 않고 contentWidth/zoomLevel
+    // 로 얻는다 — 둘을 다른 데서 재면 스크롤 위치가 한 프레임 어긋난다.
+    const [zoomSelection, setZoomSelection] = useState(null);
+    const pendingScrollRef = useRef(null);
+
+    // 새 배율이 적용돼 contentWidth 가 바뀐 **뒤에** 스크롤을 옮긴다.
+    useEffect(() => {
+        if (pendingScrollRef.current === null) return;
+        const el = timelineScrollRef.current;
+        if (el) el.scrollLeft = pendingScrollRef.current;
+        pendingScrollRef.current = null;
+    }, [contentWidth, timelineScrollRef]);
+
+    const handleZoomSelectStart = (e) => {
+        if (e.button !== 0 || isLinkingMode || !onZoomChange) return;
+        // 막대·마일스톤 위에서 시작한 드래그는 그것들의 것이다
+        if (e.target.closest('.timeline-bar, .milestone-marker, .timeline-rollup-bar, .rollup-milestone-marker')) return;
+
+        const rect = e.currentTarget.getBoundingClientRect();
+        const x0 = e.clientX - rect.left;
+        let x1 = x0;
+        e.preventDefault(); // 드래그 중 텍스트 선택 방지
+
+        const onMove = (ev) => {
+            x1 = ev.clientX - rect.left;
+            setZoomSelection({ x0, x1 });
+        };
+        const onUp = () => {
+            window.removeEventListener('mousemove', onMove);
+            window.removeEventListener('mouseup', onUp);
+            setZoomSelection(null);
+            // 짧은 드래그는 클릭이다 — 선택 해제(onClick)에 맡긴다
+            if (Math.abs(x1 - x0) < 12) return;
+            const next = zoomToSelection({
+                x1: x0, x2: x1, contentWidth, zoomLevel, viewportWidth: contentWidth / zoomLevel,
+            });
+            if (!next) return;
+            if (next.zoomLevel === zoomLevel) {
+                if (timelineScrollRef.current) timelineScrollRef.current.scrollLeft = next.scrollLeft;
+                return;
+            }
+            pendingScrollRef.current = next.scrollLeft;
+            onZoomChange(next.zoomLevel);
+        };
+        window.addEventListener('mousemove', onMove);
+        window.addEventListener('mouseup', onUp);
+    };
 
     const { isLinkingMode, startLinking, handleTaskClick, handleMilestoneClick } =
         useDependencyLink({
@@ -321,7 +376,14 @@ const TimelineView = forwardRef(({
                         className="task-names-column"
                         style={{ width: `${sidebarWidth}px`, flex: `0 0 ${sidebarWidth}px` }}
                     >
-                        <div className="task-names-header" onClick={() => onSelectTask(null)}>작업명</div>
+                        <div className="task-names-header" onClick={() => onSelectTask(null)}>
+                            작업명
+                            <ExpandLevelControl
+                                depth={expandDepth}
+                                onSetDepth={onSetExpandDepth}
+                                disabled={isSearching}
+                            />
+                        </div>
                         <div className="task-names-list" ref={taskNamesScrollRef}>
                             {tasks.length === 0 ? (
                                 <div className="empty-names">{isSearching ? '검색 결과 없음' : '작업 없음'}</div>
@@ -405,6 +467,7 @@ const TimelineView = forwardRef(({
                     <div
                         className={`timeline-content ${isLinkingMode ? 'linking-mode' : ''}`}
                         style={{ width: `${contentWidth}px` }}
+                        onMouseDown={handleZoomSelectStart}
                         onClick={(e) => {
                             // 빈 영역 클릭 시 선택 해제
                             if (e.target.classList.contains('timeline-content') || e.target.classList.contains('empty-timeline')) {
@@ -435,6 +498,17 @@ const TimelineView = forwardRef(({
                         {/* 가이드라인 (드래그 시에만 표시) */}
                         {guideLineX !== null && (
                             <div className="timeline-guide-line" style={{ left: guideLineX }} />
+                        )}
+
+                        {/* 드래그로 고르는 중인 구간 */}
+                        {zoomSelection && (
+                            <div
+                                className="zoom-selection"
+                                style={{
+                                    left: `${Math.min(zoomSelection.x0, zoomSelection.x1)}px`,
+                                    width: `${Math.abs(zoomSelection.x1 - zoomSelection.x0)}px`,
+                                }}
+                            />
                         )}
 
                         <DependencyLayer

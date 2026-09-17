@@ -18,6 +18,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import TaskRow from './TaskRow';
+import ExpandLevelControl from '../../shared/ui/ExpandLevelControl';
 import { summarizeRowDependencies } from './dependencyBadges';
 import { flattenTasks } from '../../utils/dataModel';
 import './TableView.css';
@@ -63,6 +64,8 @@ function TableView({
     onUpdateTask,
     onUpdateTaskSilent,
     onToggleExpand,
+    expandDepth = 0,
+    onSetExpandDepth,
     onDeleteTask,
     onAddTask,
     onReorderTasks,
@@ -163,7 +166,14 @@ function TableView({
             <div className="table-container">
                 {/* 테이블 헤더 */}
                 <div className="table-header">
-                    <div className="col-name">작업명</div>
+                    <div className="col-name">
+                        작업명
+                        <ExpandLevelControl
+                            depth={expandDepth}
+                            onSetDepth={onSetExpandDepth}
+                            disabled={isSearching}
+                        />
+                    </div>
                     <div className="col-dates">시작일</div>
                     <div className="col-dates">종료일</div>
                     <div className="col-milestones">마일스톤</div>

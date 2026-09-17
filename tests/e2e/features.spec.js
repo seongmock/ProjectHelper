@@ -533,7 +533,9 @@ test.describe('의존성 정합성', () => {
         await bar(page, '설계 문서 작성').click({ button: 'right' });
         await expect(page.locator('.inspector-panel')).toBeVisible();
         await page.getByTestId('inspector-link').click();
-        await bar(page, '개발').click();
+        // 막대 **왼쪽 끝**을 누른다 — 가운데는 그 행의 마일스톤 마커에 가려질 수 있고,
+        // 축은 '오늘'까지 늘어나므로 무엇이 가운데에 오는지가 날짜에 따라 달라진다.
+        await bar(page, '개발').click({ position: { x: 5, y: 5 } });
         await expect(page.locator('.dependency-layer path')).toHaveCount(1);
     };
 
@@ -549,7 +551,7 @@ test.describe('의존성 정합성', () => {
         await expect(page.getByTestId('dependency-ok')).toHaveCount(0);
 
         // 후행 쪽에서 보면 선행 목록에 배지가 붙는다 — 화살표만으로는 무엇이 문제인지 모른다
-        await bar(page, '개발').click({ button: 'right' });
+        await bar(page, '개발').click({ button: 'right', position: { x: 5, y: 5 } });
         await expect(page.locator('.inspector-issue.is-overlap')).toHaveCount(1);
 
         // 겹침을 없애면(후행 시작을 선행 종료 다음날로) 경고가 사라진다
@@ -565,7 +567,7 @@ test.describe('의존성 정합성', () => {
         await linkOverlapping(page); // 설계 → 개발
 
         // 반대 방향으로 이으면 고리가 닫힌다
-        await bar(page, '개발').click({ button: 'right' });
+        await bar(page, '개발').click({ button: 'right', position: { x: 5, y: 5 } });
         await page.getByTestId('inspector-link').click();
         await bar(page, '설계 문서 작성').click();
 
@@ -585,7 +587,7 @@ test.describe('의존성 정합성', () => {
         await page.getByTestId('inspector-delete').click();
         await expect(page.locator('.dependency-layer path')).toHaveCount(0);
 
-        await bar(page, '개발').click({ button: 'right' });
+        await bar(page, '개발').click({ button: 'right', position: { x: 5, y: 5 } });
         await expect(page.getByTestId('inspector-broken-refs')).toHaveCount(0);
 
         // undo 한 번에 작업과 참조가 함께 돌아온다 — 두 번의 트리 변경이었다면 못 돌아온다
@@ -631,7 +633,9 @@ test.describe('화면 밖으로 나간 의존성', () => {
         await bar(page, '설계 문서 작성').click({ button: 'right' });
         await expect(page.locator('.inspector-panel')).toBeVisible();
         await page.getByTestId('inspector-link').click();
-        await bar(page, '개발').click();
+        // 막대 **왼쪽 끝**을 누른다 — 가운데는 그 행의 마일스톤 마커에 가려질 수 있고,
+        // 축은 '오늘'까지 늘어나므로 무엇이 가운데에 오는지가 날짜에 따라 달라진다.
+        await bar(page, '개발').click({ position: { x: 5, y: 5 } });
         await expect(page.locator('.dependency-layer path')).toHaveCount(1);
     };
 
@@ -693,7 +697,9 @@ test.describe('표의 의존성 배지', () => {
         await bar(page, '설계 문서 작성').click({ button: 'right' });
         await expect(page.locator('.inspector-panel')).toBeVisible();
         await page.getByTestId('inspector-link').click();
-        await bar(page, '개발').click();
+        // 막대 **왼쪽 끝**을 누른다 — 가운데는 그 행의 마일스톤 마커에 가려질 수 있고,
+        // 축은 '오늘'까지 늘어나므로 무엇이 가운데에 오는지가 날짜에 따라 달라진다.
+        await bar(page, '개발').click({ position: { x: 5, y: 5 } });
         await expect(page.locator('.dependency-layer path')).toHaveCount(1);
     };
 
@@ -1231,5 +1237,93 @@ test.describe('마일스톤 도형 — 표와 차트가 같은 것을 그린다'
         // 예전 표는 별·깃발을 ★·⚑ 텍스트로, 삼각형을 CSS border 로 그렸다 — 경로가 없었다.
         expect(table.filter(Boolean)).toHaveLength(3);
         expect(new Set(table)).toEqual(new Set(chart.filter(s => s.kind === 'path').map(s => s.d)));
+    });
+});
+
+test.describe('레벨별 일괄 접기/펼치기', () => {
+    // 표와 타임라인이 같은 컨트롤을 쓴다 — 한쪽만 보면 다른 쪽의 배선이 빠져도 초록불이다.
+    test('레벨 버튼이 그 단계까지만 남긴다 (표·타임라인)', async ({ page, request }) => {
+        await page.waitForTimeout(2500); // 초기 자동저장 안정화
+        const parent = await request.post('/api/tasks', {
+            data: { name: '레벨1 작업', startDate: '2026-03-01', endDate: '2026-03-20' },
+        });
+        expect(parent.status()).toBe(201);
+        const parentId = (await parent.json()).task.id;
+        expect((await request.post('/api/tasks', {
+            data: { name: '레벨2 작업', parentId, startDate: '2026-03-05', endDate: '2026-03-10' },
+        })).status()).toBe(201);
+
+        await page.reload();
+        await expect(page.getByText('데이터 불러오는 중')).toHaveCount(0);
+
+        for (const view of ['표 뷰', '타임라인 뷰']) {
+            await page.getByTitle(view).click();
+            const child = page.getByText('레벨2 작업', { exact: true });
+            await expect(child).toBeVisible();
+
+            // 1단계 = 전부 접기
+            await page.getByRole('button', { name: '1단계까지 펼치기' }).first().click();
+            await expect(child).toHaveCount(0);
+            await expect(page.getByText('레벨1 작업', { exact: true }).first()).toBeVisible();
+
+            // 2단계 = 다시 펼치기
+            await page.getByRole('button', { name: '2단계까지 펼치기' }).first().click();
+            await expect(child.first()).toBeVisible();
+        }
+    });
+});
+
+test.describe('구간 드래그 줌', () => {
+    // zoomLevel 은 **전역 설정**이라(서버에 저장된다) 각 테스트가 끝에서 100% 로 되돌린다.
+    test.afterEach(async ({ page }) => {
+        const zoom = page.getByLabel('확대 배율');
+        await zoom.fill('100');
+        await zoom.press('Enter');
+        await expect(zoom).toHaveValue('100');
+    });
+
+    // 배율은 화면에서만 보이던 값이라 "대충 확대됐다"로는 회귀를 못 잡는다 —
+    // 고른 구간이 **화면 왼쪽부터** 채워지는지(스크롤까지) 함께 본다.
+    test('빈 곳을 좌우로 끌면 그 구간이 화면을 채우고 배율이 오른다', async ({ page }) => {
+        const zoom = page.getByLabel('확대 배율');
+        await expect(zoom).toHaveValue('100');
+
+        // 막대 위에서 시작한 드래그는 막대의 것이다 — 비어 있는 지점을 찾아서 누른다.
+        const spot = await page.evaluate(() => {
+            const content = document.querySelector('.timeline-content');
+            const r = content.getBoundingClientRect();
+            const x = r.left + r.width * 0.3;
+            for (let y = r.top + 4; y < Math.min(r.bottom, window.innerHeight) - 4; y += 4) {
+                const el = document.elementFromPoint(x, y);
+                if (el && el.closest('.timeline-content') && !el.closest('.timeline-bar, .milestone-marker')) {
+                    return { x, y, width: r.width };
+                }
+            }
+            return null;
+        });
+        expect(spot).not.toBeNull();
+
+        await page.mouse.move(spot.x, spot.y);
+        await page.mouse.down();
+        await page.mouse.move(spot.x + spot.width * 0.3, spot.y, { steps: 10 });
+        await expect(page.locator('.zoom-selection')).toBeVisible(); // 고르는 동안만 보인다
+        await page.mouse.up();
+
+        await expect(page.locator('.zoom-selection')).toHaveCount(0);
+        await expect.poll(async () => Number(await zoom.inputValue())).toBeGreaterThan(100);
+        await expect.poll(async () => page.locator('.timeline-scroll-container')
+            .evaluate(el => el.scrollLeft)).toBeGreaterThan(0);
+    });
+
+    test('배율을 숫자로 직접 입력한다', async ({ page }) => {
+        const zoom = page.getByLabel('확대 배율');
+        await zoom.fill('250');
+        await zoom.press('Enter');
+        await expect(zoom).toHaveValue('250');
+
+        // 한계 밖은 거절이 아니라 한계값이다 (ZOOM_MAX = 2000%)
+        await zoom.fill('99999');
+        await zoom.press('Enter');
+        await expect(zoom).toHaveValue('2000');
     });
 });

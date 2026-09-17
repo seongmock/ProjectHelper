@@ -34,6 +34,8 @@ import {
     milestonesInDateOrder,
     planDependencyRemoval,
     expandAncestors,
+    treeDepth,
+    setExpandedToDepth,
     filterTasksByQuery,
     taskMatchesQuery,
     findDependencyIssues,
@@ -1600,5 +1602,59 @@ describe('wouldCreateDependencyCycle', () => {
     it('한쪽이 비어 있으면 false (판정할 것이 없다)', () => {
         expect(wouldCreateDependencyCycle(chain(), null, 'r1')).toBe(false);
         expect(wouldCreateDependencyCycle(undefined, 'r1', 'r2')).toBe(false);
+    });
+});
+
+
+// ── 레벨별 일괄 접기/펼치기 ───────────────────────────────────────────────
+describe('treeDepth / setExpandedToDepth', () => {
+    const tree = () => ([
+        {
+            id: 'a', name: 'A', expanded: false, children: [
+                { id: 'a1', name: 'A1', expanded: false, children: [
+                    { id: 'a11', name: 'A11', expanded: true, children: [] },
+                ] },
+            ],
+        },
+        { id: 'b', name: 'B', expanded: true, children: [] },
+    ]);
+
+    it('깊이는 가장 깊은 가지가 정한다', () => {
+        expect(treeDepth(tree())).toBe(3);
+        expect(treeDepth([])).toBe(0);
+        expect(treeDepth(undefined)).toBe(0);
+    });
+
+    it('depth=1 은 전부 접기 — 최상위만 보인다', () => {
+        const [a, b] = setExpandedToDepth(tree(), 1);
+        expect(a.expanded).toBe(false);
+        expect(b.expanded).toBe(false);
+        expect(a.children[0].expanded).toBe(false);
+    });
+
+    it('depth=2 는 최상위만 펼친다', () => {
+        const [a] = setExpandedToDepth(tree(), 2);
+        expect(a.expanded).toBe(true);
+        expect(a.children[0].expanded).toBe(false);
+    });
+
+    it('최대 깊이는 전부 펼치기다', () => {
+        const [a] = setExpandedToDepth(tree(), treeDepth(tree()));
+        expect(a.expanded).toBe(true);
+        expect(a.children[0].expanded).toBe(true);
+    });
+
+    it('원본을 건드리지 않는다 — undo 히스토리가 같은 객체를 들고 있다', () => {
+        const original = tree();
+        const snapshot = structuredClone(original);
+        setExpandedToDepth(original, 1);
+        expect(original).toEqual(snapshot);
+    });
+
+    it('expanded 말고는 아무것도 바꾸지 않는다', () => {
+        const [a] = setExpandedToDepth(tree(), 2);
+        expect(a.id).toBe('a');
+        expect(a.name).toBe('A');
+        expect(a.children[0].children[0].id).toBe('a11');
     });
 });

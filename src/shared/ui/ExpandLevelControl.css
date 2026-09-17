@@ -1,0 +1,32 @@
+.expand-level-control {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    margin-left: var(--spacing-sm);
+}
+
+/* WCAG 2.5.8 — 포인터 타깃은 24×24 아래로 내려가지 않는다 */
+.expand-level-btn {
+    min-width: 24px;
+    height: 24px;
+    padding: 0 4px;
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    background-color: var(--color-bg-primary);
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    line-height: 1;
+    cursor: pointer;
+    transition: background-color var(--transition-fast);
+}
+
+.expand-level-btn:hover:not(:disabled) {
+    background-color: var(--color-bg-tertiary);
+    color: var(--color-text-primary);
+}
+
+.expand-level-btn:disabled {
+    opacity: 0.4;
+    cursor: default;
+}

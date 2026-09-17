@@ -381,6 +381,20 @@ export const flattenAll = (items, level = 0) => {
     return result;
 };
 
+// 트리의 최대 깊이(최상위만 있으면 1). 레벨 버튼을 몇 개 그릴지가 여기서 나온다.
+export const treeDepth = (items) =>
+    (items || []).reduce((max, item) => Math.max(max, 1 + treeDepth(item.children)), 0);
+
+// 레벨별 일괄 접기/펼치기. `depth` 는 **화면에 남길 최대 레벨**이다 —
+// 1 이면 최상위만 보이고(전부 접힘), 최대 깊이면 전부 펼쳐진다. 그래서 열기/닫기가
+// 따로 필요 없다. 접기는 시각 상태라 호출부는 히스토리에 남기지 않는다(App 참조).
+export const setExpandedToDepth = (items, depth, level = 1) =>
+    (items || []).map(item => ({
+        ...item,
+        expanded: level < depth,
+        children: setExpandedToDepth(item.children, depth, level + 1),
+    }));
+
 // 접힌 부모 아래 숨어 있는 작업으로 이동할 때, 그 조상 사슬을 전부 펼친다.
 // 펼칠 것이 없으면(이미 다 펼쳐졌거나 작업이 없으면) **null** — patchRange 등과 같은 규약이다.
 // 빈 상태 변경을 만들지 않는다.

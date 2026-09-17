@@ -160,11 +160,37 @@
 }
 
 .zoom-level {
+    display: inline-flex;
+    align-items: center;
+    gap: 1px;
     min-width: 40px;
     text-align: center;
     font-size: var(--font-size-xs);
     color: var(--color-text-secondary);
     font-variant-numeric: tabular-nums;
+}
+
+.zoom-level-input {
+    width: 42px;
+    height: 24px;
+    padding: 0 2px;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    background-color: transparent;
+    color: inherit;
+    font-size: inherit;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+}
+
+.zoom-level-input:hover {
+    border-color: var(--color-border);
+}
+
+.zoom-level-input:focus {
+    border-color: var(--color-primary);
+    background-color: var(--color-bg-primary);
+    outline: none;
 }
 
 @media (max-width: 768px) {

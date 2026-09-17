@@ -3,6 +3,8 @@ import {
     Command,
 } from 'lucide-react';
 import DisplayOptionsMenu from './DisplayOptionsMenu';
+import DraftField from '../../shared/ui/DraftField';
+import { ZOOM_MIN, ZOOM_MAX, clampZoom } from '../timeline/zoomRange';
 import './Toolbar.css';
 
 // 툴바는 3그룹이다: [뷰 전환] | [시간축·줌] | [표시 옵션·내보내기].
@@ -21,6 +23,7 @@ function Toolbar({
     zoomLevel,
     onZoomIn,
     onZoomOut,
+    onZoomChange,
     showToday,
     onToggleToday,
     isCompact,
@@ -99,8 +102,24 @@ function Toolbar({
                                 <button className="icon-btn icon-only" onClick={onZoomOut} title="축소">
                                     <ZoomOut size={15} aria-hidden="true" />
                                 </button>
-                                <span className="zoom-level" aria-label="확대 배율">
-                                    {Math.round(zoomLevel * 100)}%
+                                {/* 배율은 읽는 값이자 쓰는 값이다 — +/- 만으로는 10% 씩 열 번을
+                                    눌러야 한다. 커밋은 blur/Enter (DraftField), 범위 밖 숫자는
+                                    거절이 아니라 한계값으로 접는다. */}
+                                <span className="zoom-level">
+                                    <DraftField
+                                        type="number"
+                                        className="zoom-level-input"
+                                        min={Math.round(ZOOM_MIN * 100)}
+                                        max={Math.round(ZOOM_MAX * 100)}
+                                        step={10}
+                                        aria-label="확대 배율"
+                                        value={Math.round(zoomLevel * 100)}
+                                        onCommit={(v) => {
+                                            const pct = parseFloat(v);
+                                            if (Number.isFinite(pct)) onZoomChange(clampZoom(pct / 100));
+                                        }}
+                                    />
+                                    %
                                 </span>
                                 <button className="icon-btn icon-only" onClick={onZoomIn} title="확대">
                                     <ZoomIn size={15} aria-hidden="true" />
