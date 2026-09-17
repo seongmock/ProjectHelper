@@ -1315,6 +1315,21 @@ test.describe('구간 드래그 줌', () => {
             .evaluate(el => el.scrollLeft)).toBeGreaterThan(0);
     });
 
+    test('전체 보기 버튼이 100% 로 돌린다', async ({ page }) => {
+        const zoom = page.getByLabel('확대 배율');
+        const fit = page.getByRole('button', { name: '전체 보기 (100%)' });
+        // 이미 100% 면 돌아갈 곳이 없다 — 눌러도 아무 일이 없는 자리를 만들지 않는다
+        await expect(fit).toBeDisabled();
+
+        await zoom.fill('300');
+        await zoom.press('Enter');
+        await expect(fit).toBeEnabled();
+
+        await fit.click();
+        await expect(zoom).toHaveValue('100');
+        await expect(fit).toBeDisabled();
+    });
+
     test('배율을 숫자로 직접 입력한다', async ({ page }) => {
         const zoom = page.getByLabel('확대 배율');
         await zoom.fill('250');

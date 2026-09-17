@@ -5,7 +5,6 @@
 import { dateUtils } from '../../utils/dateUtils';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-const RANGE_PADDING_DAYS = 14;
 
 // 트리 전체(자식 포함)에서 날짜를 긁어모은다 — 기간·레거시 시작/종료일·마일스톤
 const collectDates = (items) => {
@@ -30,9 +29,17 @@ const collectDates = (items) => {
     return dates;
 };
 
-// 화면에 그릴 전체 날짜 범위. 양끝에 14일 여유를 두고 월/분기 경계로 스냅한다.
+// 화면에 그릴 전체 날짜 범위 — **일정이 걸쳐 있는 달(분기)들**이다.
 // today 는 '오늘' 마커가 켜져 있을 때만 범위에 포함시킨다 (꺼져 있으면 작업이
 // 먼 미래에 있을 때 빈 공간만 넓어진다).
+//
+// 예전에는 양끝에 14일을 **먼저 더하고** 그 결과를 월/분기 경계로 스냅했다. 그래서
+// 여유가 이전 달로 하루라도 넘어가면 **그 달 한 칸이 통째로 빈 채로 열렸다** — 9/14 에
+// 시작하는 프로젝트의 축이 8/1 부터였다(사용자 보고, 2026-09-17). 한 달이 곧 한 칸이라
+// 이 낭비는 최대 한 칸(분기 보기에서는 한 분기)이고, 여유가 크다고 눈에 잘 보이는 것도
+// 아니다. 이제 스냅은 **실제** 최초·최종 날짜가 든 칸으로 한다 — 경계까지의 거리가
+// 그대로 여유가 되므로(평균 보름) 여유를 따로 더할 필요가 없다. 대가: 일정이 딱 1일에
+// 시작하면 왼쪽에 끌 자리가 없다(날짜는 인스펙터에서 입력할 수 있다).
 export const computeDateRange = (tasks, timeScale, showToday, today = new Date()) => {
     if (tasks.length === 0) {
         return { start: new Date(today), end: new Date(today.getTime() + 90 * DAY_MS) };
@@ -41,18 +48,18 @@ export const computeDateRange = (tasks, timeScale, showToday, today = new Date()
     const allDates = collectDates(tasks);
     if (showToday) allDates.push(new Date(today));
 
-    const paddedStart = dateUtils.addDays(new Date(Math.min(...allDates)), -RANGE_PADDING_DAYS);
-    const paddedEnd = dateUtils.addDays(new Date(Math.max(...allDates)), RANGE_PADDING_DAYS);
+    const first = new Date(Math.min(...allDates));
+    const last = new Date(Math.max(...allDates));
 
     if (timeScale === 'quarterly') {
         return {
-            start: dateUtils.getQuarterStart(paddedStart.getFullYear(), Math.floor(paddedStart.getMonth() / 3) + 1),
-            end: dateUtils.getQuarterEnd(paddedEnd.getFullYear(), Math.floor(paddedEnd.getMonth() / 3) + 1),
+            start: dateUtils.getQuarterStart(first.getFullYear(), Math.floor(first.getMonth() / 3) + 1),
+            end: dateUtils.getQuarterEnd(last.getFullYear(), Math.floor(last.getMonth() / 3) + 1),
         };
     }
     return {
-        start: new Date(paddedStart.getFullYear(), paddedStart.getMonth(), 1),
-        end: new Date(paddedEnd.getFullYear(), paddedEnd.getMonth() + 1, 0),
+        start: new Date(first.getFullYear(), first.getMonth(), 1),
+        end: new Date(last.getFullYear(), last.getMonth() + 1, 0),
     };
 };
 

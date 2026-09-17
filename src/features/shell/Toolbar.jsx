@@ -1,5 +1,5 @@
 import {
-    Table2, ChartGantt, ZoomIn, ZoomOut, Camera, Code2, Search, Plus, PanelRight,
+    Table2, ChartGantt, ZoomIn, ZoomOut, Maximize2, Camera, Code2, Search, Plus, PanelRight,
     Command,
 } from 'lucide-react';
 import DisplayOptionsMenu from './DisplayOptionsMenu';
@@ -123,6 +123,17 @@ function Toolbar({
                                 </span>
                                 <button className="icon-btn icon-only" onClick={onZoomIn} title="확대">
                                     <ZoomIn size={15} aria-hidden="true" />
+                                </button>
+                                {/* 100% = 전체 기간이 폭에 딱 맞는 상태다(contentWidth = 뷰포트 폭).
+                                    구간 드래그 줌으로 깊이 들어간 뒤 돌아올 자리가 없었다. */}
+                                <button
+                                    className="icon-btn icon-only"
+                                    onClick={() => onZoomChange(1)}
+                                    disabled={zoomLevel === 1}
+                                    title="전체 보기 (100%)"
+                                    aria-label="전체 보기 (100%)"
+                                >
+                                    <Maximize2 size={15} aria-hidden="true" />
                                 </button>
                             </div>
 

@@ -29,17 +29,26 @@ describe('computeDateRange', () => {
         expect(dateUtils.getDaysBetween(range.start, range.end)).toBe(90);
     });
 
-    it('월별 보기는 월 경계로 스냅한다 (14일 여유 포함)', () => {
-        // 3/10 - 14일 = 2/24 → 2월 1일, 3/20 + 14일 = 4/3 → 4월 30일
+    it('월별 보기는 일정이 든 달만 그린다', () => {
+        // 3/10 ~ 3/20 → 3월 한 칸. 경계까지의 거리가 그대로 여유다.
         const range = computeDateRange([task()], 'monthly', false);
-        expect(dateUtils.formatDate(range.start)).toBe('2026-02-01');
-        expect(dateUtils.formatDate(range.end)).toBe('2026-04-30');
+        expect(dateUtils.formatDate(range.start)).toBe('2026-03-01');
+        expect(dateUtils.formatDate(range.end)).toBe('2026-03-31');
+    });
+
+    it('빈 달을 앞에 열지 않는다 — 여유를 먼저 더하고 스냅하면 한 칸이 통째로 빈다', () => {
+        // 실제 보고(2026-09-17): 9/14 에 시작하는 프로젝트의 축이 8/1 부터였다
+        // (9/14 - 14일 = 8/31 → 8월 1일). 8월은 아무 일정도 없는 빈 칸이었다.
+        const sept = task({ timeRanges: [{ id: 'r1', startDate: '2026-09-14', endDate: '2026-11-30' }] });
+        const range = computeDateRange([sept], 'monthly', false);
+        expect(dateUtils.formatDate(range.start)).toBe('2026-09-01');
+        expect(dateUtils.formatDate(range.end)).toBe('2026-11-30');
     });
 
     it('분기별 보기는 분기 경계로 스냅한다', () => {
         const range = computeDateRange([task()], 'quarterly', false);
         expect(dateUtils.formatDate(range.start)).toBe('2026-01-01');
-        expect(dateUtils.formatDate(range.end)).toBe('2026-06-30');
+        expect(dateUtils.formatDate(range.end)).toBe('2026-03-31');
     });
 
     it('자식의 날짜도 범위에 포함한다', () => {
@@ -59,14 +68,14 @@ describe('computeDateRange', () => {
     it('timeRanges 가 없는 레거시 작업은 startDate/endDate 를 쓴다', () => {
         const legacy = { id: 'l1', startDate: '2026-03-10', endDate: '2026-03-20', children: [] };
         const range = computeDateRange([legacy], 'monthly', false);
-        expect(dateUtils.formatDate(range.start)).toBe('2026-02-01');
+        expect(dateUtils.formatDate(range.start)).toBe('2026-03-01');
     });
 
     it("showToday 가 꺼져 있으면 오늘은 범위를 넓히지 않는다", () => {
         const today = new Date('2027-01-01T00:00:00');
         const off = computeDateRange([task()], 'monthly', false, today);
         const on = computeDateRange([task()], 'monthly', true, today);
-        expect(dateUtils.formatDate(off.end)).toBe('2026-04-30');
+        expect(dateUtils.formatDate(off.end)).toBe('2026-03-31');
         expect(dateUtils.formatDate(on.end)).toBe('2027-01-31');
     });
 });
