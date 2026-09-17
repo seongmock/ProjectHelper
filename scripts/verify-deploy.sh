@@ -11,6 +11,9 @@ set -uo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
 HOST="${1:-$(hostname -I | awk '{print $1}')}"
+# HTTPS 포트가 443 이 아니다 — 호스트의 80/443 은 웹서비스 링크 허브가 쓰고
+# ProjectHelper 의 Caddy 는 8080/8443 으로 매핑돼 있다(docker-compose.yml).
+HTTPS_PORT="${PH_HTTPS_PORT:-8443}"
 GREEN='\033[0;32m'; RED='\033[0;31m'; YELLOW='\033[1;33m'; NC='\033[0m'
 
 PASS=0; FAIL=0
@@ -43,7 +46,7 @@ for c in caddy-https project-management-app project-helper-api; do
 done
 
 echo "[2] 인증 경계"
-code=$(curl -s -o /dev/null -w "%{http_code}" -m 5 -k "https://$HOST/api/health" || echo 000)
+code=$(curl -s -o /dev/null -w "%{http_code}" -m 5 -k "https://$HOST:$HTTPS_PORT/api/health" || echo 000)
 [ "$code" = "200" ] && ok "GET /api/health → 200" || no "GET /api/health → $code (200 기대)"
 
 if [ "$AUTH_ON" = true ]; then
@@ -51,14 +54,14 @@ if [ "$AUTH_ON" = true ]; then
     # 200 응답을 하나 두기 위한 것이다([10] 참조). 그래서 이 검사의 핵심은 "헬스가 200" 이
     # 아니라 **다른 경로는 전부 401** 이라는 쪽이다. 매처가 넓어지면 여기서 걸린다.
     for p in "/" "/api/projects" "/api/tasks" "/api/data" "/api/settings" "/api/health/"; do
-        code=$(curl -s -o /dev/null -w "%{http_code}" -m 5 -k "https://$HOST$p" || echo 000)
+        code=$(curl -s -o /dev/null -w "%{http_code}" -m 5 -k "https://$HOST:$HTTPS_PORT$p" || echo 000)
         [ "$code" = "401" ] && ok "GET $p → 401" || no "GET $p → $code (401 기대 — 인증 제외가 새고 있다)"
     done
 else
     # 인증이 없는 상태 — 열려 있는 것이 의도다. 그래도 검사는 한다: 응답이 오는지(=경로가
     # 살아 있는지)와, **401 이 남아 있지 않은지**(설정이 반만 적용된 상태를 잡는다).
     for p in "/" "/api/projects" "/api/tasks" "/api/settings"; do
-        code=$(curl -s -o /dev/null -w "%{http_code}" -m 5 -k "https://$HOST$p" || echo 000)
+        code=$(curl -s -o /dev/null -w "%{http_code}" -m 5 -k "https://$HOST:$HTTPS_PORT$p" || echo 000)
         case "$code" in
             200) ok "GET $p → 200 (인증 없음 — 의도된 상태)" ;;
             401) no "GET $p → 401 — Caddyfile 은 인증 없음인데 응답은 401 (재시작 누락?)" ;;
@@ -67,11 +70,11 @@ else
     done
     # 앱 계정 인증(P3-3)은 Caddy basicauth 와 **다른 층**이다. 하나가 꺼져 있다고 다른
     # 하나까지 꺼져 있다고 단정하면 안 되므로, 상태를 응답에서 직접 읽는다.
-    mode=$(curl -s -m 5 -k "https://$HOST/api/auth/me" | grep -o '"mode":"[a-z]*"' | cut -d'"' -f4)
+    mode=$(curl -s -m 5 -k "https://$HOST:$HTTPS_PORT/api/auth/me" | grep -o '"mode":"[a-z]*"' | cut -d'"' -f4)
     case "$mode" in
         open) ok "앱 계정 인증: 꺼짐 (계정 없음 — 화면의 [계정] 에서 첫 관리자를 만들면 켜진다)" ;;
         enforced)
-            code=$(curl -s -o /dev/null -w "%{http_code}" -m 5 -k "https://$HOST/api/tasks" || echo 000)
+            code=$(curl -s -o /dev/null -w "%{http_code}" -m 5 -k "https://$HOST:$HTTPS_PORT/api/tasks" || echo 000)
             [ "$code" = "401" ] && ok "앱 계정 인증: 켜짐 — 익명 GET /api/tasks → 401" \
                 || no "앱 계정 인증이 켜져 있는데 익명 GET /api/tasks → $code (401 기대)"
             ;;
@@ -172,7 +175,7 @@ check_headers() {
         || ok "HSTS 미적용 (자체서명 환경에서 의도된 설정)"
 }
 
-hdrs=$(curl -s -D - -o /dev/null -m 5 -k "https://$HOST/api/health" 2>/dev/null)
+hdrs=$(curl -s -D - -o /dev/null -m 5 -k "https://$HOST:$HTTPS_PORT/api/health" 2>/dev/null)
 if echo "$hdrs" | grep -qiE "^HTTP.* 200"; then
     check_headers "$hdrs" "인증 없이 /api/health"
 else
@@ -183,14 +186,14 @@ if [ "$AUTH_ON" = false ]; then
     # 인증이 없는 동안은 **실제 콘텐츠 응답**(`/`)에 대고도 검사할 수 있다 — 헬스보다 넓은
     # 커버리지다(정적 프론트엔드 경로의 헤더까지 본다). 인증이 돌아오면 이 경로는 401 이 되어
     # 검사할 수 없게 되므로, 그때는 아래 자격증명 분기가 다시 유일한 창구가 된다.
-    hdrs=$(curl -s -D - -o /dev/null -m 5 -k "https://$HOST/" 2>/dev/null)
+    hdrs=$(curl -s -D - -o /dev/null -m 5 -k "https://$HOST:$HTTPS_PORT/" 2>/dev/null)
     if echo "$hdrs" | grep -qiE "^HTTP.* 200"; then
         check_headers "$hdrs" "인증 없이 /"
     else
         no "인증 없이 / 가 200이 아니다 — 헤더 검사를 할 수 없다"
     fi
 elif [ -n "${PH_VERIFY_USER:-}" ] && [ -n "${PH_VERIFY_PASS:-}" ]; then
-    hdrs=$(curl -s -D - -o /dev/null -m 5 -k -u "$PH_VERIFY_USER:$PH_VERIFY_PASS" "https://$HOST/" 2>/dev/null)
+    hdrs=$(curl -s -D - -o /dev/null -m 5 -k -u "$PH_VERIFY_USER:$PH_VERIFY_PASS" "https://$HOST:$HTTPS_PORT/" 2>/dev/null)
     if echo "$hdrs" | grep -qiE "^HTTP.* 200"; then
         ok "인증 성공 (200) — .env 자격증명이 정상 동작"
         check_headers "$hdrs" "인증된 /"
@@ -220,16 +223,16 @@ echo "[13] 운영 지표 엔드포인트"
 # 왜 배포 검증에 넣는가: 메트릭은 평소에 아무도 열어 보지 않는 경로라, 깨져도 사고가
 # 터진 **뒤에야** 발견된다 — 정확히 필요할 때 없는 셈이다. 인증이 켜져 있으면 401 이
 # 정답이다(헬스와 달리 예외가 아니다).
-mcode=$(curl -s -o /dev/null -w "%{http_code}" -m 5 -k "https://$HOST/api/metrics" || echo 000)
+mcode=$(curl -s -o /dev/null -w "%{http_code}" -m 5 -k "https://$HOST:$HTTPS_PORT/api/metrics" || echo 000)
 if [ "$AUTH_ON" = true ]; then
     [ "$mcode" = "401" ] && ok "GET /api/metrics → 401 (인증 뒤에 있다)" \
         || no "GET /api/metrics → $mcode (401 기대 — 지표가 인증 없이 열려 있다)"
 else
     if [ "$mcode" = "200" ]; then
-        body=$(curl -s -m 5 -k "https://$HOST/api/metrics")
+        body=$(curl -s -m 5 -k "https://$HOST:$HTTPS_PORT/api/metrics")
         echo "$body" | grep -q '"uptimeSec"' && ok "GET /api/metrics → 200 (uptimeSec 포함)" \
             || no "GET /api/metrics 응답에 uptimeSec 이 없다: $(echo "$body" | head -c 120)"
-        curl -s -m 5 -k "https://$HOST/api/metrics?format=prometheus" | grep -q '^ph_uptime_seconds ' \
+        curl -s -m 5 -k "https://$HOST:$HTTPS_PORT/api/metrics?format=prometheus" | grep -q '^ph_uptime_seconds ' \
             && ok "GET /api/metrics?format=prometheus → 노출 형식" \
             || no "prometheus 형식 응답이 아니다"
     else
@@ -245,7 +248,7 @@ echo "[14] TLS 인증서 이름 (SNI 없는 접속 = 브라우저로 IP 주소 �
 # 컨테이너 IP 로 인증서를 발급해 ERR_CERT_COMMON_NAME_INVALID 가 됐다(2026-08-18 실측).
 # Caddyfile 의 `default_sni` 가 그 경로를 고정한다 — 여기서 회귀를 잡는다.
 if command -v openssl &>/dev/null; then
-    san=$(echo | openssl s_client -connect "$HOST:443" -noservername 2>/dev/null \
+    san=$(echo | openssl s_client -connect "$HOST:$HTTPS_PORT" -noservername 2>/dev/null \
         | openssl x509 -noout -ext subjectAltName 2>/dev/null | tr -d ' \n')
     if echo "$san" | grep -qF "$HOST"; then
         ok "SNI 없는 연결이 $HOST 용 인증서를 받는다"
@@ -274,7 +277,7 @@ else
 fi
 
 # 엔진이 실제로 그 저장소를 보고 있는지 — 리비전을 양쪽에서 읽어 맞춘다.
-apirev=$(curl -s -m 5 -k "https://$HOST/api/revision" | sed -n 's/.*"revision":\([0-9]*\).*/\1/p')
+apirev=$(curl -s -m 5 -k "https://$HOST:$HTTPS_PORT/api/revision" | sed -n 's/.*"revision":\([0-9]*\).*/\1/p')
 if [ "$got" = "sqlite" ]; then
     dbrev=$(d exec project-helper-api node -e \
         'const s=require("./lib/store");process.stdout.write(String(s.getProjectStore("default").readMeta().revision))' \

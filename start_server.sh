@@ -107,7 +107,7 @@ if [ "$DOCKER_OK" = true ]; then
         exit 1
     fi
 
-    info "배포 완료 — https://localhost (또는 https://SERVER_IP)"
+    info "배포 완료 — https://localhost:8443 (또는 https://SERVER_IP:8443)"
     info "배포 검증: ./scripts/verify-deploy.sh"
     [ "$DEV_MODE" = true ] && warn "개발 모드 활성: 소스 변경이 즉시 반영된다."
     exit 0

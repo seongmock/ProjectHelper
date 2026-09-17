@@ -16,7 +16,7 @@
 #   ./scripts/health-watch.sh --status        # 최근 상태와 로그 꼬리
 #
 # 환경변수:
-#   PH_HEALTH_URL   점검 대상 (기본 https://localhost/api/health — 자체서명이라 -k 로 붙는다)
+#   PH_HEALTH_URL   점검 대상 (기본 https://localhost:8443/api/health — 자체서명이라 -k 로 붙는다)
 #   PH_FAIL_STREAK  알림을 내기까지의 연속 실패 횟수 (기본 3 → 5분 주기면 약 15분)
 #   PH_ALERT_CMD    알림 명령. 상태(down|up)와 메시지를 인자로 받는다.
 #                   예: PH_ALERT_CMD='curl -s -X POST -d "text=$2" https://hooks.example/…'
@@ -24,7 +24,7 @@
 set -uo pipefail
 
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-URL="${PH_HEALTH_URL:-https://localhost/api/health}"
+URL="${PH_HEALTH_URL:-https://localhost:8443/api/health}"
 STATE_DIR="${PH_STATE_DIR:-$PROJECT_DIR/.health}"
 STATE_FILE="$STATE_DIR/streak"
 LOG_FILE="$STATE_DIR/health.log"

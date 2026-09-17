@@ -56,9 +56,14 @@ services:
     image: caddy:2.10-alpine
     container_name: caddy-https
     restart: unless-stopped
+    # 2026-09-10: 호스트의 80/443 은 이 머신의 웹서비스 링크 허브
+    # (~/08.Services/service-hub) 가 쓴다. 컨테이너 내부 포트는 그대로 80/443 이고
+    # 호스트 쪽만 8080/8443 으로 옮겼다 — Caddyfile 의 HTTP→HTTPS 리다이렉트가
+    # `:8443` 을 가리키는 것이 이 매핑과 짝이다. 한쪽만 바꾸면 리다이렉트가
+    # 허브(80)로 튕겨 무한히 엉킨다.
     ports:
-      - "80:80"
-      - "443:443"
+      - "8080:80"
+      - "8443:443"
     environment:
       # .env 에서 주입 (.env 는 gitignore 대상). .env.example 참조.
       BASIC_AUTH_USER: "${BASIC_AUTH_USER:?BASIC_AUTH_USER 가 .env 에 설정되어야 합니다}"
