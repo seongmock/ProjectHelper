@@ -242,7 +242,13 @@ const TimelineView = forwardRef(({
         const rect = e.currentTarget.getBoundingClientRect();
         const x0 = e.clientX - rect.left;
         let x1 = x0;
-        e.preventDefault(); // 드래그 중 텍스트 선택 방지
+        // 드래그 중 텍스트 선택을 막는다. 대가로 **포커스 이동도 함께 막힌다** —
+        // 기본 동작을 먹었으므로 blur 를 직접 일으켜 준다. 그러지 않으면 blur 에
+        // 커밋하는 입력칸(툴바 배율 · 인스펙터 DraftField)이 차트를 클릭해도 값을
+        // 반영하지 못한다: 사용자는 숫자를 고쳐 놓고 화면을 눌렀는데 아무 일도
+        // 일어나지 않는 것을 본다(실제 보고, 2026-09-17).
+        e.preventDefault();
+        document.activeElement?.blur?.();
 
         const onMove = (ev) => {
             x1 = ev.clientX - rect.left;

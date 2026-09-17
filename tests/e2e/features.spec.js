@@ -1289,14 +1289,20 @@ test.describe('구간 드래그 줌', () => {
         await expect(zoom).toHaveValue('100');
 
         // 막대 위에서 시작한 드래그는 막대의 것이다 — 비어 있는 지점을 찾아서 누른다.
+        // 어느 x 가 비어 있는지는 샘플 데이터의 일정에 달렸으므로 몇 군데를 훑는다
+        // (한 곳만 보면 막대가 그 자리에 오는 날 이 검사가 흔들린다).
+        await expect(page.locator('.timeline-bar').first()).toBeVisible();
         const spot = await page.evaluate(() => {
             const content = document.querySelector('.timeline-content');
             const r = content.getBoundingClientRect();
-            const x = r.left + r.width * 0.3;
-            for (let y = r.top + 4; y < Math.min(r.bottom, window.innerHeight) - 4; y += 4) {
-                const el = document.elementFromPoint(x, y);
-                if (el && el.closest('.timeline-content') && !el.closest('.timeline-bar, .milestone-marker')) {
-                    return { x, y, width: r.width };
+            const bottom = Math.min(r.bottom, window.innerHeight) - 4;
+            for (const fx of [0.3, 0.5, 0.2, 0.65, 0.4]) {
+                const x = r.left + r.width * fx;
+                for (let y = r.top + 4; y < bottom; y += 4) {
+                    const el = document.elementFromPoint(x, y);
+                    if (el && el.closest('.timeline-content') && !el.closest('.timeline-bar, .milestone-marker')) {
+                        return { x, y, width: r.width, right: Math.min(r.right, window.innerWidth) - 4 };
+                    }
                 }
             }
             return null;
@@ -1305,7 +1311,9 @@ test.describe('구간 드래그 줌', () => {
 
         await page.mouse.move(spot.x, spot.y);
         await page.mouse.down();
-        await page.mouse.move(spot.x + spot.width * 0.3, spot.y, { steps: 10 });
+        // 클램프 기준은 콘텐츠의 **오른쪽 클라이언트 좌표**다 — 폭과 좌표를 섞으면
+        // 뷰포트 밖으로 끌어 이벤트가 사라진다.
+        await page.mouse.move(Math.min(spot.x + spot.width * 0.3, spot.right), spot.y, { steps: 10 });
         await expect(page.locator('.zoom-selection')).toBeVisible(); // 고르는 동안만 보인다
         await page.mouse.up();
 
@@ -1328,6 +1336,17 @@ test.describe('구간 드래그 줌', () => {
         await fit.click();
         await expect(zoom).toHaveValue('100');
         await expect(fit).toBeDisabled();
+    });
+
+    test('엔터 없이 포커스만 나가도 반영된다', async ({ page }) => {
+        const zoom = page.getByLabel('확대 배율');
+        await zoom.fill('250');
+        // 차트를 클릭해 포커스를 뺀다. 드래그 줌 핸들러가 mousedown 의 기본 동작을
+        // 막으므로, blur 를 직접 일으키지 않으면 여기서 값이 조용히 버려진다.
+        await page.locator('.timeline-content').click({ position: { x: 300, y: 5 } });
+        await expect(zoom).toHaveValue('250');
+        await expect.poll(async () => page.locator('.timeline-content')
+            .evaluate(el => parseFloat(el.style.width))).toBeGreaterThan(1500);
     });
 
     test('배율을 숫자로 직접 입력한다', async ({ page }) => {
