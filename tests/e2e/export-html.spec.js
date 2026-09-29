@@ -174,3 +174,47 @@ test('내보낸 HTML 의 마일스톤 도형이 여섯 가지 모두 그려진�
     expect(boxes.filter(s => s.rotated)).toHaveLength(1);
     expect(boxes.find(s => s.rotated).radius.startsWith('50%')).toBe(false);
 });
+
+// ── 복사 버튼 자체 ─────────────────────────────────────────────────────────
+// 위 검사들은 내보내기 **모듈**을 직접 부른다. 사용자가 누르는 것은 버튼이고, 그 사이에
+// 지연 로드·클립보드가 끼어 있다 — 그 둘이 실패할 때 버튼이 말없이 죽던 것을 여기서 본다.
+test.describe('HTML 복사 버튼', () => {
+    const button = (page) => page.getByTitle('HTML 코드 복사하기 (클립보드)');
+
+    test.beforeEach(async ({ page }) => {
+        await page.goto('/');
+        await expect(page.getByText('데이터 불러오는 중')).toHaveCount(0);
+        await page.getByTitle('타임라인 뷰').click();
+    });
+
+    test('누르면 붙여넣을 수 있는 HTML 이 클립보드에 들어간다', async ({ page, context }) => {
+        await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+        await button(page).click();
+        await expect(page.locator('.toast--success')).toContainText('복사되었습니다');
+        const html = await page.evaluate(() => navigator.clipboard.readText());
+        expect(html).toContain('<!-- ProjectHelper Gantt Export -->');
+    });
+
+    test('클립보드 API 가 막혀도 옛 방식으로 복사한다', async ({ page }) => {
+        // http 로 열었거나 브라우저가 사용자 조작 창이 닫혔다고 판단한 경우와 같다
+        await page.evaluate(() => {
+            Object.defineProperty(navigator, 'clipboard', { value: undefined, configurable: true });
+            window.__copied = null;
+            const orig = document.execCommand.bind(document);
+            document.execCommand = (cmd, ...rest) => {
+                if (cmd === 'copy') { window.__copied = document.activeElement?.value ?? null; return true; }
+                return orig(cmd, ...rest);
+            };
+        });
+        await button(page).click();
+        await expect(page.locator('.toast--success')).toContainText('복사되었습니다');
+        expect(await page.evaluate(() => window.__copied)).toContain('<!-- ProjectHelper Gantt Export -->');
+    });
+
+    test('배포로 청크가 바뀐 뒤 누르면 새로고침하라고 말한다 — 말없이 죽지 않는다', async ({ page }) => {
+        // 배포 전에 연 탭이 없어진 `htmlExporter-<옛해시>.js` 를 요청하는 상황
+        await page.route(/htmlExporter/, route => route.fulfill({ status: 404, body: 'not found' }));
+        await button(page).click();
+        await expect(page.locator('.toast--error')).toContainText('새로고침');
+    });
+});
