@@ -17,7 +17,7 @@ const overrideStyle = (el, patch) => {
 
 export function useTimelineCapture({
     containerRef, captureRef, timelineScrollRef, taskNamesScrollRef,
-    flatTasks, isCompact, darkMode, toast,
+    flatTasks, isCompact, rowHeight, darkMode, toast,
 }) {
     return useCallback(async () => {
         const captureContainer = captureRef.current;
@@ -34,7 +34,6 @@ export function useTimelineCapture({
             // 실측값은 신뢰할 수 없고, stale closure 도 피할 수 있다.
             const header = captureContainer.querySelector('.timeline-header');
             const headerHeight = header ? header.offsetHeight : (isCompact ? 50 : 70);
-            const rowHeight = isCompact ? 28 : 40;
             const timelineContent = captureContainer.querySelector('.timeline-content');
 
             let rowCount = flatTasks.length;
@@ -130,5 +129,5 @@ export function useTimelineCapture({
             toast.error(`이미지 캡처 중 오류가 발생했습니다: ${err.message}`);
         }
     }, [containerRef, captureRef, timelineScrollRef, taskNamesScrollRef,
-        flatTasks, isCompact, darkMode, toast]);
+        flatTasks, isCompact, rowHeight, darkMode, toast]);
 }

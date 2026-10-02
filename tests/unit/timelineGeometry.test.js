@@ -10,6 +10,9 @@ import {
     buildItemMap,
     itemAnchor,
     dependencyPath,
+    milestoneLabelText,
+    visibleMilestoneItems,
+    monthGridLines,
 } from '../../src/features/timeline/timelineGeometry';
 import { dateUtils } from '../../src/utils/dateUtils';
 
@@ -217,5 +220,38 @@ describe('dependencyPath', () => {
     it('역방향(후행이 왼쪽)은 우회 경로 5구간', () => {
         const d = dependencyPath(200, 20, 100, 60);
         expect(d).toBe('M 200 20 L 210 20 L 210 40 L 70 40 L 70 60 L 100 60');
+    });
+});
+
+describe('milestoneLabelText — 마일스톤 날짜 라벨 옵션', () => {
+    const m = { id: 'm1', label: 'K7', date: '2027-12-31' };
+
+    it('끄면 이름, 켜면 yy.mm.dd', () => {
+        expect(milestoneLabelText(m, false)).toBe('K7');
+        expect(milestoneLabelText(m, true)).toBe('27.12.31');
+    });
+
+    it('배치용 항목도 같은 글자를 쓴다 — 폭 추정이 화면의 라벨과 어긋나지 않게', () => {
+        const range = { start: new Date(2027, 0, 1), end: new Date(2028, 0, 1) };
+        expect(visibleMilestoneItems({ milestones: [m] }, range, 1000, true)[0].label).toBe('27.12.31');
+        expect(visibleMilestoneItems({ milestones: [m] }, range, 1000)[0].label).toBe('K7');
+    });
+});
+
+describe('monthGridLines — 한 줄 머리글과 본문 격자', () => {
+    it('범위 안의 달마다 하나, 첫 달은 0 에서, 폭의 합은 전체 폭', () => {
+        const range = { start: new Date(2027, 0, 15), end: new Date(2027, 3, 15) };
+        const lines = monthGridLines(range, 900);
+        expect(lines.map(l => `${l.year}.${l.month}`)).toEqual(['2027.1', '2027.2', '2027.3', '2027.4']);
+        expect(lines[0].x).toBe(0);
+        expect(lines.reduce((sum, l) => sum + l.width, 0)).toBeCloseTo(900);
+        // x 는 막대와 같은 환산(getDaysBetween)이다
+        const days = dateUtils.getDaysBetween(range.start, new Date(2027, 1, 1));
+        const total = dateUtils.getDaysBetween(range.start, range.end);
+        expect(lines[1].x).toBeCloseTo((days / total) * 900);
+    });
+
+    it('폭이 0 이면 빈 목록', () => {
+        expect(monthGridLines({ start: new Date(2027, 0, 1), end: new Date(2027, 5, 1) }, 0)).toEqual([]);
     });
 });

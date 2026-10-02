@@ -29,7 +29,8 @@ import TimelineBar from './TimelineBar';
 import TimelineLegend from './TimelineLegend';
 import DependencyLayer from './DependencyLayer';
 import { flattenTasks } from '../../utils/dataModel';
-import { buildItemMap, visibleMilestoneItems } from './timelineGeometry';
+import { buildItemMap, visibleMilestoneItems, monthGridLines } from './timelineGeometry';
+import { getTheme } from '../../themes/index.js';
 import { resolveDependencyLinks } from './dependencyLinks';
 import { resolveRollup } from './rollupBars';
 import { placeMilestoneLabels, labelHeadroom } from './milestoneLabels';
@@ -59,7 +60,8 @@ function SortableTaskNameItem({ task, selectedTaskId, editingTaskId, editingName
         zIndex: isDragging ? 20 : 1,
         position: 'relative',
         opacity: isDragging ? 0.5 : 1,
-        paddingLeft: `${task.level * 24 + 12}px`,
+        // 들여쓰기 폭은 테마가 CSS 변수로 바꿀 수 있다(SOW 16px). 기본값은 예전과 같은 24px.
+        paddingLeft: `calc(var(--name-indent, 24px) * ${task.level} + 12px)`,
         cursor: 'grab'
     };
 
@@ -160,6 +162,8 @@ const TimelineView = forwardRef(({
     showTaskNames = true,
     showBarLabels = false,
     showBarDates = false,
+    showDependencies = true,
+    showMilestoneDates = false,
     snapEnabled = true,
     darkMode,
     toast,
@@ -177,7 +181,9 @@ const TimelineView = forwardRef(({
     const flatTasks = useMemo(() => flattenTasks(tasks), [tasks]);
     const items = useMemo(() => flatTasks.map(t => t.id), [flatTasks]);
     const itemMap = useMemo(() => buildItemMap(flatTasks), [flatTasks]);
-    const rowHeight = isCompact ? 28 : 40;
+    const theme = getTheme(chartTheme);
+    // 행 높이는 CSS(--row-height)와 같아야 한다 — 화살표·캡처가 이 값으로 좌표를 잡는다
+    const rowHeight = isCompact ? 28 : (theme.rowHeight ?? 40);
 
     // 의존성 간선의 해석은 **전체 트리**를 봐야 한다. itemMap 에는 화면에 행이 있는 것만
     // 들어 있어서, 접힌 가지나 검색 밖의 끝은 여기 없다 — 예전에는 그런 간선이 조용히
@@ -215,9 +221,9 @@ const TimelineView = forwardRef(({
     const labelHeadroomPx = useMemo(() => {
         const first = flatTasks[0];
         if (!first || !contentWidth) return null;
-        const items = visibleMilestoneItems(first, dateRange, contentWidth);
+        const items = visibleMilestoneItems(first, dateRange, contentWidth, showMilestoneDates);
         return labelHeadroom(placeMilestoneLabels(items, contentWidth, { preferBelow: true }));
-    }, [flatTasks, dateRange, contentWidth]);
+    }, [flatTasks, dateRange, contentWidth, showMilestoneDates]);
 
     // ── 구간 드래그 줌 (파형 뷰어와 같은 조작) ─────────────────────────────
     // 빈 곳을 좌우로 끌면 그 구간이 화면을 가득 채운다. 판정은 순수 zoomToSelection 이
@@ -290,7 +296,7 @@ const TimelineView = forwardRef(({
 
     const copyToClipboard = useTimelineCapture({
         containerRef, captureRef, timelineScrollRef, taskNamesScrollRef,
-        flatTasks, isCompact, darkMode, toast,
+        flatTasks, isCompact, rowHeight, darkMode, toast,
     });
 
     const sensors = useSensors(
@@ -467,6 +473,7 @@ const TimelineView = forwardRef(({
                         timeScale={timeScale}
                         containerWidth={contentWidth}
                         showToday={showToday}
+                        singleAxis={!!theme.singleAxis}
                         onClick={() => onSelectTask(null)}
                     />
 
@@ -517,15 +524,27 @@ const TimelineView = forwardRef(({
                             />
                         )}
 
-                        <DependencyLayer
-                            links={links}
-                            hiddenEdges={hiddenEdges}
-                            rowCount={flatTasks.length}
-                            dateRange={dateRange}
-                            contentWidth={contentWidth}
-                            rowHeight={rowHeight}
-                            edgeIssues={dependencyIssues?.edgeIssues}
-                        />
+                        {/* 한 줄 머리글 테마는 본문에도 월 격자를 긋는다 — 1월은 연도 경계라 진하게 */}
+                        {theme.singleAxis && monthGridLines(dateRange, contentWidth).map(line => (
+                            <div
+                                key={`${line.year}-${line.month}`}
+                                className={`timeline-month-grid ${line.month === 1 ? 'year-start' : ''}`}
+                                style={{ left: `${line.x}px` }}
+                            />
+                        ))}
+
+                        {/* 끄면 화살표만 사라진다 — 연결 자체와 표의 배지·인스펙터는 그대로다 */}
+                        {showDependencies && (
+                            <DependencyLayer
+                                links={links}
+                                hiddenEdges={hiddenEdges}
+                                rowCount={flatTasks.length}
+                                dateRange={dateRange}
+                                contentWidth={contentWidth}
+                                rowHeight={rowHeight}
+                                edgeIssues={dependencyIssues?.edgeIssues}
+                            />
+                        )}
 
                         {tasks.length === 0 ? (
                             <div className="empty-timeline">
@@ -556,6 +575,7 @@ const TimelineView = forwardRef(({
                                     showLabel={!showTaskNames}
                                     showBarLabels={showBarLabels}
                                     showBarDates={showBarDates}
+                                    showMilestoneDates={showMilestoneDates}
                                     timeScale={timeScale}
                                     snapEnabled={snapEnabled}
                                     chartTheme={chartTheme}
@@ -570,7 +590,7 @@ const TimelineView = forwardRef(({
             {/* 범례는 캡처 대상(captureRef = .timeline-container) 밖이다 —
                 PNG 캡처는 높이를 행 수로 계산하므로 안에 넣으면 계산이 어긋난다.
                 HTML 내보내기는 자체 범례를 그린다(htmlExporter.js). */}
-            {colorMode === 'status' && <TimelineLegend />}
+            {colorMode === 'status' && <TimelineLegend chartTheme={chartTheme} />}
         </div>
     );
 });

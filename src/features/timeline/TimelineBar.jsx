@@ -1,10 +1,10 @@
 import { useState, useRef, useEffect } from 'react';
 import { dateUtils } from '../../utils/dateUtils';
 import { isTaskOverdue, getTaskStatus } from '../../utils/taskTree';
-import { getStatusColor } from '../../themes/index.js';
+import { getStatusColor, getTheme, themeColor } from '../../themes/index.js';
 import { rollupSegmentTitle, rollupMilestoneTitle } from './rollupBars';
 import { placeMilestoneLabels, milestoneLabelStyle } from './milestoneLabels';
-import { visibleMilestoneItems } from './timelineGeometry';
+import { visibleMilestoneItems, milestoneLabelText } from './timelineGeometry';
 import { milestoneShape } from '../../shared/milestoneShapes';
 import './TimelineBar.css';
 
@@ -32,6 +32,7 @@ function TimelineBar({
     showLabel = true,
     showBarLabels = true, // Toolbar toggle
     showBarDates = true, // Toolbar toggle
+    showMilestoneDates = false, // 표시 옵션 — 마일스톤 라벨을 날짜로
     timeScale = 'monthly',
     snapEnabled = true,
     chartTheme = 'default',
@@ -69,8 +70,11 @@ function TimelineBar({
     // 상태 색상 모드에서만 바 색을 일정 상태로 덮는다. 날짜 없는 작업('none')은
     // getStatusColor 가 undefined 를 주므로 아래 폴백이 작업 색을 그대로 쓴다.
     const statusColor = colorMode === 'status'
-        ? getStatusColor(getTaskStatus(task, today))
+        ? getStatusColor(getTaskStatus(task, today), chartTheme)
         : undefined;
+    // 옅은 막대 테마(SOW): 바탕은 색의 28%, 진행률 구간만 진한 색, 그룹(레벨 0)은 회색 띠.
+    // 테두리·그림자·지연 표시줄은 그리지 않는다 — 지연은 색(상태/색 매핑)이 말한다.
+    const tint = getTheme(chartTheme).barFill === 'tint';
 
     // Handle Drag Start for a specific range
     const handleMouseDown = (e, type, range) => {
@@ -313,7 +317,7 @@ function TimelineBar({
         if (!task.milestones || task.milestones.length === 0) return null;
 
         // 무엇이 보이는지는 TimelineView 의 여백 계산과 **같은 함수**로 정한다
-        const visible = visibleMilestoneItems(task, { start: startDate, end: endDate }, containerWidth);
+        const visible = visibleMilestoneItems(task, { start: startDate, end: endDate }, containerWidth, showMilestoneDates);
 
         const placements = placeMilestoneLabels(visible, containerWidth, { preferBelow: isFirstRow });
 
@@ -334,22 +338,25 @@ function TimelineBar({
             // 각자 그리던 것을 그 파일이 대신한다. 여기서는 차트의 표현만 얹는다:
             // 배경 위에 떠 있어야 하므로 흰 테두리와 그림자를 씌운다.
             const spec = milestoneShape(milestone.shape);
+            const color = themeColor(milestone.color, chartTheme);
+            // 옅은 막대 테마는 트래커처럼 작게(12px, 원은 r=5), 그림자 없이 흰 테두리만
+            const boxSize = tint ? (spec.borderRadius === '50%' ? 10 : 12) : 16;
 
             const getShape = () => {
                 if (spec.kind === 'box') {
                     return <div style={{
-                        width: '16px',
-                        height: '16px',
-                        backgroundColor: milestone.color,
+                        width: `${boxSize}px`,
+                        height: `${boxSize}px`,
+                        backgroundColor: color,
                         border: '2px solid white',
-                        boxShadow: '0 2px 6px rgba(0, 0, 0, 0.3)',
+                        boxShadow: tint ? 'none' : '0 2px 6px rgba(0, 0, 0, 0.3)',
                         ...(spec.borderRadius ? { borderRadius: spec.borderRadius } : {}),
                         ...(spec.rotate ? { transform: `rotate(${spec.rotate}deg)` } : {}),
                     }} />;
                 }
                 return (
-                    <svg width="20" height="20" viewBox={spec.viewBox} style={{ filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3))' }}>
-                        <path d={spec.path} fill={milestone.color} stroke="white" strokeWidth="2" strokeLinejoin="round" />
+                    <svg width={tint ? 16 : 20} height={tint ? 16 : 20} viewBox={spec.viewBox} style={tint ? undefined : { filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3))' }}>
+                        <path d={spec.path} fill={color} stroke="white" strokeWidth="2" strokeLinejoin="round" />
                     </svg>
                 );
             };
@@ -422,7 +429,7 @@ function TimelineBar({
                         data-label-position={placement.position}
                         data-label-tier={placement.tier}
                         title={milestone.label}
-                    >{milestone.label}</span>
+                    >{milestoneLabelText(milestone, showMilestoneDates)}</span>
                 </div>
             );
         });
@@ -453,7 +460,7 @@ function TimelineBar({
                             style={{
                                 left: `${offset}px`,
                                 width: `${width}px`,
-                                backgroundColor: statusColor || task.color,
+                                backgroundColor: statusColor || themeColor(task.color, chartTheme),
                             }}
                             title={rollupSegmentTitle(segment)}
                             onClick={(e) => { e.stopPropagation(); onSelect(task.id); }}
@@ -531,6 +538,11 @@ function TimelineBar({
                     ? '#a50034'
                     : (statusColor || (overdue ? 'var(--color-overdue, #d9534f)' : '#9e9e9e'));
 
+                const barColor = statusColor || themeColor(range.color || task.color, chartTheme);
+                const tintFill = level === 0
+                    ? 'color-mix(in srgb, var(--sow-n300) 55%, transparent)'
+                    : `color-mix(in srgb, ${barColor} 28%, transparent)`;
+
                 const barStyle = isLg
                     ? {
                         // 투명 컨테이너 — 시각은 자식 div가 담당
@@ -549,7 +561,7 @@ function TimelineBar({
                     : {
                         left: `${offset}px`,
                         width: `${width}px`,
-                        backgroundColor: statusColor || range.color || task.color,
+                        backgroundColor: tint ? tintFill : barColor,
                         transform: isActive ? `translateY(calc(-50% + ${draggedRangeY}px))` : undefined,
                         zIndex: isActive ? 100 : 1,
                         boxShadow: isActive ? '0 4px 8px rgba(0,0,0,0.3)' : 'none',
@@ -561,7 +573,7 @@ function TimelineBar({
                     <div
                         key={range.id}
                         ref={(el) => (barRefs.current[range.id] = el)}
-                        className={`timeline-bar ${isSelected ? 'selected' : ''} ${isActive ? 'dragging' : ''} ${isLg ? 'theme-lg' : ''} ${overdue && !isLg ? 'overdue' : ''}`}
+                        className={`timeline-bar ${isSelected ? 'selected' : ''} ${isActive ? 'dragging' : ''} ${isLg ? 'theme-lg' : ''} ${overdue && !isLg && !tint ? 'overdue' : ''}`}
                         style={barStyle}
                         title={`${task.name} (${dateUtils.formatDate(new Date(range.startDate), 'YYYY.MM.DD')} ~ ${dateUtils.formatDate(new Date(range.endDate), 'YYYY.MM.DD')})`}
                         onClick={(e) => {
@@ -656,8 +668,11 @@ function TimelineBar({
                             </>
                         )}
                         {/* 진행률 채움 오버레이 (기본 테마 전용 — LG 화살표 바와는 충돌) */}
-                        {!isLg && progress > 0 && (
-                            <div className="bar-progress-fill" style={{ width: `${progress}%` }} />
+                        {!isLg && progress > 0 && !(tint && level === 0) && (
+                            <div
+                                className="bar-progress-fill"
+                                style={{ width: `${progress}%`, ...(tint ? { background: barColor } : {}) }}
+                            />
                         )}
                         {isActive && isCopyMode && (
                             <div style={{

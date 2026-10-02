@@ -80,7 +80,8 @@ describe('exportToHtml — 런타임 이스케이프 헬퍼', () => {
         expect(html).toContain('labelText += esc(');
         // 마일스톤 title 속성 + 라벨 텍스트 — 두 곳 모두
         expect(html).toContain("title=\"' + esc(m.label)");
-        expect((html.match(/esc\(m\.label\)/g) || []).length).toBeGreaterThanOrEqual(2);
+        // 라벨 텍스트는 이름 또는 날짜(milestoneText) — 어느 쪽이든 esc() 를 지난다
+        expect(html).toContain('esc(milestoneText(m))');
     });
 
     it('미이스케이프 보간이 남아 있지 않다 (회귀 방지)', () => {
@@ -105,6 +106,28 @@ describe('exportToHtml — 기본 동작', () => {
 
     it('다크모드 설정이 반영된다', () => {
         expect(exportToHtml([task()], { darkMode: true })).toContain('#1e1e1e');
+    });
+});
+
+describe('exportToHtml — SOW 테마 · 표시 옵션', () => {
+    it('SOW 테마는 다크 모드여도 밝게, 옅은 막대 스코프와 색 매핑을 싣는다', () => {
+        const html = exportToHtml([task()], { chartTheme: 'sow', darkMode: true });
+        expect(html).not.toContain('#1e1e1e');
+        expect(html).toContain('ph-tint');
+        expect(html).toContain('const TINT = true;');
+        expect(html).toContain('"#4a90e2":"#6b8fd6"');
+    });
+
+    it('기존 테마는 옅은 막대가 아니다', () => {
+        expect(exportToHtml([task()], { chartTheme: 'lg' })).toContain('const TINT = false;');
+    });
+
+    it('의존성 화살표·마일스톤 날짜 라벨 옵션이 그대로 구워진다', () => {
+        const off = exportToHtml([task()], { showDependencies: false, showMilestoneDates: true });
+        expect(off).toContain('const SHOW_DEPENDENCIES = false;');
+        expect(off).toContain('const SHOW_MILESTONE_DATES = true;');
+        // 설정이 없던 예전 스냅샷은 화살표를 그린다(기본값)
+        expect(exportToHtml([task()], {})).toContain('const SHOW_DEPENDENCIES = true;');
     });
 });
 

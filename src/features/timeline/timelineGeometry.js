@@ -123,7 +123,13 @@ export const taskItemEntries = (task, index) => {
 // 축 밖의 마일스톤은 그려지지 않으므로 라벨 자리도 차지하지 않는다. 이 목록을 두 곳이
 // 본다 — TimelineBar(그린다)와 TimelineView(첫 행 라벨이 요구하는 위쪽 여백을 잰다).
 // 따로 거르면 화면에 없는 라벨을 기준으로 여백이 잡히거나 그 반대가 된다.
-export const visibleMilestoneItems = (task, dateRange, contentWidth) => {
+// 마일스톤 라벨에 실을 글자. '마일스톤 날짜 라벨' 표시 옵션이 켜지면 이름 대신 날짜(yy.mm.dd)다
+// — SOW Tracker 간트와 같은 표기. 이름은 그때 툴팁으로 간다. 배치(폭 추정)도 이 글자로 해야
+// 화면의 라벨과 자리 계산이 어긋나지 않는다.
+export const milestoneLabelText = (milestone, showDates) =>
+    (showDates && typeof milestone.date === 'string') ? milestone.date.slice(2).replace(/-/g, '.') : milestone.label;
+
+export const visibleMilestoneItems = (task, dateRange, contentWidth, showDates = false) => {
     const totalDays = dateUtils.getDaysBetween(dateRange.start, dateRange.end);
     const from = new Date(dateRange.start);
     const to = new Date(dateRange.end);
@@ -134,10 +140,23 @@ export const visibleMilestoneItems = (task, dateRange, contentWidth) => {
         })
         .map(m => ({
             id: m.id,
-            label: m.label,
+            label: milestoneLabelText(m, showDates),
             labelPosition: m.labelPosition,
             x: (dateUtils.getDaysBetween(dateRange.start, m.date) / totalDays) * contentWidth,
         }));
+};
+
+// 월 경계의 x 좌표 — 한 줄 머리글(singleAxis 테마)의 라벨과 본문의 월 격자가 **같은 값**을
+// 쓴다. 막대와 같은 환산(getDaysBetween)이라 격자가 막대의 날짜와 맞는다. 범위 앞에 걸친
+// 첫 달은 0 에서 시작한다.
+export const monthGridLines = (dateRange, contentWidth) => {
+    const totalDays = dateUtils.getDaysBetween(dateRange.start, dateRange.end);
+    if (!totalDays || !contentWidth) return [];
+    const lines = dateUtils.generateMonthRange(dateRange.start, dateRange.end).map(({ year, month }) => {
+        const days = dateUtils.getDaysBetween(dateRange.start, dateUtils.getMonthStart(year, month));
+        return { year, month, x: Math.max(0, (days / totalDays) * contentWidth) };
+    });
+    return lines.map((line, i) => ({ ...line, width: (lines[i + 1]?.x ?? contentWidth) - line.x }));
 };
 
 export const buildItemMap = (flatTasks) => {

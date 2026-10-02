@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { useAnchoredMenu } from '../../shared/ui/useAnchoredMenu';
 import {
     SlidersHorizontal, Check, Text, Tag, CalendarDays, CalendarClock, Rows3, Magnet,
-    Palette, Activity,
+    Palette, Activity, Workflow, Diamond,
 } from 'lucide-react';
 import { THEMES } from '../../themes/index.js';
 import './DisplayOptionsMenu.css';
@@ -26,6 +26,8 @@ function DisplayOptionsMenu({
     showToday, onToggleToday,
     isCompact, onToggleCompact,
     snapEnabled, onToggleSnap,
+    showDependencies, onToggleDependencies,
+    showMilestoneDates, onToggleMilestoneDates,
     chartTheme, onThemeChange,
     colorMode, onColorModeChange,
 }) {
@@ -63,6 +65,8 @@ function DisplayOptionsMenu({
         { key: 'taskNames', Icon: Text, label: '작업명 컬럼', checked: showTaskNames, onChange: onToggleTaskNames },
         { key: 'barLabels', Icon: Tag, label: '바 이름', checked: showBarLabels, onChange: onToggleBarLabels },
         { key: 'barDates', Icon: CalendarDays, label: '바 날짜', checked: showBarDates, onChange: onToggleBarDates },
+        { key: 'dependencies', Icon: Workflow, label: '의존성 화살표', checked: showDependencies, onChange: onToggleDependencies },
+        { key: 'milestoneDates', Icon: Diamond, label: '마일스톤 날짜 라벨', checked: showMilestoneDates, onChange: onToggleMilestoneDates },
         { key: 'today', Icon: CalendarClock, label: '오늘 표시', checked: showToday, onChange: onToggleToday },
         { key: 'compact', Icon: Rows3, label: '컴팩트 행 높이', checked: isCompact, onChange: onToggleCompact },
         { key: 'snap', Icon: Magnet, label: '드래그 스냅', checked: snapEnabled, onChange: onToggleSnap },

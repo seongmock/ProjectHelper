@@ -34,6 +34,7 @@ import AccountModal from './features/auth/AccountModal';
 import { useAuth } from './features/auth/useAuth';
 import { buildCommands } from './features/shell/commandPalette';
 import ToastContainer from './shared/ui/Toast';
+import { getTheme } from './themes/index.js';
 import './themes/themes.css';
 import './App.css';
 
@@ -53,6 +54,8 @@ function App() {
     const snapEnabled = useSettingsStore(s => s.snapEnabled);
     const showBarLabels = useSettingsStore(s => s.showBarLabels);
     const showBarDates = useSettingsStore(s => s.showBarDates);
+    const showDependencies = useSettingsStore(s => s.showDependencies);
+    const showMilestoneDates = useSettingsStore(s => s.showMilestoneDates);
     const chartTheme = useSettingsStore(s => s.chartTheme);
     const colorMode = useSettingsStore(s => s.colorMode);
     const showInspector = useSettingsStore(s => s.showInspector);
@@ -422,8 +425,14 @@ function App() {
                     onToggleBarLabels={() => toggleSetting('showBarLabels')}
                     showBarDates={showBarDates}
                     onToggleBarDates={() => toggleSetting('showBarDates')}
+                    showDependencies={showDependencies}
+                    onToggleDependencies={() => toggleSetting('showDependencies')}
+                    showMilestoneDates={showMilestoneDates}
+                    onToggleMilestoneDates={() => toggleSetting('showMilestoneDates')}
                     chartTheme={chartTheme}
-                    onThemeChange={(v) => setSetting({ chartTheme: v })}
+                    // 테마를 고르면 날짜 라벨은 그 테마의 기본값으로 돌아간다(SOW 는 켜짐).
+                    // 그 뒤에 표시 옵션에서 따로 바꿀 수 있다.
+                    onThemeChange={(v) => setSetting({ chartTheme: v, showMilestoneDates: !!getTheme(v).milestoneDateLabels })}
                     colorMode={colorMode}
                     onColorModeChange={(v) => setSetting({ colorMode: v })}
                     showInspector={showInspector}
@@ -496,6 +505,8 @@ function App() {
                                     snapEnabled={snapEnabled}
                                     showBarLabels={showBarLabels}
                                     showBarDates={showBarDates}
+                                    showDependencies={showDependencies}
+                                    showMilestoneDates={showMilestoneDates}
                                     onOpenMilestoneAdd={openMilestoneAdd}
                                     toast={toast}
                                     chartTheme={chartTheme}

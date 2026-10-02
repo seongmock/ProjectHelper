@@ -1,7 +1,7 @@
 import { dateUtils } from '../../utils/dateUtils';
 import { getTaskStatus, flattenAll, findDependencyIssues } from '../../utils/taskTree';
 import { summarizeRowDependencies, describeRowDependencies } from '../table/dependencyBadges';
-import { STATUS_STYLES, getStatusColor } from '../../themes/index.js';
+import { getStatusStyles, getStatusColor, getTheme } from '../../themes/index.js';
 
 // 라벨 배치는 **앱과 같은 코드**를 쓴다. 내보낸 HTML 은 정적 산출물이라, 배치 규칙을 여기에
 // 다시 적으면 반드시 낡는다 — 실제로 낡아 있었다: 앱은 층(tier)을 늘려 겹침을 없애는데
@@ -40,11 +40,11 @@ const toSafeJson = (value) =>
 // \ub0b4\ubcf4\ub0b8 HTML \uc740 \uc815\uc801 \uc0b0\ucd9c\ubb3c\uc774\ubbc0\ub85c \uc0c1\ud0dc\ub97c **\ub0b4\ubcf4\ub0b8 \uc2dc\uc810** \uae30\uc900\uc73c\ub85c \uad73\ud78c\ub2e4. \ud310\uc815 \uaddc\uce59
 // (getTaskStatus)\uc744 \ub0b4\ubcf4\ub0b8 \ubb38\uc11c \uc548\uc5d0 \ub2e4\uc2dc \uad6c\ud604\ud558\uc9c0 \uc54a\uc73c\ub824\ub294 \uac83\uc774\uae30\ub3c4 \ud558\ub2e4 \u2014 \ub80c\ub354 \ub85c\uc9c1\uc774
 // \uc774\ubbf8 2\uc911\ud654\ub3fc \uc788\ub294 \ud30c\uc77c\uc5d0 \ud310\uc815 \ub85c\uc9c1\uae4c\uc9c0 2\uc911\ud654\ud558\uba74 \uc5b4\uae0b\ub0a8\uc774 \ud558\ub098 \ub354 \ub298\uc5b4\ub09c\ub2e4.
-const buildStatusColorMap = (tasks) => {
+const buildStatusColorMap = (tasks, themeId) => {
     const today = dateUtils.formatDate(new Date());
     const map = {};
     const walk = (list) => (list || []).forEach(task => {
-        const color = getStatusColor(getTaskStatus(task, today));
+        const color = getStatusColor(getTaskStatus(task, today), themeId);
         if (color) map[task.id] = color;
         walk(task.children);
     });
@@ -93,20 +93,57 @@ const legendCss = (listId) => `
         }`;
 
 // \ubc94\ub840 \ub9c8\ud06c\uc5c5 \u2014 \uc571\uc758 TimelineLegend \uc640 \uac19\uc740 \uc21c\uc11c\u00b7\ub77c\ubca8\u00b7\uc0c9\uc744 \uc4f4\ub2e4(STATUS_STYLES \uac00 \ub2e8\uc77c \ucd9c\ucc98).
-const legendHtml = () => `
+const legendHtml = (themeId, tint) => `
     <div class="ph-legend" role="list" aria-label="\uc0c1\ud0dc \uc0c9\uc0c1 \ubc94\ub840">
         <span class="ph-legend-title">\uc0c1\ud0dc</span>
-        ${STATUS_STYLES.map(s => `<span class="ph-legend-item" role="listitem">`
+        ${getStatusStyles(themeId).map(s => `<span class="ph-legend-item" role="listitem">`
         + `<span class="ph-legend-swatch ph-legend-${s.id}" style="background-color:${s.color}"></span>`
         + `${s.label}</span>`).join('')}
+        ${tint ? '<span class="ph-legend-item">막대 채움 = 진행률</span>' : ''}
     </div>`;
+
+// 옅은 막대 테마(SOW)의 스코프 CSS. 앱의 themes.css 블록과 같은 값이다 — 내보낸 문서는
+// 앱의 CSS 를 가져가지 못하므로 필요한 만큼만 다시 적는다.
+const tintCss = (listId) => `
+        #ph-gantt-${listId}.ph-tint {
+            --color-bg-primary: #ffffff;
+            --color-bg-secondary: #fafafa;
+            --color-text-primary: #1a1a19;
+            --color-text-secondary: #5b5b58;
+            --color-border: #ebebea;
+            --color-grid: transparent;
+            --color-primary: #A50034;
+            --row-height: 28px;
+            --header-height: 50px;
+            font-family: "Pretendard", "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", system-ui, sans-serif !important;
+            font-size: 12px;
+        }
+        #ph-gantt-${listId}.ph-tint .task-item { font-size: 12px; font-weight: 400; }
+        #ph-gantt-${listId}.ph-tint .task-item.level-0 { font-weight: 600; }
+        #ph-gantt-${listId}.ph-tint .task-list-column { border-right-color: #e3e2de; }
+        #ph-gantt-${listId}.ph-tint .timeline-bar { box-shadow: none; padding: 0; font-family: inherit; color: #1a1a19; font-weight: 400; }
+        #ph-gantt-${listId}.ph-tint .timeline-bar:hover { opacity: 1; box-shadow: none; }
+        #ph-gantt-${listId}.ph-tint .milestone-shape .shape-div { width: 12px; height: 12px; box-shadow: none; }
+        #ph-gantt-${listId}.ph-tint .milestone-shape svg.shape-icon { width: 16px; height: 16px; filter: none !important; }
+        #ph-gantt-${listId}.ph-tint .milestone-label,
+        #ph-gantt-${listId}.ph-tint .milestone-marker:hover .milestone-label {
+            background-color: transparent; color: #5b5b58; box-shadow: none; padding: 0 2px; font-weight: 400;
+        }
+        #ph-gantt-${listId}.ph-tint .today-marker {
+            width: 0; background-color: transparent; opacity: 1; border-left: 1px dashed #A50034;
+        }
+        #ph-gantt-${listId}.ph-tint .today-label { background-color: transparent; color: #A50034; box-shadow: none; font-weight: 400; }`;
 
 export const exportToHtml = (tasks, settings = {}) => {
     const tasksJson = toSafeJson(tasks);
-    const darkMode = settings.darkMode ? 'dark' : 'light';
+    const theme = getTheme(settings.chartTheme);
+    // 옅은 막대 테마(SOW)는 앱처럼 다크 모드를 무시한다. lg 내보내기는 예전처럼 darkMode 를
+    // 따른다 — 기존 테마의 산출물은 바꾸지 않는다.
+    const tint = theme.barFill === 'tint';
+    const darkMode = settings.darkMode && !tint ? 'dark' : 'light';
     // \uc0c1\ud0dc \uc0c9\uc0c1 \ubaa8\ub4dc\uac00 \uc544\ub2c8\uba74 \ube48 \ub9f5 \u2192 \uc544\ub798 \ud3f4\ubc31\uc774 \uae30\uc874 \ub3d9\uc791(\uc791\uc5c5 \uc0c9\uc0c1)\uc744 \uadf8\ub300\ub85c \uc720\uc9c0\ud55c\ub2e4
     const statusMode = settings.colorMode === 'status';
-    const statusColorJson = toSafeJson(statusMode ? buildStatusColorMap(tasks) : {});
+    const statusColorJson = toSafeJson(statusMode ? buildStatusColorMap(tasks, theme.id) : {});
 
     // 의존성 판정은 **내보내는 시점에** 한 번 하고 결과를 심는다. 판정 로직(findDependencyIssues)
     // 자체를 심으려면 그것이 의존하는 트리 유틸까지 따라와야 하고, 내보낸 문서는 어차피
@@ -135,7 +172,7 @@ export const exportToHtml = (tasks, settings = {}) => {
     const isCompact = settings.isCompact || false;
 
     return `<!-- ProjectHelper Gantt Export -->
-<div id="ph-gantt-${listId}" class="ph-gantt-container ${isCompact ? 'compact-mode' : ''}" style="display: flex; flex-direction: column; width: 100%; height: 100%; overflow: hidden; background-color: var(--color-bg-primary); color: var(--color-text-primary); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+<div id="ph-gantt-${listId}" class="ph-gantt-container ${isCompact ? 'compact-mode' : ''} ${tint ? 'ph-tint' : ''}" style="display: flex; flex-direction: column; width: 100%; height: 100%; overflow: hidden; background-color: var(--color-bg-primary); color: var(--color-text-primary); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
     <style>
         #ph-gantt-${listId} {
             --color-bg-primary: ${darkMode === 'dark' ? '#1e1e1e' : '#ffffff'};
@@ -557,6 +594,7 @@ export const exportToHtml = (tasks, settings = {}) => {
         }
 
 ${statusMode ? legendCss(listId) : ''}
+${tint ? tintCss(listId) : ''}
     </style>
 
     <div class="gantt-body">
@@ -588,7 +626,7 @@ ${statusMode ? legendCss(listId) : ''}
             </div>
         </div>
     </div>
-${statusMode ? legendHtml() : ''}
+${statusMode ? legendHtml(theme.id, tint) : ''}
     <script>
     (function() {
         // Scoped Execution
@@ -640,6 +678,16 @@ ${inlineModuleSource(milestoneShapesSource)}
         const ZOOM_LEVEL = ${zoomLevel};
         const TIME_SCALE = '${settings.timeScale || 'monthly'}';
         const CHART_THEME = '${settings.chartTheme || 'default'}';
+        // 옅은 막대 테마(SOW): 막대·마일스톤 표현과 저장 색 → 테마 색 매핑
+        const TINT = ${tint};
+        const COLOR_MAP = ${toSafeJson(theme.colorMap || {})};
+        function mapColor(c) { return (typeof c === 'string' && COLOR_MAP[c.toLowerCase()]) || c; }
+        const SHOW_DEPENDENCIES = ${settings.showDependencies !== false};
+        const SHOW_MILESTONE_DATES = ${!!settings.showMilestoneDates};
+        // 앱의 milestoneLabelText 와 같은 규칙: 날짜 라벨이면 yy.mm.dd, 이름은 툴팁으로
+        function milestoneText(m) {
+            return (SHOW_MILESTONE_DATES && typeof m.date === 'string') ? m.date.slice(2).replace(/-/g, '.') : m.label;
+        }
         // 작업 id → 상태 색상. 작업 색상 모드로 내보내면 빈 객체다.
         const STATUS_COLOR = ${statusColorJson};
         // 간선 키('선행id>후행id') → 'cycle' | 'overlap'. 내보낼 때 앱이 판정한 것이다.
@@ -758,8 +806,8 @@ ${inlineModuleSource(milestoneShapesSource)}
         const ISSUE_MARK = { cycle: '&#8635;', overlap: '&#9888;', broken: '&#10006;' };
 
         function renderTaskList() {
-            elTaskList.innerHTML = DATA.map(task => {
-                return \`<div class="task-item level-\${task.level}" title="\${esc(task.name)}"><span class="ph-task-name">\${esc(task.name)}</span>\${badgeHtml(task.id)}</div>\`;
+            elTaskList.innerHTML = DATA.map((task, index) => {
+                return \`<div class="task-item level-\${task.level}" style="\${TINT && index % 2 === 1 ? 'background-color:#fbfaf8;' : ''}" title="\${esc(task.name)}"><span class="ph-task-name">\${esc(task.name)}</span>\${badgeHtml(task.id)}</div>\`;
             }).join('');
         }
 
@@ -871,7 +919,7 @@ ${inlineModuleSource(milestoneShapesSource)}
                     var d = parseDate(m.date);
                     if (d < startDate || d > maxDate) return;
                     firstRowItems.push({
-                        id: m.id, label: m.label, labelPosition: m.labelPosition,
+                        id: m.id, label: milestoneText(m), labelPosition: m.labelPosition,
                         x: (getPosPercent(d, startDate, totalDays) / 100) * contentWidth,
                     });
                 });
@@ -921,12 +969,12 @@ ${inlineModuleSource(milestoneShapesSource)}
 
                     if (start > maxDate || end < startDate) return;
 
-                    var color = STATUS_COLOR[task.id] || range.color || task.color || '#4a90e2';
+                    var color = STATUS_COLOR[task.id] || mapColor(range.color || task.color) || '#4a90e2';
                     // title 은 아래에서 속성값으로 삽입된다 (line ~757, ~767)
                     var title = esc(task.name) + ' (' + formatDate(start) + ' ~ ' + formatDate(end) + ')';
                     
                     // 바 높이: range.barHeight 오버라이드 → 레벨별 기본값
-                    var barH = (range.barHeight != null) ? range.barHeight : LEVEL_BAR_H;
+                    var barH = (range.barHeight != null) ? range.barHeight : (TINT ? (task.level === 0 ? 6 : 12) : LEVEL_BAR_H);
                     // 바 중앙 x (퍼센트)
                     var barCenterPerc = leftPerc + widthPerc / 2;
                     
@@ -977,6 +1025,18 @@ ${inlineModuleSource(milestoneShapesSource)}
                             '<svg viewBox="0 0 ' + barWidthPx + ' ' + H + '" preserveAspectRatio="none" style="position:absolute;top:0;left:0;width:100%;height:100%;">' +
                             svgInner + '</svg>' +
                             lgLabelHtml +
+                        '</div>';
+                    } else if (TINT) {
+                        // 옅은 막대: 바탕 28% + 진행률 구간만 같은 색. 그룹(레벨 0)은 회색 띠 — 앱과 같다
+                        var isGroup = task.level === 0;
+                        var radius = isGroup ? 2 : 4;
+                        var tintBg = isGroup ? 'color-mix(in srgb, #c4c4c1 55%, transparent)' : 'color-mix(in srgb, ' + color + ' 28%, transparent)';
+                        var tintProg = (!isGroup && task.progress > 0)
+                            ? '<div style="position:absolute;left:0;top:0;height:100%;width:' + Math.min(100, task.progress) + '%;background:' + color + ';border-radius:' + radius + 'px 0 0 ' + radius + 'px;pointer-events:none;"></div>'
+                            : '';
+                        html += '<div class="timeline-bar" style="left:' + leftPerc + '%;width:' + widthPerc + '%;top:' + rowCenter + 'px;height:' + barH + 'px;background-color:' + tintBg + ';border-radius:' + radius + 'px;overflow:hidden;" title="' + title + '">' +
+                            tintProg +
+                            labelHtml +
                         '</div>';
                     } else {
                         // 진행률 채움 오버레이 (앱과 동일한 표현)
@@ -1031,7 +1091,7 @@ ${inlineModuleSource(milestoneShapesSource)}
                         shownMilestones.push({
                             id: m.id, m: m, date: date, leftPerc: leftPerc,
                             x: (leftPerc / 100) * contentWidth,
-                            label: m.label, labelPosition: m.labelPosition
+                            label: milestoneText(m), labelPosition: m.labelPosition
                         });
                     });
 
@@ -1042,7 +1102,7 @@ ${inlineModuleSource(milestoneShapesSource)}
                         var date = item.date;
                         var leftPerc = item.leftPerc;
 
-                        var color = m.color || '#e67e22';
+                        var color = mapColor(m.color) || '#e67e22';
                         // 도형의 서술은 심어 둔 milestoneShapes.js 에서 온다 — 앱과 같은
                         // 소스이므로 모양이 앱과 어긋날 수 없다. 여기서 정하는 것은 표현뿐:
                         // 상자형은 .shape-div 클래스(테두리·그림자·크기)에 얹고, 회전은
@@ -1065,12 +1125,12 @@ ${inlineModuleSource(milestoneShapesSource)}
 
                         html += '<div class="milestone-marker" style="left: ' + leftPerc + '%; top: ' + rowCenter + 'px;" title="' + esc(m.label) + ' (' + formatDate(date) + ')">' +
                             '<div class="' + shapeClasses + '">' + shapeHtml + '</div>' +
-                            '<div class="milestone-label" style="' + labelStyle + '">' + esc(m.label) + '</div>' +
+                            '<div class="milestone-label" style="' + labelStyle + '">' + esc(milestoneText(m)) + '</div>' +
                         '</div>';
                     });
                 }
                 
-                html += '<div class="task-row" style="position: absolute; top: ' + rowTop + 'px; left: 0; width: 100%; pointer-events: none; border-bottom: 1px solid var(--color-grid);"></div>';
+                html += '<div class="task-row" style="position: absolute; top: ' + rowTop + 'px; left: 0; width: 100%; pointer-events: none; border-bottom: 1px solid var(--color-grid);' + (TINT && index % 2 === 1 ? ' background-color: #fbfaf8; z-index: 0;' : '') + '"></div>';
             });
 
             // Dependencies
@@ -1088,7 +1148,8 @@ ${inlineModuleSource(milestoneShapesSource)}
                  // 판정은 id 로만 찾을 수 있다.
                  if (s && t) connections.push({src: s, tgt: t, srcId: src, tgtId: tgt});
             };
-            DATA.forEach(t => {
+            // '의존성 화살표' 표시 옵션을 끄고 내보내면 선을 하나도 모으지 않는다(앱과 같다)
+            if (SHOW_DEPENDENCIES) DATA.forEach(t => {
                 if (t.dependencies) t.dependencies.forEach(d => collect(d, t.id));
                 if (t.timeRanges) t.timeRanges.forEach(r => { if(r.dependencies) r.dependencies.forEach(d => collect(d, r.id)); });
                 if (t.milestones) t.milestones.forEach(m => { if(m.dependencies) m.dependencies.forEach(d => collect(d, m.id)); });

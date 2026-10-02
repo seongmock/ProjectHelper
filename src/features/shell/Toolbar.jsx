@@ -40,6 +40,10 @@ function Toolbar({
     onToggleBarLabels,
     showBarDates,
     onToggleBarDates,
+    showDependencies,
+    onToggleDependencies,
+    showMilestoneDates,
+    onToggleMilestoneDates,
 
     chartTheme,
     onThemeChange,
@@ -153,6 +157,10 @@ function Toolbar({
                                 onToggleCompact={onToggleCompact}
                                 snapEnabled={snapEnabled}
                                 onToggleSnap={onToggleSnap}
+                                showDependencies={showDependencies}
+                                onToggleDependencies={onToggleDependencies}
+                                showMilestoneDates={showMilestoneDates}
+                                onToggleMilestoneDates={onToggleMilestoneDates}
                                 chartTheme={chartTheme}
                                 onThemeChange={onThemeChange}
                                 colorMode={colorMode}

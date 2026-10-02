@@ -218,3 +218,45 @@ test.describe('HTML 복사 버튼', () => {
         await expect(page.locator('.toast--error')).toContainText('새로고침');
     });
 });
+
+test('SOW 테마로 내보내면 같은 규칙으로 그린다 — 옅은 막대·회색 그룹 띠·날짜 라벨, 화살표 끄기도 따른다', async ({ page, context }) => {
+    const tree = [{
+        id: 'G', name: '그룹', color: '#A50034', expanded: true, milestones: [],
+        timeRanges: [{ id: 'rg', startDate: '2026-01-01', endDate: '2026-03-31', dependencies: [] }],
+        children: [
+            { ...TREE[0], progress: 50,
+                milestones: [{ id: 'mA', label: 'K3', date: '2026-01-31', color: '#4A90E2', shape: 'diamond' }] },
+            TREE[1],
+        ],
+    }];
+    await page.goto('/');
+    await expect(page.getByText('데이터 불러오는 중')).toHaveCount(0);
+    const html = await page.evaluate(async (data) => {
+        const mod = await import('/src/features/io/htmlExporter.js');
+        return mod.exportToHtml(data, {
+            zoomLevel: 1, timeScale: 'monthly', chartTheme: 'sow', darkMode: true,
+            showMilestoneDates: true, showDependencies: false,
+        });
+    }, tree);
+
+    const doc = await context.newPage();
+    await doc.setContent(`<div style="width:1200px;height:600px">${html}</div>`);
+    const bars = doc.locator('.timeline-bar');
+    await expect(bars).toHaveCount(3);
+
+    const alpha = (css) => Number((css.match(/\/\s*([\d.]+)\s*\)$/) || [0, 1])[1]);
+    const [groupBg, childBg] = await bars.evaluateAll(els => els.slice(0, 2).map(el => getComputedStyle(el).backgroundColor));
+    expect(alpha(groupBg)).toBeLessThan(1);
+    expect(alpha(childBg)).toBeLessThan(1);
+    expect(await bars.nth(0).evaluate(el => el.getBoundingClientRect().height)).toBe(6);
+    expect(await bars.nth(1).evaluate(el => el.getBoundingClientRect().height)).toBe(12);
+
+    await expect(doc.locator('.milestone-label')).toHaveText('26.01.31');
+    await expect(doc.locator('.milestone-shape .shape-div')).toHaveCSS('border-top-color', 'rgb(255, 255, 255)');
+    await expect(doc.locator('.milestone-shape .shape-div')).toHaveCSS('background-color', 'rgb(107, 143, 214)');
+    // 화살표 끄기를 따른다 — A → B 연결이 있어도 선이 없다
+    await doc.waitForTimeout(300);
+    await expect(doc.locator('.dependency-line')).toHaveCount(0);
+    // 다크 모드여도 밝다
+    await expect(doc.locator('.ph-gantt-container')).toHaveCSS('background-color', 'rgb(255, 255, 255)');
+});
