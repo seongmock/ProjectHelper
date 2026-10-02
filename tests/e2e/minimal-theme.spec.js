@@ -27,7 +27,7 @@ const TREE = [{
     ],
 }];
 
-const RESET = { chartTheme: 'default', showMilestoneDates: false, showDependencies: true, darkMode: null };
+const RESET = { chartTheme: 'default', showMilestoneDates: false, showDependencies: true, showBarLabels: false, darkMode: null };
 
 test.beforeEach(async ({ page, request }) => {
     await request.post('/api/settings', { data: RESET });
@@ -88,6 +88,27 @@ test('미니멀 테마: 옅은 막대 + 진행률, 회색 그룹 띠, 흰 테두
     await expect(marker.locator('.milestone-label')).toHaveAttribute('title', 'K3');
 
     await expect(view.locator('.today-marker')).toHaveCSS('border-left-style', 'dashed');
+});
+
+test('미니멀 테마에서 바 이름을 켜면 얇은 막대도 글자 높이까지 커진다 — 글자가 막대 밖으로 새지 않는다', async ({ page, request }) => {
+    await request.post('/api/settings', { data: { chartTheme: 'minimal', showBarLabels: true } });
+    await page.reload();
+    await expect(page.locator('.timeline-view[data-chart-theme="minimal"] .bar-label').first()).toBeVisible();
+
+    for (const id of ['G', 'K3']) { // 그룹(6px 띠)과 하위(12px)
+        const box = await page.locator(`.timeline-row[data-task-id="${id}"] .timeline-bar`).evaluate(bar => {
+            const b = bar.getBoundingClientRect();
+            const l = bar.querySelector('.bar-label').getBoundingClientRect();
+            return { barTop: b.top, barBottom: b.bottom, labelTop: l.top, labelBottom: l.bottom };
+        });
+        expect(box.labelTop).toBeGreaterThanOrEqual(box.barTop);
+        expect(box.labelBottom).toBeLessThanOrEqual(box.barBottom);
+    }
+    // 끄면 다시 얇은 막대다
+    await request.post('/api/settings', { data: { showBarLabels: false } });
+    await page.reload();
+    expect(await page.locator('.timeline-row[data-task-id="G"] .timeline-bar')
+        .evaluate(el => el.getBoundingClientRect().height)).toBe(6);
 });
 
 test('미니멀 테마는 다크 모드에서도 밝게 그린다', async ({ page }) => {

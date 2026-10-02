@@ -248,6 +248,12 @@
     text-shadow: none;
     font-size: 11px;
     font-weight: 400;
+    line-height: 14px;
+}
+/* 얇은 막대(6/12px)는 글자를 담지 못한다 — 바 이름·날짜를 켜면 그 막대만 글자 높이까지
+   키운다. height 가 아니라 min-height 라 레벨별 높이·range.barHeight 어느 것보다도 이긴다. */
+.timeline-view[data-chart-theme="minimal"] .timeline-bar:has(.bar-label) {
+    min-height: 16px;
 }
 
 /* 마일스톤 라벨: 말풍선이 아니라 11px 회색 글자 */

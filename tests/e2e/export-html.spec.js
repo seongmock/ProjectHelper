@@ -231,13 +231,14 @@ test('미니멀 테마로 내보내면 같은 규칙으로 그린다 — 옅은 
     }];
     await page.goto('/');
     await expect(page.getByText('데이터 불러오는 중')).toHaveCount(0);
-    const html = await page.evaluate(async (data) => {
+    const exportWith = (extra) => page.evaluate(async ({ data, extra }) => {
         const mod = await import('/src/features/io/htmlExporter.js');
         return mod.exportToHtml(data, {
             zoomLevel: 1, timeScale: 'monthly', chartTheme: 'minimal', darkMode: true,
-            showMilestoneDates: true, showDependencies: false,
+            showTaskNames: true, showMilestoneDates: true, showDependencies: false, ...extra,
         });
-    }, tree);
+    }, { data: tree, extra });
+    const html = await exportWith({});
 
     const doc = await context.newPage();
     await doc.setContent(`<div style="width:1200px;height:600px">${html}</div>`);
@@ -259,4 +260,14 @@ test('미니멀 테마로 내보내면 같은 규칙으로 그린다 — 옅은 
     await expect(doc.locator('.dependency-line')).toHaveCount(0);
     // 다크 모드여도 밝다
     await expect(doc.locator('.ph-gantt-container')).toHaveCSS('background-color', 'rgb(255, 255, 255)');
+
+    // 바 이름을 켜면 얇은 막대도 글자 높이까지 커진다 — 앱과 같은 규칙
+    await doc.setContent(`<div style="width:1200px;height:600px">${await exportWith({ showBarLabels: true })}</div>`);
+    await expect(doc.locator('.timeline-bar .bar-label')).toHaveCount(3);
+    const fits = await doc.locator('.timeline-bar').evaluateAll(els => els.map(bar => {
+        const b = bar.getBoundingClientRect();
+        const l = bar.querySelector('.bar-label').getBoundingClientRect();
+        return l.top >= b.top && l.bottom <= b.bottom;
+    }));
+    expect(fits).toEqual([true, true, true]);
 });

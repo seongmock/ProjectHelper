@@ -301,6 +301,12 @@ Postgres+pgvector · 멀티테넌시 · RAG/Copilot · Workflow 엔진 · 실시
 > (id `minimal`, CSS 토큰 `--minimal-*`, 스펙 `tests/e2e/minimal-theme.spec.js`)이다. 아래 본문의
 > `sow` 는 그 시점 이름이다. 운영 설정은 `chartTheme: lg` 였고 `'sow'` 를 저장한 곳이 없어 옛 id 호환은
 > 두지 않았다(모르는 id 는 `getTheme` 이 기본 테마로 떨어뜨린다).
+>
+> **같은 날 결함 하나**(사용자 지적): 얇은 막대(그룹 6px·하위 12px)에 바 이름·날짜를 켜면 11px 글자가
+> 막대 밖으로 새고, 그룹 띠는 자기 라벨에 취소선처럼 그어졌다. 라벨이 있는 막대만 `min-height: 16px`
+> (`:has(.bar-label)`) — `height` 가 아니라서 레벨별 높이·`range.barHeight` 어느 것보다도 이긴다.
+> 내보내기도 같은 규칙(`tintH`). 가드: `minimal-theme.spec.js` · `export-html.spec.js` 가 라벨 상자가
+> 막대 상자 안에 있는지 잰다. E2E 139.
 
 작업 지시서 `THEME_SOW_TRACKER.md`(SOW Tracker 세션이 작성) 대로 세 번째 테마 `sow` 를 넣었다.
 사용자 결정 셋: ① 마일스톤 라벨을 날짜(yy.mm.dd)로 바꾸는 것은 **테마와 별개인 표시 옵션**

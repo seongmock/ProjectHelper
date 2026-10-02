@@ -123,6 +123,7 @@ const tintCss = (listId) => `
         #ph-gantt-${listId}.ph-tint .task-list-column { border-right-color: #e3e2de; }
         #ph-gantt-${listId}.ph-tint .timeline-bar { box-shadow: none; padding: 0; font-family: inherit; color: #1a1a19; font-weight: 400; }
         #ph-gantt-${listId}.ph-tint .timeline-bar:hover { opacity: 1; box-shadow: none; }
+        #ph-gantt-${listId}.ph-tint .bar-label { line-height: 14px; padding: 0 4px; }
         #ph-gantt-${listId}.ph-tint .milestone-shape .shape-div { width: 12px; height: 12px; box-shadow: none; }
         #ph-gantt-${listId}.ph-tint .milestone-shape svg.shape-icon { width: 16px; height: 16px; filter: none !important; }
         #ph-gantt-${listId}.ph-tint .milestone-label,
@@ -1029,12 +1030,14 @@ ${inlineModuleSource(milestoneShapesSource)}
                     } else if (TINT) {
                         // 옅은 막대: 바탕 28% + 진행률 구간만 같은 색. 그룹(레벨 0)은 회색 띠 — 앱과 같다
                         var isGroup = task.level === 0;
+                        // 얇은 막대는 글자를 담지 못한다 — 라벨이 있으면 글자 높이까지 키운다(앱과 같다)
+                        var tintH = labelText ? Math.max(barH, 16) : barH;
                         var radius = isGroup ? 2 : 4;
                         var tintBg = isGroup ? 'color-mix(in srgb, #c4c4c1 55%, transparent)' : 'color-mix(in srgb, ' + color + ' 28%, transparent)';
                         var tintProg = (!isGroup && task.progress > 0)
                             ? '<div style="position:absolute;left:0;top:0;height:100%;width:' + Math.min(100, task.progress) + '%;background:' + color + ';border-radius:' + radius + 'px 0 0 ' + radius + 'px;pointer-events:none;"></div>'
                             : '';
-                        html += '<div class="timeline-bar" style="left:' + leftPerc + '%;width:' + widthPerc + '%;top:' + rowCenter + 'px;height:' + barH + 'px;background-color:' + tintBg + ';border-radius:' + radius + 'px;overflow:hidden;" title="' + title + '">' +
+                        html += '<div class="timeline-bar" style="left:' + leftPerc + '%;width:' + widthPerc + '%;top:' + rowCenter + 'px;height:' + tintH + 'px;background-color:' + tintBg + ';border-radius:' + radius + 'px;overflow:hidden;" title="' + title + '">' +
                             tintProg +
                             labelHtml +
                         '</div>';
