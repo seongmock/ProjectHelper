@@ -319,6 +319,8 @@ Postgres+pgvector · 멀티테넌시 · RAG/Copilot · Workflow 엔진 · 실시
 
 검증: lint 0 error · unit 624/624 · server 356/356 · 빌드 · **E2E 138/138 (skip 0)** —
 신규 `tests/e2e/sow-theme.spec.js` 4건 + `export-html.spec.js` SOW 1건, 단위 `themes.test.js` 외.
+배포: 백업(`ph-data-20261002-092522`) → `start_server.sh`(끝의 caddy-https 이름 충돌은 늘 나는 것) →
+`verify-deploy.sh` 39/39, 운영 번들 해시(`index-Vch_JL-O.js`) 일치.
 
 ### 2026-09-29 — 콜랩 HTML 복사 점검
 
