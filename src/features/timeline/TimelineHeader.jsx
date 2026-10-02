@@ -75,7 +75,7 @@ function TimelineHeader({ startDate, endDate, timeScale, containerWidth, showTod
         return (days / totalDays) * containerWidth;
     }, [startDate, endDate, totalDays, containerWidth, showToday]);
 
-    // 한 줄 머리글(SOW 테마): 'YYYY.MM' 만, 연도 행 없음. 위치는 본문의 월 격자와 같은
+    // 한 줄 머리글(미니멀 테마): 'YYYY.MM' 만, 연도 행 없음. 위치는 본문의 월 격자와 같은
     // monthGridLines 에서 온다. 달이 46px 보다 좁으면 분기 첫 달에만 라벨을 단다(트래커 규칙).
     // 판정은 축 전체에 한 번 — 달마다 재면 31일 달만 라벨이 붙어 들쭉날쭉해진다.
     if (singleAxis) {

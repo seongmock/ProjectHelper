@@ -102,7 +102,7 @@ const legendHtml = (themeId, tint) => `
         ${tint ? '<span class="ph-legend-item">막대 채움 = 진행률</span>' : ''}
     </div>`;
 
-// 옅은 막대 테마(SOW)의 스코프 CSS. 앱의 themes.css 블록과 같은 값이다 — 내보낸 문서는
+// 옅은 막대 테마(미니멀)의 스코프 CSS. 앱의 themes.css 블록과 같은 값이다 — 내보낸 문서는
 // 앱의 CSS 를 가져가지 못하므로 필요한 만큼만 다시 적는다.
 const tintCss = (listId) => `
         #ph-gantt-${listId}.ph-tint {
@@ -137,7 +137,7 @@ const tintCss = (listId) => `
 export const exportToHtml = (tasks, settings = {}) => {
     const tasksJson = toSafeJson(tasks);
     const theme = getTheme(settings.chartTheme);
-    // 옅은 막대 테마(SOW)는 앱처럼 다크 모드를 무시한다. lg 내보내기는 예전처럼 darkMode 를
+    // 옅은 막대 테마(미니멀)는 앱처럼 다크 모드를 무시한다. lg 내보내기는 예전처럼 darkMode 를
     // 따른다 — 기존 테마의 산출물은 바꾸지 않는다.
     const tint = theme.barFill === 'tint';
     const darkMode = settings.darkMode && !tint ? 'dark' : 'light';
@@ -678,7 +678,7 @@ ${inlineModuleSource(milestoneShapesSource)}
         const ZOOM_LEVEL = ${zoomLevel};
         const TIME_SCALE = '${settings.timeScale || 'monthly'}';
         const CHART_THEME = '${settings.chartTheme || 'default'}';
-        // 옅은 막대 테마(SOW): 막대·마일스톤 표현과 저장 색 → 테마 색 매핑
+        // 옅은 막대 테마(미니멀): 막대·마일스톤 표현과 저장 색 → 테마 색 매핑
         const TINT = ${tint};
         const COLOR_MAP = ${toSafeJson(theme.colorMap || {})};
         function mapColor(c) { return (typeof c === 'string' && COLOR_MAP[c.toLowerCase()]) || c; }

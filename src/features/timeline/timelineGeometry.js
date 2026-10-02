@@ -124,7 +124,7 @@ export const taskItemEntries = (task, index) => {
 // 본다 — TimelineBar(그린다)와 TimelineView(첫 행 라벨이 요구하는 위쪽 여백을 잰다).
 // 따로 거르면 화면에 없는 라벨을 기준으로 여백이 잡히거나 그 반대가 된다.
 // 마일스톤 라벨에 실을 글자. '마일스톤 날짜 라벨' 표시 옵션이 켜지면 이름 대신 날짜(yy.mm.dd)다
-// — SOW Tracker 간트와 같은 표기. 이름은 그때 툴팁으로 간다. 배치(폭 추정)도 이 글자로 해야
+// — SOW Tracker 간트에서 가져온 표기. 이름은 그때 툴팁으로 간다. 배치(폭 추정)도 이 글자로 해야
 // 화면의 라벨과 자리 계산이 어긋나지 않는다.
 export const milestoneLabelText = (milestone, showDates) =>
     (showDates && typeof milestone.date === 'string') ? milestone.date.slice(2).replace(/-/g, '.') : milestone.label;

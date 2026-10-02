@@ -1,9 +1,9 @@
-// SOW Tracker 스타일 테마 + 표시 옵션 두 가지(의존성 화살표 · 마일스톤 날짜 라벨).
+// 미니멀 테마 + 표시 옵션 두 가지(의존성 화살표 · 마일스톤 날짜 라벨).
 //
 // 테마는 그리는 방법만 바꾼다 — 그래서 여기서 보는 것은 전부 **계산된 스타일**이다:
 // 옅은 막대(알파 < 1), 회색 그룹 띠, 흰 테두리 다이아몬드, 날짜 라벨, 점선 오늘 선.
 // 설정은 전역(서버 settings.json)이라 테스트가 끝나면 반드시 되돌린다 — 안 그러면
-// 뒤에 도는 스펙들이 SOW 테마로 그려진다.
+// 뒤에 도는 스펙들이 미니멀 테마로 그려진다.
 import { test, expect } from '@playwright/test';
 
 const TODAY = new Date();
@@ -16,7 +16,7 @@ const MS_DATE = iso(20);
 
 // 그룹 하나 아래 단계 둘. 색은 트래커(ph.py)가 저장하는 '예정' hex 그대로다.
 const TREE = [{
-    id: 'G', name: 'SOW 주요 마일스톤', color: '#A50034', expanded: true, milestones: [],
+    id: 'G', name: '주요 마일스톤', color: '#A50034', expanded: true, milestones: [],
     timeRanges: [{ id: 'rg', startDate: iso(-30), endDate: iso(60), dependencies: [] }],
     children: [
         { id: 'K3', name: 'K3 · Initial Design', color: '#4A90E2', expanded: true, children: [], progress: 50,
@@ -57,9 +57,9 @@ const alphaOf = (css) => {
     return rgba ? Number(rgba[1]) : 1;
 };
 
-test('SOW 테마: 옅은 막대 + 진행률, 회색 그룹 띠, 흰 테두리 다이아몬드와 날짜 라벨, 점선 오늘 선', async ({ page }) => {
-    await pickTheme(page, 'SOW Tracker 스타일');
-    const view = page.locator('.timeline-view[data-chart-theme="sow"]');
+test('미니멀 테마: 옅은 막대 + 진행률, 회색 그룹 띠, 흰 테두리 다이아몬드와 날짜 라벨, 점선 오늘 선', async ({ page }) => {
+    await pickTheme(page, '미니멀');
+    const view = page.locator('.timeline-view[data-chart-theme="minimal"]');
     await expect(view).toBeVisible();
 
     // 행 높이 28px, 머리글은 'YYYY.MM' 한 줄
@@ -90,8 +90,8 @@ test('SOW 테마: 옅은 막대 + 진행률, 회색 그룹 띠, 흰 테두리 �
     await expect(view.locator('.today-marker')).toHaveCSS('border-left-style', 'dashed');
 });
 
-test('SOW 테마는 다크 모드에서도 밝게 그린다', async ({ page }) => {
-    await pickTheme(page, 'SOW Tracker 스타일');
+test('미니멀 테마는 다크 모드에서도 밝게 그린다', async ({ page }) => {
+    await pickTheme(page, '미니멀');
     await page.getByTitle('테마 변경').click();
     await expect(page.locator('[data-theme="dark"]')).toHaveCount(1);
     await expect(page.locator('.timeline-view')).toHaveCSS('background-color', 'rgb(255, 255, 255)');
@@ -110,7 +110,7 @@ test('마일스톤 날짜 라벨은 테마와 별개로 켜고 끌 수 있고, �
 
     await pickTheme(page, '기본');
     await expect(label).toHaveText('K3');
-    await pickTheme(page, 'SOW Tracker 스타일');
+    await pickTheme(page, '미니멀');
     await expect(label).toHaveText(dateText);
 });
 

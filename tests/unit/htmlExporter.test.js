@@ -109,9 +109,9 @@ describe('exportToHtml — 기본 동작', () => {
     });
 });
 
-describe('exportToHtml — SOW 테마 · 표시 옵션', () => {
-    it('SOW 테마는 다크 모드여도 밝게, 옅은 막대 스코프와 색 매핑을 싣는다', () => {
-        const html = exportToHtml([task()], { chartTheme: 'sow', darkMode: true });
+describe('exportToHtml — 미니멀 테마 · 표시 옵션', () => {
+    it('미니멀 테마는 다크 모드여도 밝게, 옅은 막대 스코프와 색 매핑을 싣는다', () => {
+        const html = exportToHtml([task()], { chartTheme: 'minimal', darkMode: true });
         expect(html).not.toContain('#1e1e1e');
         expect(html).toContain('ph-tint');
         expect(html).toContain('const TINT = true;');

@@ -7,7 +7,7 @@
 // showDuration: boolean         — 바 위에 기간(Xd) 표시 여부
 // forceLight: boolean           — true = 다크모드 무관하게 항상 라이트 색상
 //
-// 아래는 SOW 테마가 처음 쓰는 필드다. 없으면 기존 동작 그대로다(default·lg 무변화).
+// 아래는 미니멀 테마가 처음 쓰는 필드다. 없으면 기존 동작 그대로다(default·lg 무변화).
 // barFill 'tint'   — 옅은 바탕(28%) + 진행률 구간만 진한 막대, 그룹(레벨 0)은 회색 띠
 // rowHeight        — 컴팩트가 아닐 때의 행 높이(px). 없으면 40
 // singleAxis       — 머리글을 'YYYY.MM' 한 줄로(연도 행 없음) + 본문에 월 격자
@@ -43,11 +43,11 @@ export const THEMES = [
     {
         // Fujin SOW Tracker(gantt.js)의 간트를 옮긴 것. 그 트래커가 이 앱의 프로젝트에
         // 마일스톤을 밀어 넣으므로, 두 화면이 같은 그림이어야 한다(THEME_SOW_TRACKER.md).
-        id: 'sow',
-        label: 'SOW Tracker 스타일',
-        shortLabel: 'SOW',
+        id: 'minimal',
+        label: '미니멀',
+        shortLabel: '미니멀',
         icon: '📋',
-        description: 'Fujin SOW Tracker와 같은 간트 (옅은 막대 + 진행률, 다이아몬드 + 날짜, 회색 그룹 띠)',
+        description: '옅은 막대 + 진행률 채움, 다이아몬드 + 날짜 라벨, 회색 그룹 띠',
         barShape: 'rect',
         barFill: 'tint',
         useTaskColor: true,

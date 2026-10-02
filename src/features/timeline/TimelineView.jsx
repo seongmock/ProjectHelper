@@ -60,7 +60,7 @@ function SortableTaskNameItem({ task, selectedTaskId, editingTaskId, editingName
         zIndex: isDragging ? 20 : 1,
         position: 'relative',
         opacity: isDragging ? 0.5 : 1,
-        // 들여쓰기 폭은 테마가 CSS 변수로 바꿀 수 있다(SOW 16px). 기본값은 예전과 같은 24px.
+        // 들여쓰기 폭은 테마가 CSS 변수로 바꿀 수 있다(미니멀 16px). 기본값은 예전과 같은 24px.
         paddingLeft: `calc(var(--name-indent, 24px) * ${task.level} + 12px)`,
         cursor: 'grab'
     };

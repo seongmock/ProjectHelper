@@ -219,7 +219,7 @@ test.describe('HTML 복사 버튼', () => {
     });
 });
 
-test('SOW 테마로 내보내면 같은 규칙으로 그린다 — 옅은 막대·회색 그룹 띠·날짜 라벨, 화살표 끄기도 따른다', async ({ page, context }) => {
+test('미니멀 테마로 내보내면 같은 규칙으로 그린다 — 옅은 막대·회색 그룹 띠·날짜 라벨, 화살표 끄기도 따른다', async ({ page, context }) => {
     const tree = [{
         id: 'G', name: '그룹', color: '#A50034', expanded: true, milestones: [],
         timeRanges: [{ id: 'rg', startDate: '2026-01-01', endDate: '2026-03-31', dependencies: [] }],
@@ -234,7 +234,7 @@ test('SOW 테마로 내보내면 같은 규칙으로 그린다 — 옅은 막대
     const html = await page.evaluate(async (data) => {
         const mod = await import('/src/features/io/htmlExporter.js');
         return mod.exportToHtml(data, {
-            zoomLevel: 1, timeScale: 'monthly', chartTheme: 'sow', darkMode: true,
+            zoomLevel: 1, timeScale: 'monthly', chartTheme: 'minimal', darkMode: true,
             showMilestoneDates: true, showDependencies: false,
         });
     }, tree);

@@ -72,7 +72,7 @@ function TimelineBar({
     const statusColor = colorMode === 'status'
         ? getStatusColor(getTaskStatus(task, today), chartTheme)
         : undefined;
-    // 옅은 막대 테마(SOW): 바탕은 색의 28%, 진행률 구간만 진한 색, 그룹(레벨 0)은 회색 띠.
+    // 옅은 막대 테마(미니멀): 바탕은 색의 28%, 진행률 구간만 진한 색, 그룹(레벨 0)은 회색 띠.
     // 테두리·그림자·지연 표시줄은 그리지 않는다 — 지연은 색(상태/색 매핑)이 말한다.
     const tint = getTheme(chartTheme).barFill === 'tint';
 
@@ -540,7 +540,7 @@ function TimelineBar({
 
                 const barColor = statusColor || themeColor(range.color || task.color, chartTheme);
                 const tintFill = level === 0
-                    ? 'color-mix(in srgb, var(--sow-n300) 55%, transparent)'
+                    ? 'color-mix(in srgb, var(--minimal-n300) 55%, transparent)'
                     : `color-mix(in srgb, ${barColor} 28%, transparent)`;
 
                 const barStyle = isLg

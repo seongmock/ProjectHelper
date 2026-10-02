@@ -297,6 +297,11 @@ Postgres+pgvector · 멀티테넌시 · RAG/Copilot · Workflow 엔진 · 실시
 
 ### 2026-10-02 — 차트 테마 "SOW Tracker 스타일" · 의존성 화살표 끄기 · 마일스톤 날짜 라벨
 
+> **같은 날 이름을 바꿨다**: 사용자 요청으로 테마 이름은 특정 서비스 이름이 아닌 일반 이름 **"미니멀"**
+> (id `minimal`, CSS 토큰 `--minimal-*`, 스펙 `tests/e2e/minimal-theme.spec.js`)이다. 아래 본문의
+> `sow` 는 그 시점 이름이다. 운영 설정은 `chartTheme: lg` 였고 `'sow'` 를 저장한 곳이 없어 옛 id 호환은
+> 두지 않았다(모르는 id 는 `getTheme` 이 기본 테마로 떨어뜨린다).
+
 작업 지시서 `THEME_SOW_TRACKER.md`(SOW Tracker 세션이 작성) 대로 세 번째 테마 `sow` 를 넣었다.
 사용자 결정 셋: ① 마일스톤 라벨을 날짜(yy.mm.dd)로 바꾸는 것은 **테마와 별개인 표시 옵션**
 (`showMilestoneDates`)이고, 테마를 고르면 그 테마의 기본값(`milestoneDateLabels`, SOW 만 켜짐)으로

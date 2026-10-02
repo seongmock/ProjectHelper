@@ -115,57 +115,57 @@
     filter: drop-shadow(0 1px 2px rgba(0,0,0,0.2));
 }
 
-/* ── SOW Tracker 스타일 ─────────────────────────────────────
+/* ── 미니멀 ──────────────────────────────────────────────────
    Fujin SOW Tracker(gantt.js / index.html)의 간트를 옮겼다(THEME_SOW_TRACKER.md §3).
    막대 채움·색 매핑·마일스톤 크기는 JS(TimelineBar, themes/index.js)가, 나머지는 여기서.
    data-chart-theme 는 .timeline-view **자신**에 붙으므로 셀렉터는 그 요소에서 시작한다.
    다크 모드가 바꾸는 토큰을 이 스코프에서 전부 다시 정의한다 — 트래커에는 다크 모드가 없다. */
-.timeline-view[data-chart-theme="sow"] {
-    --sow-font: "Pretendard", "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", system-ui, sans-serif;
-    --sow-n25: #fafafa; --sow-n50: #f5f5f4; --sow-n100: #ebebea; --sow-n200: #dededc; --sow-n300: #c4c4c1;
-    --sow-n500: #80807c; --sow-n600: #5b5b58; --sow-n900: #1a1a19;
-    --sow-brand: #A50034; --sow-brand-50: #fbeef2;
-    --sow-info: #6b8fd6;  /* 예정 */
-    --sow-warn: #f0b429;  /* 진행 */
-    --sow-good: #3a9a5b;  /* 완료 */
-    --sow-crit: #d64545;  /* 지연 */
-    --sow-none: #9a988f;  /* 취소/없음 */
-    --sow-row-alt: #fbfaf8; --sow-grid: #efeee9; --sow-grid-year: #d6d4cf; --sow-divider: #e3e2de;
+.timeline-view[data-chart-theme="minimal"] {
+    --minimal-font: "Pretendard", "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", system-ui, sans-serif;
+    --minimal-n25: #fafafa; --minimal-n50: #f5f5f4; --minimal-n100: #ebebea; --minimal-n200: #dededc; --minimal-n300: #c4c4c1;
+    --minimal-n500: #80807c; --minimal-n600: #5b5b58; --minimal-n900: #1a1a19;
+    --minimal-brand: #A50034; --minimal-brand-50: #fbeef2;
+    --minimal-info: #6b8fd6;  /* 예정 */
+    --minimal-warn: #f0b429;  /* 진행 */
+    --minimal-good: #3a9a5b;  /* 완료 */
+    --minimal-crit: #d64545;  /* 지연 */
+    --minimal-none: #9a988f;  /* 취소/없음 */
+    --minimal-row-alt: #fbfaf8; --minimal-grid: #efeee9; --minimal-grid-year: #d6d4cf; --minimal-divider: #e3e2de;
 
     --color-bg-primary: #ffffff;
-    --color-bg-secondary: var(--sow-n25);
-    --color-bg-tertiary: var(--sow-n50);
+    --color-bg-secondary: var(--minimal-n25);
+    --color-bg-tertiary: var(--minimal-n50);
     --color-bg: #ffffff;
-    --color-border: var(--sow-n100);
-    --color-grid: var(--sow-grid);
-    --color-text-primary: var(--sow-n900);
-    --color-text-secondary: var(--sow-n600);
-    --color-text-tertiary: var(--sow-n500);
-    --color-text-muted: var(--sow-n500);
-    --color-primary: var(--sow-brand);
-    --color-overdue: var(--sow-crit);
-    --color-link: var(--sow-brand);
+    --color-border: var(--minimal-n100);
+    --color-grid: var(--minimal-grid);
+    --color-text-primary: var(--minimal-n900);
+    --color-text-secondary: var(--minimal-n600);
+    --color-text-tertiary: var(--minimal-n500);
+    --color-text-muted: var(--minimal-n500);
+    --color-primary: var(--minimal-brand);
+    --color-overdue: var(--minimal-crit);
+    --color-link: var(--minimal-brand);
     --row-height: 28px;
     --name-indent: 16px;
     color-scheme: light;
     background-color: #ffffff;
-    color: var(--sow-n900);
-    font-family: var(--sow-font);
+    color: var(--minimal-n900);
+    font-family: var(--minimal-font);
     font-size: 12px;
 }
 
 /* 머리글: 34px 한 줄, 흰 바탕. 라벨은 'YYYY.MM' (TimelineHeader singleAxis) */
-.timeline-view[data-chart-theme="sow"] .task-names-header,
-.timeline-view[data-chart-theme="sow"] .timeline-header {
+.timeline-view[data-chart-theme="minimal"] .task-names-header,
+.timeline-view[data-chart-theme="minimal"] .timeline-header {
     height: 34px;
     background-color: #ffffff;
-    border-bottom: 1px solid var(--sow-n100);
+    border-bottom: 1px solid var(--minimal-n100);
 }
-.timeline-view[data-chart-theme="sow"] .single-axis .timeline-units {
+.timeline-view[data-chart-theme="minimal"] .single-axis .timeline-units {
     display: block;
     height: 100%;
 }
-.timeline-view[data-chart-theme="sow"] .single-axis .timeline-unit {
+.timeline-view[data-chart-theme="minimal"] .single-axis .timeline-unit {
     position: absolute;
     top: 0;
     height: 100%;
@@ -173,88 +173,88 @@
     justify-content: flex-start;
     padding-left: 4px;
     border-right: none;
-    border-left: 1px solid var(--sow-grid);
+    border-left: 1px solid var(--minimal-grid);
     background-color: transparent;
 }
-.timeline-view[data-chart-theme="sow"] .single-axis .unit-label {
+.timeline-view[data-chart-theme="minimal"] .single-axis .unit-label {
     font-size: 11px;
     font-weight: 400;
-    color: var(--sow-n600);
+    color: var(--minimal-n600);
 }
 
 /* 본문: 행 줄무늬(1,3,5… 번째)는 행이 아니라 배경에 깐다 — 행 앞에 가이드선·선택 영역 같은
    형제가 끼어들면 nth-child 가 한 칸씩 밀린다. 여백(headroom) 아래부터 시작한다. */
-.timeline-view[data-chart-theme="sow"] .timeline-content {
+.timeline-view[data-chart-theme="minimal"] .timeline-content {
     background-image: repeating-linear-gradient(to bottom,
         transparent 0 var(--row-height),
-        var(--sow-row-alt) var(--row-height) calc(var(--row-height) * 2));
+        var(--minimal-row-alt) var(--row-height) calc(var(--row-height) * 2));
     background-origin: content-box;
     background-clip: content-box;
 }
-.timeline-view[data-chart-theme="sow"] .timeline-row {
+.timeline-view[data-chart-theme="minimal"] .timeline-row {
     border-bottom-color: transparent;
 }
-.timeline-view[data-chart-theme="sow"] .timeline-row:hover {
-    background-color: var(--sow-brand-50);
+.timeline-view[data-chart-theme="minimal"] .timeline-row:hover {
+    background-color: var(--minimal-brand-50);
 }
 .timeline-month-grid {
     position: absolute;
     top: 0;
     bottom: 0;
     width: 0;
-    border-left: 1px solid var(--sow-grid);
+    border-left: 1px solid var(--minimal-grid);
     pointer-events: none;
 }
 .timeline-month-grid.year-start {
-    border-left-color: var(--sow-grid-year);
+    border-left-color: var(--minimal-grid-year);
 }
 
 /* 이름 열: 경계선, 그룹은 600·하위는 400, 같은 줄무늬 */
-.timeline-view[data-chart-theme="sow"] .task-names-column {
-    border-right-color: var(--sow-divider);
+.timeline-view[data-chart-theme="minimal"] .task-names-column {
+    border-right-color: var(--minimal-divider);
 }
-.timeline-view[data-chart-theme="sow"] .task-name-item {
+.timeline-view[data-chart-theme="minimal"] .task-name-item {
     font-size: 12px;
     font-weight: 400;
     background-color: transparent;
     border-bottom-color: transparent;
 }
-.timeline-view[data-chart-theme="sow"] .task-name-item:nth-child(even) {
-    background-color: var(--sow-row-alt);
+.timeline-view[data-chart-theme="minimal"] .task-name-item:nth-child(even) {
+    background-color: var(--minimal-row-alt);
 }
-.timeline-view[data-chart-theme="sow"] .task-name-item.level-0 {
+.timeline-view[data-chart-theme="minimal"] .task-name-item.level-0 {
     font-weight: 600;
-    color: var(--sow-n900);
+    color: var(--minimal-n900);
 }
-.timeline-view[data-chart-theme="sow"] .task-name-item:hover {
-    background-color: var(--sow-brand-50);
+.timeline-view[data-chart-theme="minimal"] .task-name-item:hover {
+    background-color: var(--minimal-brand-50);
 }
 
 /* 막대: 하위 12px·모서리 4, 그룹 6px·모서리 2. 채움 색은 인라인(TimelineBar) */
-.timeline-view[data-chart-theme="sow"] .timeline-row .timeline-bar,
-.timeline-view[data-chart-theme="sow"].compact-mode .timeline-row:not(.level-0) .timeline-bar {
+.timeline-view[data-chart-theme="minimal"] .timeline-row .timeline-bar,
+.timeline-view[data-chart-theme="minimal"].compact-mode .timeline-row:not(.level-0) .timeline-bar {
     height: 12px;
     border-radius: 4px;
 }
-.timeline-view[data-chart-theme="sow"] .timeline-row.level-0 .timeline-bar {
+.timeline-view[data-chart-theme="minimal"] .timeline-row.level-0 .timeline-bar {
     height: 6px;
     border-radius: 2px;
 }
-.timeline-view[data-chart-theme="sow"] .bar-progress-fill {
+.timeline-view[data-chart-theme="minimal"] .bar-progress-fill {
     border-radius: 4px 0 0 4px;
 }
-.timeline-view[data-chart-theme="sow"] .bar-label {
-    color: var(--sow-n900);
+.timeline-view[data-chart-theme="minimal"] .bar-label {
+    color: var(--minimal-n900);
     text-shadow: none;
     font-size: 11px;
     font-weight: 400;
 }
 
 /* 마일스톤 라벨: 말풍선이 아니라 11px 회색 글자 */
-.timeline-view[data-chart-theme="sow"] .milestone-label,
-.timeline-view[data-chart-theme="sow"] .milestone-marker:hover .milestone-label {
+.timeline-view[data-chart-theme="minimal"] .milestone-label,
+.timeline-view[data-chart-theme="minimal"] .milestone-marker:hover .milestone-label {
     background-color: transparent;
-    color: var(--sow-n600);
+    color: var(--minimal-n600);
     box-shadow: none;
     padding: 0 2px;
     font-size: 11px;
@@ -262,25 +262,25 @@
 }
 
 /* 오늘: 1px 점선 + 10px '오늘' 글자(붉은 알약 대신) */
-.timeline-view[data-chart-theme="sow"] .today-marker {
+.timeline-view[data-chart-theme="minimal"] .today-marker {
     width: 0;
     background-color: transparent;
-    border-left: 1px dashed var(--sow-brand);
+    border-left: 1px dashed var(--minimal-brand);
 }
-.timeline-view[data-chart-theme="sow"] .today-marker::before {
+.timeline-view[data-chart-theme="minimal"] .today-marker::before {
     background-color: transparent;
-    color: var(--sow-brand);
+    color: var(--minimal-brand);
     box-shadow: none;
     padding: 0 2px;
     font-weight: 400;
 }
 
 /* 범례: 10px 정사각 점 */
-.timeline-view[data-chart-theme="sow"] .timeline-legend {
+.timeline-view[data-chart-theme="minimal"] .timeline-legend {
     background-color: #ffffff;
-    color: var(--sow-n600);
+    color: var(--minimal-n600);
 }
-.timeline-view[data-chart-theme="sow"] .timeline-legend-swatch {
+.timeline-view[data-chart-theme="minimal"] .timeline-legend-swatch {
     width: 10px;
     height: 10px;
 }
