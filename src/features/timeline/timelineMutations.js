@@ -26,13 +26,22 @@ const withRanges = (task, ranges) => ({
 // 기간(바) 드래그 결과.
 //   targetTask: 다른 작업 행에 떨어뜨렸으면 그 작업, 아니면 null
 //   isCopyMode: Ctrl 을 누른 채 드래그 → 원본을 남긴다
+//
+// 아무것도 바뀌지 않았으면 빈 목록이다. 바를 **클릭만** 해도, ESC 로 드래그를 취소해도 이
+// 함수가 불린다 — 예전에는 그때도 같은 날짜로 쓰기를 만들어 리비전이 오르고 undo 칸(20개)을
+// 하나씩 먹었다: 바를 세 번 클릭하면 직전의 진짜 이동을 되돌리는 데 Ctrl+Z 가 네 번 필요했다.
 export const planRangeDrop = ({ sourceTask, targetTask, rangeId, startDate, endDate, isCopyMode }) => {
-    if (!sourceTask) return [];
+    if (!sourceTask || !startDate || !endDate) return [];
 
     const start = dateUtils.formatDate(startDate);
     const end = dateUtils.formatDate(endDate);
     const sourceRanges = sourceTask.timeRanges || [];
     const crossTask = !!targetTask && targetTask.id !== sourceTask.id;
+
+    // 같은 행에서 날짜도 그대로면 이동이 아니다 — 복사도 제자리에 겹친 사본만 만들 뿐이다
+    const current = sourceRanges.find(r => r.id === rangeId)
+        ?? (rangeId === 'legacy' ? { startDate: sourceTask.startDate, endDate: sourceTask.endDate } : null);
+    if (!crossTask && current && current.startDate === start && current.endDate === end) return [];
 
     // 같은 작업 안에서의 단순 이동 — 해당 기간의 날짜만 바꾼다
     if (!crossTask && !isCopyMode) {
@@ -73,11 +82,12 @@ export const planRangeDrop = ({ sourceTask, targetTask, rangeId, startDate, endD
 
 // 마일스톤 드래그 결과. 규칙은 기간과 같다.
 export const planMilestoneDrop = ({ sourceTask, targetTask, milestoneId, date, isCopyMode }) => {
-    if (!sourceTask || !sourceTask.milestones) return [];
+    if (!sourceTask || !sourceTask.milestones || !date) return [];
     const milestone = sourceTask.milestones.find(m => m.id === milestoneId);
     if (!milestone) return [];
 
     const crossTask = !!targetTask && targetTask.id !== sourceTask.id;
+    if (!crossTask && milestone.date === date) return []; // 클릭만 했다 (planRangeDrop 주석)
 
     if (!crossTask && !isCopyMode) {
         return [{

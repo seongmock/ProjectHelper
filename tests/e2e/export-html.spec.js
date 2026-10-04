@@ -270,4 +270,10 @@ test('미니멀 테마로 내보내면 같은 규칙으로 그린다 — 옅은 
         return l.top >= b.top && l.bottom <= b.bottom;
     }));
     expect(fits).toEqual([true, true, true]);
+    // 글자가 진행률 채움 **위**에 있다 — 채움(절대배치)이 라벨을 덮어 글자가 사라졌었다
+    const onTop = await doc.locator('.timeline-bar .bar-label').evaluateAll(els => els.map(l => {
+        const r = l.getBoundingClientRect();
+        return document.elementFromPoint(r.left + 3, r.top + r.height / 2) === l;
+    }));
+    expect(onTop).toEqual([true, true, true]);
 });

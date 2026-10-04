@@ -171,7 +171,7 @@
 }
 
 .zoom-level-input {
-    width: 42px;
+    width: 48px; /* 세 자리(100·250)가 다 보이는 폭 — 42px 에서는 '10' 으로 잘렸다 */
     height: 24px;
     padding: 0 2px;
     border: 1px solid transparent;

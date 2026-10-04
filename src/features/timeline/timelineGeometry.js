@@ -75,14 +75,20 @@ export const computeTodayPosition = (dateRange, contentWidth, showToday, today =
 // `index` 는 **그 항목이 앉는 화면 행**이고 항목 자신의 위치가 아니다: 접힌 가지 안의
 // 항목을 조상 행으로 끌어올릴 때 같은 계산을 그대로 다시 쓴다(dependencyLinks.js).
 // 반환은 Map 에 그대로 넣을 수 있는 [id, item] 쌍이다.
+//
+// 날짜는 **로컬 자정**으로 읽는다(dateUtils.addDays(x, 0)). new Date('YYYY-MM-DD') 는 UTC 자정이라
+// KST 에서는 9시간 늦은 시각이 되고, itemAnchor 의 올림(ceil)이 그것을 하루로 키워 화살표 끝이
+// 막대보다 하루 오른쪽에 붙었다. 막대는 dateUtils 로 그리므로 둘이 같은 규칙이어야 한다.
+const localTime = (date) => dateUtils.addDays(date, 0).getTime();
+
 export const taskItemEntries = (task, index) => {
     const entries = [];
 
     let minStart = task.startDate;
     let maxEnd = task.endDate;
     if (task.timeRanges && task.timeRanges.length > 0) {
-        minStart = new Date(Math.min(...task.timeRanges.map(r => new Date(r.startDate).getTime())));
-        maxEnd = new Date(Math.max(...task.timeRanges.map(r => new Date(r.endDate).getTime())));
+        minStart = new Date(Math.min(...task.timeRanges.map(r => localTime(r.startDate))));
+        maxEnd = new Date(Math.max(...task.timeRanges.map(r => localTime(r.endDate))));
     }
 
     // 작업 자체 (레거시 의존성 · 그룹핑용) — 전체 범위
@@ -96,8 +102,8 @@ export const taskItemEntries = (task, index) => {
             data: range,
             parentId: task.id,
             index,
-            startDate: new Date(range.startDate).getTime(),
-            endDate: new Date(range.endDate).getTime(),
+            startDate: localTime(range.startDate),
+            endDate: localTime(range.endDate),
             name: task.name,
             color: range.color || task.color,
         }]);
@@ -173,9 +179,10 @@ export const buildItemMap = (flatTasks) => {
 export const itemAnchor = (item, edge, dateRange, totalDays, contentWidth, rowHeight) => {
     const isMilestone = item.type === 'milestone';
     const date = isMilestone ? item.date : (edge === 'end' ? item.endDate : item.startDate);
+    // 값은 로컬 자정의 시각(taskItemEntries) 또는 마일스톤의 날짜 문자열 — dateUtils 가 둘 다 읽는다
     const days = edge === 'end'
-        ? dateUtils.getDuration(dateRange.start, isMilestone ? date : new Date(date))
-        : dateUtils.getDaysBetween(dateRange.start, isMilestone ? date : new Date(date));
+        ? dateUtils.getDuration(dateRange.start, date)
+        : dateUtils.getDaysBetween(dateRange.start, date);
     const row = isMilestone ? item.parentIndex : item.index;
     return {
         x: (days / totalDays) * contentWidth,

@@ -86,6 +86,10 @@ test.describe(`지원 폭 ${MIN_SUPPORTED_WIDTH}px — 컨트롤이 눌린다`, 
 // 검정 위의 검정 글자가 되어 1.36:1 같은 거짓 결함이 나온다(실제로 나왔다).
 const contrastAudit = () => {
     const parse = (s) => {
+        // color-mix() 의 계산값은 'color(srgb r g b / a)'(0~1) 다 — rgba 만 읽던 동안 그런 배경은
+        // '없음'으로 건너뛰어 그 위의 글자를 재지 못했다
+        const c = (s || '').match(/color\(srgb\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)(?:\s*\/\s*([\d.]+))?\)/);
+        if (c) return { r: c[1] * 255, g: c[2] * 255, b: c[3] * 255, a: c[4] === undefined ? 1 : parseFloat(c[4]) };
         const m = (s || '').match(/rgba?\(([^)]+)\)/);
         if (!m) return null;
         const p = m[1].split(',').map(v => parseFloat(v));
@@ -177,6 +181,24 @@ test.describe('텍스트 대비 (WCAG AA)', () => {
             expect(bad2, `${theme} 타임라인:\n${bad2.join('\n')}`).toEqual([]);
         });
     }
+
+    // 차트 테마는 자기 색을 쓰므로 따로 잰다. 미니멀은 라벨이 막대 위에 얹히는 테마라(바 이름·
+    // 첫 행 마일스톤 라벨) 그 상태를 켜 두고 잰다 — 다크 모드여도 밝게 그리는지까지 함께 본다.
+    test('미니멀 차트 테마의 타임라인 텍스트가 4.5:1 이상이다', async ({ page, request }) => {
+        await request.post('/api/settings', { data: { chartTheme: 'minimal', showBarLabels: true, showMilestoneDates: true, colorMode: 'status' } });
+        try {
+            await page.reload();
+            await page.locator('button[title="타임라인 뷰"]').click();
+            for (const theme of ['light', 'dark']) {
+                await page.evaluate((t) => document.documentElement.setAttribute('data-theme', t), theme);
+                await settle(page);
+                const bad = await page.evaluate(contrastAudit);
+                expect(bad, `minimal/${theme}:\n${bad.join('\n')}`).toEqual([]);
+            }
+        } finally {
+            await request.post('/api/settings', { data: { chartTheme: 'default', showBarLabels: false, showMilestoneDates: false, colorMode: 'task' } });
+        }
+    });
 });
 
 // ── 포인터 타깃 크기 (WCAG 2.5.8, 24×24) ──────────────────────────────────

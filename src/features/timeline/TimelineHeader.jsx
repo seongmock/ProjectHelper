@@ -80,7 +80,10 @@ function TimelineHeader({ startDate, endDate, timeScale, containerWidth, showTod
     // 판정은 축 전체에 한 번 — 달마다 재면 31일 달만 라벨이 붙어 들쭉날쭉해진다.
     if (singleAxis) {
         const lines = monthGridLines({ start: startDate, end: endDate }, containerWidth);
-        const sparse = lines.length > 0 && containerWidth / lines.length < 46;
+        // 라벨을 몇 달에 하나 달지: 한 칸이 46px 이상이 되는 가장 작은 간격. 단계가 '분기' 하나뿐이던
+        // 동안은 축을 크게 줄이면(5년 × 배율 0.5) 분기 라벨끼리도 겹쳤다. 분기 보기는 3달부터.
+        const monthPx = lines.length > 0 ? containerWidth / lines.length : Infinity;
+        const step = [1, 3, 6, 12, 24, 60].find(s => s >= (timeScale === 'monthly' ? 1 : 3) && monthPx * s >= 46) ?? 60;
         return (
             <div className="timeline-header single-axis" onClick={onClick}>
                 <div className="timeline-units" style={{ width: containerWidth }}>
@@ -90,7 +93,7 @@ function TimelineHeader({ startDate, endDate, timeScale, containerWidth, showTod
                             className="timeline-unit"
                             style={{ left: `${line.x}px`, width: `${line.width}px` }}
                         >
-                            {(!sparse || line.month % 3 === 1) && (
+                            {(line.year * 12 + line.month - 1) % step === 0 && (
                                 <span className="unit-label">{`${line.year}.${String(line.month).padStart(2, '0')}`}</span>
                             )}
                         </div>

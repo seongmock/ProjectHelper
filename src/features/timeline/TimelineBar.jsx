@@ -80,6 +80,11 @@ function TimelineBar({
     const handleMouseDown = (e, type, range) => {
         if (e.button !== 0) return;
         e.stopPropagation();
+        // 기본 동작(텍스트 선택)을 막는다. 남은 선택은 다음 드래그를 브라우저의 네이티브
+        // drag 로 바꿔 막대가 커서를 따라오지 않았다. 대가로 포커스 이동도 막히므로 blur 를
+        // 직접 일으킨다 — blur 에 커밋하는 입력칸이 값을 놓치지 않게(구간 드래그 줌과 같은 처리).
+        e.preventDefault();
+        document.activeElement?.blur?.();
         setActiveRangeId(range.id);
         setDragType(type);
         setDragStart({
@@ -387,6 +392,8 @@ function TimelineBar({
                         onMouseDown={(e) => {
                             if (e.button !== 0) return;
                             e.stopPropagation();
+                            e.preventDefault(); // 막대와 같은 이유 — handleMouseDown 주석
+                            document.activeElement?.blur?.();
                             setDraggingMilestone(milestone.id);
                             setMilestoneDragStart({ x: e.clientX, y: e.clientY, originalDate: new Date(milestone.date) });
                             setDraggedMilestoneDate(milestone.date);
@@ -539,9 +546,12 @@ function TimelineBar({
                     : (statusColor || (overdue ? 'var(--color-overdue, #d9534f)' : '#9e9e9e'));
 
                 const barColor = statusColor || themeColor(range.color || task.color, chartTheme);
-                const tintFill = level === 0
-                    ? 'color-mix(in srgb, var(--minimal-n300) 55%, transparent)'
-                    : `color-mix(in srgb, ${barColor} 28%, transparent)`;
+                // 옅은 바탕은 color-mix 가 아니라 **불투명도를 준 자식 층**으로 칠한다. color-mix 의
+                // 계산값 `color(srgb …)` 를 html2canvas 가 읽지 못해 '이미지로 복사'가 통째로 실패했다.
+                // 막대 자체는 투명한 잡기 영역(20px)이고 보이는 띠는 그 안의 층이다(themes.css).
+                const tintLayer = level === 0
+                    ? { background: 'var(--minimal-n300)', opacity: 0.55 }
+                    : { background: barColor, opacity: 0.28 };
 
                 const barStyle = isLg
                     ? {
@@ -561,10 +571,12 @@ function TimelineBar({
                     : {
                         left: `${offset}px`,
                         width: `${width}px`,
-                        backgroundColor: tint ? tintFill : barColor,
+                        backgroundColor: tint ? 'transparent' : barColor,
                         transform: isActive ? `translateY(calc(-50% + ${draggedRangeY}px))` : undefined,
                         zIndex: isActive ? 100 : 1,
-                        boxShadow: isActive ? '0 4px 8px rgba(0,0,0,0.3)' : 'none',
+                        // 선택·지연 표시는 CSS 그림자다(.selected / .overdue) — 인라인 'none' 이 늘
+                        // 이겨서 선택한 막대가 화면 어디에도 표시되지 않았다
+                        boxShadow: isActive ? '0 4px 8px rgba(0,0,0,0.3)' : (isSelected || overdue ? undefined : 'none'),
                         cursor: isActive ? (isCopyMode ? 'copy' : 'grabbing') : 'grab',
                         ...(range.barHeight != null ? { height: `${range.barHeight}px` } : {}),
                     };
@@ -668,6 +680,7 @@ function TimelineBar({
                             </>
                         )}
                         {/* 진행률 채움 오버레이 (기본 테마 전용 — LG 화살표 바와는 충돌) */}
+                        {tint && <div className="bar-tint" style={tintLayer} />}
                         {!isLg && progress > 0 && !(tint && level === 0) && (
                             <div
                                 className="bar-progress-fill"

@@ -93,6 +93,12 @@
     background-color: rgba(0, 0, 0, 0.03);
 }
 
+/* 선택은 레벨 배경보다 뒤에 와야 한다 — 같은 명시도라 앞에 두면 하위 행의 선택 배경이 사라졌다 */
+.task-name-item.selected.level-1,
+.task-name-item.selected.level-2 {
+    background-color: rgba(74, 144, 226, 0.1);
+}
+
 /* 접기 토글과 이름. 토글이 생기면서 이 행은 flex 아이템이 둘이 됐다 —
    줄임표는 이제 이름 쪽에서 처리해야 한다(행에 걸면 토글까지 잘린다). */
 /* WCAG 2.5.8 — 포인터 타깃 24×24. 표 쪽 토글은 `button.icon`(36×36)이 이기고 있어서

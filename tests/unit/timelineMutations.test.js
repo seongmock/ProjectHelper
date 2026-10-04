@@ -203,3 +203,26 @@ describe('planMilestoneDrop', () => {
         expect(s).toEqual(msSource());
     });
 });
+
+describe('변화 없는 드롭은 쓰기를 만들지 않는다 — 클릭·ESC 가 undo 칸을 먹던 결함', () => {
+    it('같은 행·같은 날짜면 빈 목록 (복사여도)', () => {
+        const same = { rangeId: 'r1', startDate: new Date(2026, 2, 1), endDate: new Date(2026, 2, 5) };
+        expect(drop(same)).toEqual([]);
+        expect(drop({ ...same, isCopyMode: true })).toEqual([]);
+    });
+
+    it('ESC 취소(날짜 null)는 빈 목록', () => {
+        expect(drop({ rangeId: null, startDate: null, endDate: null })).toEqual([]);
+    });
+
+    it('같은 날짜라도 다른 행으로 옮기면 이동이다', () => {
+        expect(drop({ targetTask: target(), startDate: new Date(2026, 2, 1), endDate: new Date(2026, 2, 5) })).toHaveLength(2);
+    });
+
+    it('마일스톤: 클릭만(같은 날짜) · 날짜 없음은 빈 목록', () => {
+        const task = { id: 't', milestones: [{ id: 'm', date: '2026-03-01' }] };
+        expect(planMilestoneDrop({ sourceTask: task, targetTask: task, milestoneId: 'm', date: '2026-03-01' })).toEqual([]);
+        expect(planMilestoneDrop({ sourceTask: task, targetTask: task, milestoneId: 'm', date: null })).toEqual([]);
+        expect(planMilestoneDrop({ sourceTask: task, targetTask: task, milestoneId: 'm', date: '2026-03-02' })).toHaveLength(1);
+    });
+});

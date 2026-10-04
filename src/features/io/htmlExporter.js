@@ -123,12 +123,15 @@ const tintCss = (listId) => `
         #ph-gantt-${listId}.ph-tint .task-list-column { border-right-color: #e3e2de; }
         #ph-gantt-${listId}.ph-tint .timeline-bar { box-shadow: none; padding: 0; font-family: inherit; color: #1a1a19; font-weight: 400; }
         #ph-gantt-${listId}.ph-tint .timeline-bar:hover { opacity: 1; box-shadow: none; }
-        #ph-gantt-${listId}.ph-tint .bar-label { line-height: 14px; padding: 0 4px; }
+        #ph-gantt-${listId}.ph-tint .bar-label {
+            position: relative; z-index: 1; /* 진행률 채움(절대배치)보다 위 — 없으면 채움이 글자를 덮었다 */
+            line-height: 14px; padding: 0 3px; border-radius: 2px; background-color: rgba(255, 255, 255, 0.82);
+        }
         #ph-gantt-${listId}.ph-tint .milestone-shape .shape-div { width: 12px; height: 12px; box-shadow: none; }
         #ph-gantt-${listId}.ph-tint .milestone-shape svg.shape-icon { width: 16px; height: 16px; filter: none !important; }
         #ph-gantt-${listId}.ph-tint .milestone-label,
         #ph-gantt-${listId}.ph-tint .milestone-marker:hover .milestone-label {
-            background-color: transparent; color: #5b5b58; box-shadow: none; padding: 0 2px; font-weight: 400;
+            background-color: rgba(255, 255, 255, 0.85); color: #5b5b58; box-shadow: none; padding: 0 2px; border-radius: 2px; font-weight: 400;
         }
         #ph-gantt-${listId}.ph-tint .today-marker {
             width: 0; background-color: transparent; opacity: 1; border-left: 1px dashed #A50034;

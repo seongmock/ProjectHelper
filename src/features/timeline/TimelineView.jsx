@@ -292,6 +292,8 @@ const TimelineView = forwardRef(({
             dependencySuccessors: dependencyIssues?.successors,
         });
 
+    const showArrows = showDependencies || isLinkingMode;
+
     const { sidebarWidth, isResizing, startResize } = useSidebarResize(containerRef);
 
     const copyToClipboard = useTimelineCapture({
@@ -533,18 +535,18 @@ const TimelineView = forwardRef(({
                             />
                         ))}
 
-                        {/* 끄면 화살표만 사라진다 — 연결 자체와 표의 배지·인스펙터는 그대로다 */}
-                        {showDependencies && (
-                            <DependencyLayer
-                                links={links}
-                                hiddenEdges={hiddenEdges}
-                                rowCount={flatTasks.length}
-                                dateRange={dateRange}
-                                contentWidth={contentWidth}
-                                rowHeight={rowHeight}
-                                edgeIssues={dependencyIssues?.edgeIssues}
-                            />
-                        )}
+                        {/* 끄면 화살표만 사라진다 — 연결 자체와 표의 배지·인스펙터는 그대로다. 레이어는
+                            빈 채로 남긴다: 빼면 행들의 형제 순서가 바뀌어 LG 줄무늬(nth-child)가 뒤집혔다.
+                            연결 모드 중에는 켠다 — 방금 만든 연결을 볼 곳이 화살표뿐이다. */}
+                        <DependencyLayer
+                            links={showArrows ? links : []}
+                            hiddenEdges={showArrows ? hiddenEdges : []}
+                            rowCount={flatTasks.length}
+                            dateRange={dateRange}
+                            contentWidth={contentWidth}
+                            rowHeight={rowHeight}
+                            edgeIssues={dependencyIssues?.edgeIssues}
+                        />
 
                         {tasks.length === 0 ? (
                             <div className="empty-timeline">

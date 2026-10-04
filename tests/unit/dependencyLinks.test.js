@@ -66,8 +66,9 @@ describe('resolveDependencyLinks — 접힌 가지 (보이는 조상이 있다)'
 
     it('끌어올린 끝의 날짜는 **숨은 항목 자신의 것**이다 — x 는 정확하고 y 만 대표 행이다', () => {
         const { links } = resolveFor(collapsed());
-        expect(links[0].source.startDate).toBe(new Date('2026-01-01').getTime());
-        expect(links[0].source.endDate).toBe(new Date('2026-01-10').getTime());
+        // 날짜는 로컬 자정의 시각이다 — 막대(dateUtils)와 같은 규칙(timelineGeometry.taskItemEntries)
+        expect(links[0].source.startDate).toBe(new Date(2026, 0, 1).getTime());
+        expect(links[0].source.endDate).toBe(new Date(2026, 0, 10).getTime());
     });
 
     it('끌어올린 끝의 이름을 함께 돌려준다 — 어느 자손의 선인지는 이것으로만 읽는다', () => {

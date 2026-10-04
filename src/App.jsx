@@ -430,9 +430,10 @@ function App() {
                     showMilestoneDates={showMilestoneDates}
                     onToggleMilestoneDates={() => toggleSetting('showMilestoneDates')}
                     chartTheme={chartTheme}
-                    // 테마를 고르면 날짜 라벨은 그 테마의 기본값으로 돌아간다(미니멀은 켜짐).
-                    // 그 뒤에 표시 옵션에서 따로 바꿀 수 있다.
-                    onThemeChange={(v) => setSetting({ chartTheme: v, showMilestoneDates: !!getTheme(v).milestoneDateLabels })}
+                    // 테마를 **바꾸면** 날짜 라벨은 그 테마의 기본값으로 돌아간다(미니멀은 켜짐).
+                    // 그 뒤에 표시 옵션에서 따로 바꿀 수 있다. 이미 고른 테마를 다시 누르는 것은
+                    // 아무 일도 아니어야 한다 — 예전에는 그것만으로 사용자의 선택이 초기화됐다.
+                    onThemeChange={(v) => v !== chartTheme && setSetting({ chartTheme: v, showMilestoneDates: !!getTheme(v).milestoneDateLabels })}
                     colorMode={colorMode}
                     onColorModeChange={(v) => setSetting({ colorMode: v })}
                     showInspector={showInspector}
