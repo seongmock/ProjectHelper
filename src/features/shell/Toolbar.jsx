@@ -199,14 +199,17 @@ function Toolbar({
                         <PanelRight size={15} aria-hidden="true" />
                     </button>
 
+                    {/* 아이콘이 입력칸 **뒤**에 있어야 좁은 폭에서 펼쳐진 입력칸 위에 그려진다(Toolbar.css) */}
                     <div className="search-box">
-                        <Search className="search-box-icon" size={15} aria-hidden="true" />
                         <input
                             type="text"
                             placeholder="작업 검색..."
                             value={searchQuery}
                             onChange={(e) => onSearchChange(e.target.value)}
+                            // 좁은 폭에서는 펼쳐진 칸이 왼쪽 버튼들을 덮는다 — Esc 로 바로 접는다
+                            onKeyDown={(e) => { if (e.key === 'Escape') e.currentTarget.blur(); }}
                         />
+                        <Search className="search-box-icon" size={15} aria-hidden="true" />
                     </div>
 
                     <button className="primary" onClick={onAddTask} title="새 작업 추가 (Ctrl+N)">

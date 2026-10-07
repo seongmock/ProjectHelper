@@ -79,6 +79,18 @@ test.describe(`지원 폭 ${MIN_SUPPORTED_WIDTH}px — 컨트롤이 눌린다`, 
             expect(bad, `${view}: ${bad.join(' / ')}`).toEqual([]);
         }
     });
+
+    // 스크롤로 닿는 것과 보이는 것은 다르다 — 1024 에서 '새 작업' 은 툴바 오른쪽 294px 밖에 있었다.
+    // 좁은 폭에서는 검색창이 아이콘으로 접히고, 누르면 펼쳐진다.
+    test('툴바가 넘치지 않고, 접힌 검색창은 누르면 펼쳐져 검색된다', async ({ page }) => {
+        const overflow = await page.locator('.toolbar-content').evaluate(el => el.scrollWidth - el.clientWidth);
+        expect(overflow).toBeLessThanOrEqual(0);
+        const search = page.locator('.search-box input');
+        expect(await search.evaluate(el => el.getBoundingClientRect().width)).toBeLessThan(40);
+        await search.click();
+        await expect.poll(() => search.evaluate(el => el.getBoundingClientRect().width)).toBeGreaterThan(150);
+        await expect(page.getByRole('button', { name: /새 작업/ })).toBeInViewport();
+    });
 });
 
 // ── 텍스트 대비 (WCAG 2.1 AA) ──────────────────────────────────────────────

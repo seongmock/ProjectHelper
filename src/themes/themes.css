@@ -311,7 +311,7 @@
     background-color: rgba(255, 255, 255, 0.82);
 }
 
-/* 마일스톤: 마커는 12px 로 작게 그리되 잡는 자리는 24px — 패딩을 음수 여백으로 상쇄해 배치는 그대로다 */
+/* 마일스톤: 마커는 12px 로 작게 그리되 잡는 자리는 24px — 기본 규칙(TimelineBar.css)의 4px 로는 모자라다 */
 .timeline-view[data-chart-theme="minimal"] .milestone-shape {
     padding: 6px;
     margin: -6px;

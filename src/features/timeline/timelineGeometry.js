@@ -135,15 +135,18 @@ export const taskItemEntries = (task, index) => {
 export const milestoneLabelText = (milestone, showDates) =>
     (showDates && typeof milestone.date === 'string') ? milestone.date.slice(2).replace(/-/g, '.') : milestone.label;
 
+// 날짜(문자열 또는 Date)가 축 범위 안인가 — **날짜 단위**로 비교한다. new Date('YYYY-MM-DD') 는
+// UTC 자정이라 KST 에서는 그날 09:00 이 되고, 축의 끝(말일 00:00)보다 늦어서 말일의 마일스톤이
+// **아예 그려지지 않았다**. 그리는 곳(TimelineBar)과 여백 계산(아래)이 이것 하나를 쓴다.
+export const isDateInRange = (date, dateRange) => {
+    const d = dateUtils.formatDate(date);
+    return d >= dateUtils.formatDate(dateRange.start) && d <= dateUtils.formatDate(dateRange.end);
+};
+
 export const visibleMilestoneItems = (task, dateRange, contentWidth, showDates = false) => {
     const totalDays = dateUtils.getDaysBetween(dateRange.start, dateRange.end);
-    const from = new Date(dateRange.start);
-    const to = new Date(dateRange.end);
     return (task?.milestones || [])
-        .filter(m => {
-            const d = new Date(m.date);
-            return d >= from && d <= to;
-        })
+        .filter(m => isDateInRange(m.date, dateRange))
         .map(m => ({
             id: m.id,
             label: milestoneLabelText(m, showDates),

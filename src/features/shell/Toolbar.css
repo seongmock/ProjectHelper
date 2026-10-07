@@ -193,6 +193,57 @@
     outline: none;
 }
 
+/* 지원 폭(1024px~)에서 툴바가 넘쳐 '새 작업' 이 화면 밖으로 밀렸다(1024 에서 294px).
+   좁아지면 검색창부터 아이콘으로 접고 — 누르면(포커스) 왼쪽 버튼들 위로 펼쳐진다 —
+   더 좁으면 버튼 글자를 숨긴다. 이름은 title 에 그대로 있다. 검색어가 남아 있으면 접힌
+   칸의 테두리가 강조색이라 필터가 걸려 있다는 것이 보인다. */
+@media (max-width: 1320px) {
+    .search-box {
+        width: 34px;
+        height: 34px;
+    }
+    .search-box input {
+        position: absolute;
+        right: 0;
+        top: 0;
+        width: 34px;
+        height: 34px;
+        padding: 0;
+        cursor: pointer;
+        color: transparent; /* 접힌 동안 검색어가 칸 밖으로 삐져나오지 않게 */
+        transition: width var(--transition-fast);
+    }
+    .search-box input::placeholder {
+        color: transparent;
+    }
+    .search-box input:focus {
+        width: 220px;
+        padding: 0 32px 0 var(--spacing-md);
+        cursor: text;
+        color: inherit;
+        background-color: var(--color-bg-primary);
+    }
+    .search-box input:focus::placeholder {
+        color: var(--color-text-muted);
+    }
+    .search-box input:not(:placeholder-shown) {
+        border-color: var(--color-primary);
+    }
+    /* 아이콘은 오른쪽에 고정 — 접힌 칸의 가운데이자 펼친 칸의 오른쪽 끝. 입력칸보다 위에 오는 것은
+       z-index 가 아니라 DOM 순서다(아이콘이 입력칸 뒤에 있다 — 이 파일은 z-index 숫자를 쓰지 않는다) */
+    .search-box-icon {
+        left: auto;
+        right: 9px;
+    }
+}
+
+@media (max-width: 1110px) {
+    .toolbar-right button.primary > span,
+    .display-options > .icon-btn > span {
+        display: none;
+    }
+}
+
 @media (max-width: 768px) {
     .toolbar-content {
         flex-direction: column;

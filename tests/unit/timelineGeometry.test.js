@@ -13,6 +13,7 @@ import {
     milestoneLabelText,
     visibleMilestoneItems,
     monthGridLines,
+    isDateInRange,
 } from '../../src/features/timeline/timelineGeometry';
 import { dateUtils } from '../../src/utils/dateUtils';
 
@@ -253,5 +254,18 @@ describe('monthGridLines — 한 줄 머리글과 본문 격자', () => {
 
     it('폭이 0 이면 빈 목록', () => {
         expect(monthGridLines({ start: new Date(2027, 0, 1), end: new Date(2027, 5, 1) }, 0)).toEqual([]);
+    });
+});
+
+describe('isDateInRange — 날짜 단위 비교', () => {
+    const range = { start: new Date(2026, 0, 1), end: new Date(2026, 2, 31) };
+    it('양 끝 날짜를 포함한다 — 말일의 마일스톤이 축 밖으로 판정되던 결함', () => {
+        expect(isDateInRange('2026-03-31', range)).toBe(true);
+        expect(isDateInRange('2026-01-01', range)).toBe(true);
+        expect(isDateInRange('2026-04-01', range)).toBe(false);
+        expect(isDateInRange('2025-12-31', range)).toBe(false);
+    });
+    it('Date 도 받는다', () => {
+        expect(isDateInRange(new Date(2026, 1, 15), range)).toBe(true);
     });
 });

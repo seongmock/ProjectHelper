@@ -30,6 +30,15 @@ export function useDependencyLink({
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [isLinkingMode, cancelLinking]);
 
+    // 연결이 끝났다는 것을 말한다. 화살표를 꺼 두었거나 상대가 화면 밖이면 차트에 아무 변화가
+    // 없어서, 연결이 됐는지 인스펙터 목록을 열어 봐야만 알 수 있었다.
+    const announce = useCallback((targetName) => {
+        const owner = flatTasks.find(t => t.id === linkSourceId
+            || (t.timeRanges || []).some(r => r.id === linkSourceId)
+            || (t.milestones || []).some(m => m.id === linkSourceId));
+        toast.success(`연결했습니다: ${owner?.name ?? '선행'} → ${targetName}`);
+    }, [flatTasks, linkSourceId, toast]);
+
     // 순환은 **만들어지기 전에** 막는다. 만든 뒤에 빨간 화살표로 알리는 것보다 낫다 —
     // 순환이 있는 계획은 "무엇이 먼저인가"에 답이 없어서 고치는 것 말고 할 일이 없다.
     const blocksCycle = useCallback((targetId) => {
@@ -75,8 +84,9 @@ export function useDependencyLink({
         } else {
             onUpdateTask(taskId, { dependencies: [...currentDeps, linkSourceId] });
         }
+        announce(targetTask.name);
         cancelLinking();
-    }, [isLinkingMode, linkSourceId, flatTasks, onUpdateTask, onSelectTask, toast, cancelLinking, blocksCycle]);
+    }, [isLinkingMode, linkSourceId, flatTasks, onUpdateTask, onSelectTask, toast, cancelLinking, blocksCycle, announce]);
 
     // 마일스톤 클릭 — 연결 모드일 때만 의미가 있다 (선택 개념이 없다)
     const handleMilestoneClick = useCallback((e, milestone) => {
@@ -105,8 +115,9 @@ export function useDependencyLink({
                 m.id === milestone.id ? { ...m, dependencies: [...currentDeps, linkSourceId] } : m
             ),
         });
+        announce(milestone.label || '마일스톤');
         cancelLinking();
-    }, [isLinkingMode, linkSourceId, flatTasks, onUpdateTask, toast, cancelLinking, blocksCycle]);
+    }, [isLinkingMode, linkSourceId, flatTasks, onUpdateTask, toast, cancelLinking, blocksCycle, announce]);
 
     // 연결 끊기는 여기 없다 — 인스펙터가 taskTree.js 의 planDependencyRemoval 을 쓴다.
     // (v3 전에는 이 훅에도 마일스톤/작업만 다루는 removeDependency 가 따로 있었다.

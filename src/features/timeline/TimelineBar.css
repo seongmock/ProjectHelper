@@ -132,6 +132,10 @@
     justify-content: center;
     pointer-events: auto;
     cursor: grab;
+    /* 잡는 자리를 24×24 이상으로(WCAG 2.5.8) — 16px 마커는 정확히 짚어야 잡혔다. 음수 여백이
+       패딩을 상쇄하므로 마커의 자리와 라벨 배치는 그대로다. 미니멀(12px)은 themes.css 가 6px 로 키운다. */
+    padding: 4px;
+    margin: -4px;
 }
 
 .milestone-marker.dragging .milestone-shape {

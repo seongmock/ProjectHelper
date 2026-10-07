@@ -545,6 +545,16 @@ test.describe('의존성 정합성', () => {
         await expect(page.locator('.inspector-panel')).toHaveCount(0);
     };
 
+    test('연결이 끝나면 무엇을 이었는지 알린다 — 화살표를 꺼 두면 차트에 아무 변화가 없다', async ({ page }) => {
+        await linkOverlapping(page);
+        await expect(page.locator('.toast').filter({ hasText: '연결했습니다: 설계 문서 작성 → 개발' })).toBeVisible();
+        // 연결 직후의 Ctrl+Z 한 번이 연결을 되돌린다 — 대상 막대를 누른 클릭이 빈 쓰기를 만들어
+        // undo 칸을 하나 먹던 동안은 두 번이 필요했다
+        await page.keyboard.press('Control+z');
+        await expect(page.locator('.dependency-layer path')).toHaveCount(0);
+        await closeInspector(page);
+    });
+
     test('후행이 선행 종료보다 먼저 시작하면 화살표와 인스펙터가 위반을 알린다', async ({ page }) => {
         await linkOverlapping(page);
         await expect(page.getByTestId('dependency-overlap')).toHaveCount(1);
@@ -677,6 +687,8 @@ test.describe('화면 밖으로 나간 의존성', () => {
         await page.getByPlaceholder('작업 검색...').fill('');
         await expect(page.getByTestId('dependency-hidden')).toHaveCount(0);
         await expect(page.locator('.dependency-layer path')).toHaveCount(1);
+        // 좁은 폭(<1320px)에서는 펼쳐진 검색칸이 인스펙터 버튼을 덮는다 — 사람처럼 Esc 로 접는다
+        await page.getByPlaceholder('작업 검색...').press('Escape');
 
         await closeInspector(page);
     });

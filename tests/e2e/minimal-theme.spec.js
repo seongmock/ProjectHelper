@@ -115,24 +115,43 @@ test('미니멀 테마에서 바 이름을 켜면 얇은 띠도 글자 높이까
     expect(await heightOf(band(page, 'G'))).toBe(6);
 });
 
-test('미니멀: 얇은 띠라도 잡는 자리는 넓다 — 그룹 띠 위아래 7px 을 눌러도 막대가 잡힌다', async ({ page, request }) => {
-    await request.post('/api/settings', { data: { chartTheme: 'minimal' } });
-    await page.reload();
-    await expect(band(page, 'G')).toBeVisible();
-    await expect(page.locator('.timeline-row[data-task-id="K3"] .milestone-shape')).toBeVisible();
-    const hits = await page.evaluate(() => {
-        const out = {};
-        for (const [id, sel] of [['G', '.timeline-bar'], ['m3', '.milestone-shape']]) {
-            const el = id === 'm3'
-                ? document.querySelector('.timeline-row[data-task-id="K3"] .milestone-shape > div')
-                : document.querySelector('.timeline-row[data-task-id="G"] .bar-tint');
-            const r = el.getBoundingClientRect();
-            const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
-            out[id] = [cy - 7, cy + 7].every(y => !!document.elementFromPoint(cx, y)?.closest(sel));
-        }
-        return out;
+for (const theme of ['default', 'lg', 'minimal']) {
+    test(`${theme}: 마커와 막대를 잡는 자리가 넓다 — 마커 중심에서 좌우 11px·상하 9px, 그룹 띠 위아래 7px`, async ({ page, request }) => {
+        await request.post('/api/settings', { data: { chartTheme: theme } });
+        await page.reload();
+        await expect(page.locator('.timeline-row[data-task-id="K3"] .milestone-shape')).toBeVisible();
+        // 축 폭은 ResizeObserver 로 늦게 들어와 첫 프레임 뒤에 막대가 자리를 옮긴다 — 자리를 잡을 때까지 다시 잰다
+        await expect.poll(() => page.evaluate(() => {
+            const shape = document.querySelector('.timeline-row[data-task-id="K3"] .milestone-shape > *').getBoundingClientRect();
+            const [mx, my] = [shape.left + shape.width / 2, shape.top + shape.height / 2];
+            // 상하는 9px — 미니멀은 라벨이 작은 마커 바로 아래(4px)에 붙어 그 아래는 라벨의 자리다
+            const marker = [[-11, 0], [11, 0], [0, -9], [0, 9]]
+                .every(([dx, dy]) => !!document.elementFromPoint(mx + dx, my + dy)?.closest('.milestone-shape'));
+            const g = document.querySelector('.timeline-row[data-task-id="G"] .timeline-bar');
+            const b = (g.querySelector('.bar-tint') || g).getBoundingClientRect();
+            const cx = b.left + 40, cy = b.top + b.height / 2;
+            const band = [cy - 7, cy + 7].every(y => document.elementFromPoint(cx, y)?.closest('.timeline-bar') === g);
+            // 기본·LG 막대는 24px 이라 위아래 7px 이 원래 막대 안이다 — 미니멀 6px 띠가 문제였다
+            return { marker, band };
+        })).toEqual({ marker: true, band: true });
     });
-    expect(hits).toEqual({ G: true, m3: true });
+}
+
+test('범위 맨 끝(말일)의 마일스톤이 오른쪽 가장자리에서 잘리지 않는다', async ({ page, request }) => {
+    const tree = structuredClone(TREE);
+    const end = new Date(TODAY.getFullYear(), TODAY.getMonth() + 3, 0); // 석 달 뒤 말일 — 축의 끝
+    const last = `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, '0')}-${String(end.getDate()).padStart(2, '0')}`;
+    tree[0].timeRanges[0].endDate = last;
+    tree[0].milestones = [{ id: 'mEnd', label: '끝', date: last, color: '#e67e22', shape: 'diamond' }];
+    await request.post('/api/data', { data: tree });
+    await page.reload();
+    const marker = page.locator('.timeline-row[data-task-id="G"] .milestone-shape > div');
+    await expect(marker).toBeVisible();
+    const { right, edge } = await marker.evaluate(el => ({
+        right: el.getBoundingClientRect().right,
+        edge: document.querySelector('.timeline-scroll-container').getBoundingClientRect().right,
+    }));
+    expect(right).toBeLessThanOrEqual(edge);
 });
 
 test('미니멀: 선택한 막대가 보인다 · 이미지로 복사가 실패하지 않는다', async ({ page, request }) => {

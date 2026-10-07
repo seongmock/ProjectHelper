@@ -4,7 +4,7 @@ import { isTaskOverdue, getTaskStatus } from '../../utils/taskTree';
 import { getStatusColor, getTheme, themeColor } from '../../themes/index.js';
 import { rollupSegmentTitle, rollupMilestoneTitle } from './rollupBars';
 import { placeMilestoneLabels, milestoneLabelStyle } from './milestoneLabels';
-import { visibleMilestoneItems, milestoneLabelText } from './timelineGeometry';
+import { visibleMilestoneItems, milestoneLabelText, isDateInRange } from './timelineGeometry';
 import { milestoneShape } from '../../shared/milestoneShapes';
 import './TimelineBar.css';
 
@@ -331,10 +331,7 @@ function TimelineBar({
                 ? draggedMilestoneDate
                 : milestone.date;
 
-            const milestoneDate = new Date(currentDate);
-            if (milestoneDate < new Date(startDate) || milestoneDate > new Date(endDate)) {
-                return null;
-            }
+            if (!isDateInRange(currentDate, { start: startDate, end: endDate })) return null;
 
             const daysFromStart = dateUtils.getDaysBetween(startDate, currentDate);
             const position = (daysFromStart / totalDays) * containerWidth;
@@ -450,9 +447,6 @@ function TimelineBar({
     const renderRollup = () => {
         if (!rollup) return null;
 
-        const viewStart = new Date(startDate);
-        const viewEnd = new Date(endDate);
-
         return (
             <>
                 {rollup.segments.map(segment => {
@@ -475,8 +469,7 @@ function TimelineBar({
                     );
                 })}
                 {rollup.milestones.map(ms => {
-                    const date = new Date(ms.date);
-                    if (date < viewStart || date > viewEnd) return null;
+                    if (!isDateInRange(ms.date, { start: startDate, end: endDate })) return null;
                     const left = (dateUtils.getDaysBetween(startDate, ms.date) / totalDays) * containerWidth;
                     return (
                         <div

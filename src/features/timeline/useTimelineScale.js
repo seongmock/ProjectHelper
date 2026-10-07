@@ -3,6 +3,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { computeDateRange, computeTodayPosition } from './timelineGeometry';
 
+// 축의 오른쪽 끝에 남겨 두는 여백(px). 축은 마지막 달의 말일에서 끝나므로 말일의 마일스톤은
+// 정확히 오른쪽 가장자리에 앉고, 마커의 오른쪽 반이 스크롤 영역 밖으로 잘렸다. 마커 반쪽(회전한
+// 16px 다이아몬드 + hover 확대 ≈ 13px)이 들어갈 만큼만 뺀다 — 여백만큼 .timeline-content 는
+// min-width: 100% 로 채워져 줄무늬·행은 끝까지 간다.
+const END_GUTTER = 14;
+
 export function useTimelineScale({ tasks, timeScale, showToday, zoomLevel, showTaskNames }) {
     const timelineScrollRef = useRef(null);
     const taskNamesScrollRef = useRef(null);
@@ -33,7 +39,7 @@ export function useTimelineScale({ tasks, timeScale, showToday, zoomLevel, showT
         [tasks, timeScale, showToday]
     );
 
-    const contentWidth = containerWidth * zoomLevel;
+    const contentWidth = Math.max(0, containerWidth - END_GUTTER) * zoomLevel;
 
     const todayPosition = useMemo(
         () => computeTodayPosition(dateRange, contentWidth, showToday),
