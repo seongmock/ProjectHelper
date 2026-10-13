@@ -35,6 +35,7 @@ function TimelineBar({
     showMilestoneDates = false, // 표시 옵션 — 마일스톤 라벨을 날짜로
     showPhaseChain = true, // 표시 옵션 — 접힌 가지를 단계 체인(쉐브론)으로
     darkMode = false,
+    isCompact = false,
     timeScale = 'monthly',
     snapEnabled = true,
     chartTheme = 'default',
@@ -120,6 +121,9 @@ function TimelineBar({
             setDraggedRangeY(deltaY);
 
             const applySnapping = (date, type) => {
+                // 하루도 움직이지 않았으면 원래 날짜 그대로다 — 클릭할 때 1px 만 흔들려도 스냅이 원래 시작일을
+                // 월·주 경계로 끌어당겨 저장했다(행만 바꾸는 세로 드래그도 날짜가 바뀌었다).
+                if (deltaDays === 0) return date;
                 if (snapEnabled) {
                     // timeScale에 맞춰 스냅 단위 결정
                     switch (timeScale) {
@@ -453,28 +457,42 @@ function TimelineBar({
     // 무너진다. 편집 대상이 아닌 것은 빗금 띠와 같다(클릭하면 이 행을 고른다).
     // 밝게 고정되는 테마(forceLight)는 다크 모드여도 흰 바탕이다.
     const chainBackground = CHAIN_BACKGROUND[(darkMode && !getTheme(chartTheme).forceLight) ? 'dark' : 'light'];
-    const renderChain = (chain) => chain.map((step, i) => {
-        const { width, offset } = dateUtils.calculateWidth(step.startDate, step.endDate, startDate, endDate, containerWidth);
-        const w = Math.max(width - 2, 1); // 칸 사이 2px 틈 — 맞닿은 단계가 한 덩어리로 보이지 않게
-        const tip = Math.min(8, w / 3);    // 화살 깊이. 좁은 칸에서는 줄인다
-        const notch = i === 0 ? 0 : tip;   // 첫 칸은 평평하게 시작한다(그림의 '사전 논의')
-        const color = colorMode === 'status'
-            ? (getStatusColor(getTaskStatus(step.task, today), chartTheme) || themeColor(step.color, chartTheme))
-            : themeColor(step.color, chartTheme);
+    // 칸 높이는 **px 로** 박는다 — height="100%" + translateY(-50%) 를 html2canvas 가 따로 풀어서 '이미지로
+    // 복사'에서 칸이 반 높이로 아래에 찍히고 글자 위가 잘렸다(2026-10-13 레드팀 2차).
+    const stepH = (isCompact || tint) ? 20 : 26;
+    const chainSteps = (chain) => chain.map(step => ({
+        step,
+        ...dateUtils.calculateWidth(step.startDate, step.endDate, startDate, endDate, containerWidth),
+    }));
+    const renderChain = (chain) => chainSteps(chain).map(({ step, width, offset }, i, all) => {
+        // 맞닿은 단계(앞 끝날 = 뒤 시작일)는 그 하루가 두 칸에 다 들어간다 — 오른쪽 끝을 다음 칸의 시작에서
+        // 자르지 않으면 칸이 하루 폭만큼 겹쳐 틈이 사라지고, 높은 배율에서는 쉐브론 없이 띠 하나가 됐다.
+        const next = all[i + 1];
+        const span = next ? Math.min(width, next.offset - offset) : width;
+        const w = Math.max(span - 2, 1); // 칸 사이 2px 틈 — 맞닿은 단계가 한 덩어리로 보이지 않게
+        const tip = Math.min(8, w / 3);   // 화살 깊이. 좁은 칸에서는 줄인다
+        const notch = i === 0 ? 0 : tip;  // 첫 칸은 평평하게 시작한다(그림의 '사전 논의')
+        // 상태는 **이 칸의 구간**으로 판정한다 — 작업으로 판정하면 기간이 여럿인 자식의 칸이 전부 같은
+        // 색이 되고, 레거시 날짜만 있는 자식은 'none' 이 돼 작업 색(진행중처럼 보이는 파랑)으로 칠해졌다.
+        const status = getTaskStatus({ ...step.task, timeRanges: [{ startDate: step.startDate, endDate: step.endDate }] }, today);
+        const color = (colorMode === 'status' ? getStatusColor(status, chartTheme) : null)
+            || themeColor(step.color, chartTheme) || '#98A2B3';
+        const fill = tintOver(color, chainBackground, 0.28);
         return (
             <div
                 key={`${step.startDate}~${step.endDate}~${i}`}
-                className="timeline-phase-step"
+                className={`timeline-phase-step ${isSelected ? 'is-selected' : ''}`}
                 data-testid="phase-step"
-                style={{ left: `${offset}px`, width: `${w}px` }}
+                style={{ left: `${offset}px`, width: `${w}px`, height: `${stepH}px`, top: `calc(50% - ${stepH / 2}px)` }}
                 title={chainStepTitle(step)}
+                // rangeId 가 없다 — 연결 모드에서는 useDependencyLink 가 이것을 거절한다(어느 기간인지 모른다)
                 onClick={(e) => { e.stopPropagation(); onSelect(task.id); }}
             >
-                <svg className="phase-step-shape" width={w} height="100%" viewBox={`0 0 ${w} 10`} preserveAspectRatio="none" aria-hidden="true">
+                <svg className="phase-step-shape" width={w} height={stepH} viewBox={`0 0 ${w} ${stepH}`} aria-hidden="true">
                     <polygon
-                        points={`0,0 ${w - tip},0 ${w},5 ${w - tip},10 0,10 ${notch},5`}
-                        fill={tintOver(color, chainBackground, 0.28) || color || '#98A2B3'}
-                        fillOpacity={tintOver(color, chainBackground, 0.28) ? 1 : 0.28}
+                        points={`0,0 ${w - tip},0 ${w},${stepH / 2} ${w - tip},${stepH} 0,${stepH} ${notch},${stepH / 2}`}
+                        fill={fill || color}
+                        fillOpacity={fill ? 1 : 0.28}
                     />
                 </svg>
                 {w > 28 && (
@@ -518,7 +536,11 @@ function TimelineBar({
                             key={ms.id}
                             className="rollup-milestone-marker"
                             data-testid="rollup-milestone"
-                            style={{ left: `${left}px`, borderColor: ms.color }}
+                            style={{
+                                left: `${left}px`,
+                                borderColor: ms.color,
+                                ...(showPhaseChain && rollup.chain ? { top: `calc(50% - ${stepH / 2}px)` } : {}),
+                            }}
                             title={rollupMilestoneTitle(ms)}
                             onClick={(e) => { e.stopPropagation(); onSelect(task.id); }}
                         />
@@ -530,7 +552,7 @@ function TimelineBar({
 
     return (
         <div
-            className={`timeline-row level-${level} ${isDragTarget ? 'drag-target' : ''} ${showPhaseChain && rollup?.chain ? 'has-phase-chain' : ''}`}
+            className={`timeline-row level-${level} ${isDragTarget ? 'drag-target' : ''}`}
             data-task-id={task.id}
             onContextMenu={(e) => {
                 e.preventDefault();
@@ -581,6 +603,11 @@ function TimelineBar({
                     : (statusColor || (overdue ? 'var(--color-overdue, #d9534f)' : '#9e9e9e'));
 
                 const barColor = statusColor || themeColor(range.color || task.color, chartTheme);
+                // 단계 체인이 있는 행의 부모 막대는 옅게 — opacity 로 흐리던 동안 '이미지로 복사'에는 진하게
+                // 찍혔고(캡처가 반영하지 않았다), 선택 표시까지 0.2 로 흐려져 보이지 않았다. 색을 바탕과 미리
+                // 섞으면 둘 다 없다. 지우지 않는 것은 부모 기간이 자식보다 길 때 그 바깥을 말해 주기 때문이다.
+                const dimForChain = showPhaseChain && !!rollup?.chain;
+                const solidColor = dimForChain ? (tintOver(barColor, chainBackground, 0.2) || barColor) : barColor;
                 // 옅은 바탕은 color-mix 가 아니라 **불투명도를 준 자식 층**으로 칠한다. color-mix 의
                 // 계산값 `color(srgb …)` 를 html2canvas 가 읽지 못해 '이미지로 복사'가 통째로 실패했다.
                 // 막대 자체는 투명한 잡기 영역(20px)이고 보이는 띠는 그 안의 층이다(themes.css).
@@ -606,7 +633,7 @@ function TimelineBar({
                     : {
                         left: `${offset}px`,
                         width: `${width}px`,
-                        backgroundColor: tint ? 'transparent' : barColor,
+                        backgroundColor: tint ? 'transparent' : solidColor,
                         transform: isActive ? `translateY(calc(-50% + ${draggedRangeY}px))` : undefined,
                         zIndex: isActive ? 100 : 1,
                         // 선택·지연 표시는 CSS 그림자다(.selected / .overdue) — 인라인 'none' 이 늘
@@ -716,7 +743,7 @@ function TimelineBar({
                         )}
                         {/* 진행률 채움 오버레이 (기본 테마 전용 — LG 화살표 바와는 충돌) */}
                         {tint && <div className="bar-tint" style={tintLayer} />}
-                        {!isLg && progress > 0 && !(tint && level === 0) && (
+                        {!isLg && progress > 0 && !(tint && level === 0) && !dimForChain && (
                             <div
                                 className="bar-progress-fill"
                                 style={{ width: `${progress}%`, ...(tint ? { background: barColor } : {}) }}

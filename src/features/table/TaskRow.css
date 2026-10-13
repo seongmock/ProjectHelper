@@ -202,13 +202,13 @@
     align-items: center;
     margin-left: 4px;
     line-height: 1;
-    color: var(--color-overdue, #d9534f);
+    color: var(--color-danger-text); /* 글자색 — --color-danger(#D9534F)는 흰 바탕 위 3.96:1 */
     cursor: help;
 }
 
 /* 지연(overdue) 종료일 표시 */
 .col-dates.overdue input[type="date"] {
-    color: var(--color-overdue, #d9534f);
+    color: var(--color-danger-text); /* 글자색 — --color-danger(#D9534F)는 흰 바탕 위 3.96:1 */
     font-weight: 600;
 }
 

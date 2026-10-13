@@ -33,12 +33,12 @@
 }
 
 .tab-btn:hover {
-    color: var(--color-primary);
+    color: var(--color-link); /* 글자색 — --color-primary(#4A90E2)는 흰 바탕 위 3.29:1 로 AA 미달 */
     background-color: var(--color-bg-secondary);
 }
 
 .tab-btn.active {
-    color: var(--color-primary);
+    color: var(--color-link); /* 글자색 — --color-primary(#4A90E2)는 흰 바탕 위 3.29:1 로 AA 미달 */
     border-bottom-color: var(--color-primary);
     font-weight: bold;
 }

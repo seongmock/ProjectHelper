@@ -33,9 +33,17 @@ describe('zoomToSelection', () => {
             .toEqual(zoomToSelection({ ...base, x1: 250, x2: 750 }));
     });
 
-    it('이미 확대돼 있으면 현재 배율에 곱한다', () => {
+    it('이미 확대돼 있어도 고른 구간이 화면을 꼭 채운다 — 예전 기대값 8 은 배율을 두 번 곱한 결함이었다', () => {
+        // 배율 2 에서 화면(1000px)의 절반(500px)을 고르면 그 구간이 1000px 가 되는 배율 = 4
         const r = zoomToSelection({ x1: 0, x2: 500, contentWidth: 2000, zoomLevel: 2, viewportWidth: 1000 });
-        expect(r.zoomLevel).toBe(8);
+        expect(r.zoomLevel).toBe(4);
+        const nextWidth = 1000 * r.zoomLevel;
+        expect((500 / 2000) * nextWidth).toBe(1000); // 고른 구간의 새 폭 = 화면 폭
+    });
+
+    it('축소돼 있어도 같다 — 배율 0.5 에서 화면의 1/4(250px)을 고르면 2', () => {
+        const r = zoomToSelection({ x1: 0, x2: 250, contentWidth: 500, zoomLevel: 0.5, viewportWidth: 1000 });
+        expect(r.zoomLevel).toBe(2); // 250px 구간이 1000px 화면을 채우려면 4배 → 0.5 × 4
     });
 
     it('얇은 조각을 골라도 상한을 넘지 않는다 — 폭 수십만 px 은 브라우저를 멈춘다', () => {

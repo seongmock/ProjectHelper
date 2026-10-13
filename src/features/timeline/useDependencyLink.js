@@ -55,6 +55,14 @@ export function useDependencyLink({
             return;
         }
 
+        // 어느 기간인지 모르는 클릭(작업명 목록, 접힌 행의 요약 띠·단계 칸)은 거절한다. 받아 주던 동안
+        // 레거시 작업 단위 의존성이 저장됐다 — 화살표가 그려지지 않는데 토스트는 '연결했습니다' 라고
+        // 했고, 작업 id 와 그 기간 id 가 다른 노드라 순환 판정도 빠져나갔다(2026-10-13 레드팀 2차).
+        if (!rangeId) {
+            toast.warn('막대(기간)나 마일스톤을 눌러 연결하세요. 접힌 행은 펼친 뒤 연결할 수 있습니다.');
+            return;
+        }
+
         // 자기 자신으로는 연결하지 않는다. 단 같은 작업이라도 *다른 기간* 이면 허용한다.
         if (rangeId ? rangeId === linkSourceId : taskId === linkSourceId) {
             cancelLinking();

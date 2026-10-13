@@ -44,7 +44,7 @@ const toTaskArray = (payload) => {
     return null;
 };
 
-export function useProjectSync({ tasks, setTasks, setTasksSilent, resetTasks, applySettings, toast, onProjectSwitched }) {
+export function useProjectSync({ tasks, setTasksSilent, resetTasks, applySettings, toast, onProjectSwitched }) {
     const [isLoading, setIsLoading] = useState(true);
     const [projects, setProjects] = useState([]);
     const [activeProjectId, setActiveProjectId] = useState(readActiveProjectId);
@@ -162,7 +162,15 @@ export function useProjectSync({ tasks, setTasks, setTasksSilent, resetTasks, ap
                 if (cancelled) return;
                 applySettings(serverSettings);
                 const data = toTaskArray(serverData);
-                if (data) setTasks(migrateTaskData(data));
+                // 로드는 편집이 아니다 — 프로젝트 전환과 같은 경로로 넣는다. 되돌릴 수 있는 setTasks 로
+                // 넣던 동안 히스토리 첫 칸이 부팅용 샘플(getSampleData)이었고, 로드 직후 Ctrl+Z 한 번이
+                // **프로젝트 전체를 샘플로 바꿔 서버에 저장했다**(2026-10-13 레드팀, 4팀 모두 재현).
+                // 같은 이유로 자동 저장이 로드한 트리를 그대로 되써서 페이지를 열기만 해도 리비전이 올랐고,
+                // 그 쓰기가 다른 탭의 디바운스 중인 편집을 409 로 버리게 했다 — 저장 에코를 막는다.
+                if (data) {
+                    skipNextSaveRef.current = true;
+                    resetTasks(migrateTaskData(data));
+                }
             } finally {
                 if (!cancelled) setIsLoading(false);
             }

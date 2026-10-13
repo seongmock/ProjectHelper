@@ -12,30 +12,12 @@
 //   - applyServer : 서버/가져오기에서 온 값 → 상태만 변경 (저장 안 함 → 에코 없음)
 import { create } from 'zustand';
 import { storage } from '../utils/storage';
+import { SETTING_DEFAULTS, pickKnown } from './settingsSchema';
+
+// 기본값과 값 정규화는 settingsSchema.js 에 있다(내보내기와 공유하는 순수 모듈)
+export { SETTING_DEFAULTS };
 
 const SETTINGS_CACHE_KEY = 'project-timeline-settings';
-
-// 지속되는 설정과 기본값. 여기 키를 추가하면 저장·복원이 자동으로 따라온다.
-export const SETTING_DEFAULTS = {
-    timeScale: 'monthly',
-    zoomLevel: 1.0,
-    showToday: true,
-    isCompact: false,
-    showTaskNames: true,
-    snapEnabled: true,
-    showBarLabels: false,
-    showBarDates: false,
-    showDependencies: true, // 타임라인·HTML 내보내기의 의존성 화살표
-    showPhaseChain: true, // 접힌 가지의 하위 일정이 겹치지 않으면 단계 체인(쉐브론)으로 — 끄면 빗금 띠
-    showMilestoneDates: false, // 마일스톤 라벨에 이름 대신 날짜(yy.mm.dd) — 테마를 고르면 그 테마의 기본값으로
-    chartTheme: 'default',
-    colorMode: 'task', // 'task' = 작업 색상 | 'status' = 일정 상태 색상 + 범례
-    showInspector: false, // 오른쪽 인스펙터 패널 (선택된 작업 상세)
-    railExpanded: false, // 좌측 프로젝트 레일 — 접힘(아이콘만)이 기본, 펴면 이름이 붙는다
-    darkMode: null, // null = 미설정 → 시스템 설정을 따른다
-};
-
-const SETTING_KEYS = Object.keys(SETTING_DEFAULTS);
 
 // 첫 페인트에 기본값이 번쩍이지 않도록 localStorage 캐시에서 동기 초기화한다.
 // (서버 로드는 비동기라 늦게 도착한다)
@@ -54,16 +36,6 @@ const prefersDark = () => {
     } catch {
         return false;
     }
-};
-
-// 알 수 없는 키가 서버 응답에 섞여도 스토어를 오염시키지 않는다
-const pickKnown = (source) => {
-    const out = {};
-    if (!source) return out;
-    for (const key of SETTING_KEYS) {
-        if (source[key] !== undefined) out[key] = source[key];
-    }
-    return out;
 };
 
 const initialState = () => {

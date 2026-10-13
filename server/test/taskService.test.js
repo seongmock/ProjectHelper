@@ -343,3 +343,36 @@ describe('조회', () => {
         assertFails(() => svc.getTask(s, 'ghost'), 404);
     });
 });
+
+// 바뀐 것이 없는 쓰기는 쓰지 않는다. 같은 값을 다시 보낸 PATCH 가 리비전을 올리던 동안, 그 순간 디바운스 중이던
+// 브라우저 탭의 편집이 낡은 If-Match 로 409 를 받아 말없이 버려졌다(2026-10-13 레드팀 2차).
+describe('무변화 쓰기', () => {
+    test('같은 값으로 고치면 리비전도 감사 로그도 그대로다', () => {
+        const { task } = svc.createTask(s, { name: '작업', startDate: '2026-05-02', endDate: '2026-06-30' });
+        const range = s.readTasks()[0].timeRanges[0];
+        // 첫 기간 쓰기는 작업의 파생 시작/종료일을 처음 채운다 — 그것은 실제 변화다. 그 뒤가 '같은 값 다시 보내기'다
+        svc.updateTimeRange(s, task.id, range.id, { startDate: '2026-05-02', endDate: '2026-06-30' });
+        const rev = s.readMeta().revision;
+        const events = s.readEvents({ limit: 100 }).length;
+
+        const res = svc.updateTimeRange(s, task.id, range.id, { startDate: '2026-05-02', endDate: '2026-06-30' });
+        assert.equal(res.revision, rev);
+        assert.equal(s.readMeta().revision, rev);
+        assert.equal(s.readEvents({ limit: 100 }).length, events);
+
+        svc.updateTask(s, task.id, { name: '작업' });
+        assert.equal(s.readMeta().revision, rev);
+    });
+
+    test('실제로 바뀌면 그대로 쓴다', () => {
+        const { task } = svc.createTask(s, { name: '작업' });
+        const rev = s.readMeta().revision;
+        svc.updateTask(s, task.id, { name: '바뀐 이름' });
+        assert.equal(s.readMeta().revision, rev + 1);
+        assert.equal(s.readTasks()[0].name, '바뀐 이름');
+    });
+
+    test('없는 대상은 여전히 404 다 — 무변화로 삼키지 않는다', () => {
+        assertFails(() => svc.updateTask(s, 'no-such-id', { name: 'x' }), 404);
+    });
+});

@@ -81,10 +81,51 @@ test.describe('작업 CRUD (표 뷰)', () => {
         await openTableView(page);
         page.on('dialog', (dialog) => dialog.accept());
         const row = page.locator('.task-row', { hasText: '프로젝트 기획' }).first();
-        await row.getByTitle('삭제 (Delete)').click();
+        await row.getByTitle('삭제', { exact: true }).click();
         await expect(page.locator('.task-row', { hasText: '프로젝트 기획' })).toHaveCount(0);
         // 자식('요구사항 분석')도 함께 삭제
         await expect(page.locator('.task-row', { hasText: '요구사항 분석' })).toHaveCount(0);
+    });
+});
+
+test.describe('키보드와 입력 가드 (2026-10-13 레드팀 2차)', () => {
+    test('표의 행 안 버튼은 Enter 로 눌린다 — 행의 드래그 센서가 Enter/Space 를 가로채던 것', async ({ page }) => {
+        await openTableView(page);
+        const row = rowNamed(page, 'QA 테스트');
+        const before = await page.locator('.task-row').count();
+        await row.getByTitle('하위 작업 추가').focus();
+        await page.keyboard.press('Enter');
+        await expect(page.locator('.task-row')).toHaveCount(before + 1);
+        // 드래그가 시작되지 않았다 — 행이 집힌 상태(dnd-kit 의 aria-pressed)가 아니다
+        await expect(page.locator('[aria-pressed="true"][aria-roledescription="sortable"]')).toHaveCount(0);
+    });
+
+    test('인스펙터: Escape 는 편집을 버리고, 빈 이름·빈 날짜는 저장하지 않는다', async ({ page }) => {
+        await openTableView(page);
+        await rowNamed(page, 'QA 테스트').locator('.task-name').click({ button: 'right' });
+        const name = page.getByTestId('inspector-name');
+        await expect(name).toHaveValue('QA 테스트');
+
+        await name.fill('버려야 할 편집');
+        await name.press('Escape');
+        await expect(name).toHaveValue('QA 테스트');
+        await expect(rowNamed(page, 'QA 테스트')).toHaveCount(1);
+
+        await name.fill('   ');
+        await name.press('Enter');
+        await expect(name).toHaveValue('QA 테스트'); // 거절 — 화면도 원래 이름으로 돌아온다
+        await expect(rowNamed(page, 'QA 테스트')).toHaveCount(1);
+
+        // 기간 날짜를 비우면 무시한다 — 서버가 400 으로 거부해 그 뒤 모든 저장이 실패하던 것
+        const start = page.getByTestId('inspector-range-start').first();
+        const original = await start.inputValue();
+        await start.fill('');
+        await expect(start).toHaveValue(original);
+        await page.waitForTimeout(2000);
+        await expect(page.getByTestId('sync-indicator')).not.toHaveAttribute('data-sync-state', 'error');
+
+        await page.getByTitle('인스펙터 패널').click();
+        await expect(page.locator('.inspector-panel')).toHaveCount(0);
     });
 });
 
@@ -378,7 +419,7 @@ test.describe('가져오기 / 내보내기', () => {
         page.on('dialog', (d) => d.accept());
         for (const taskName of ['프로젝트 기획', '디자인', '개발']) {
             const row = page.locator('.task-row', { hasText: taskName }).first();
-            if (await row.count()) await row.getByTitle('삭제 (Delete)').click();
+            if (await row.count()) await row.getByTitle('삭제', { exact: true }).click();
         }
 
         await page.getByTitle('가져오기').click();

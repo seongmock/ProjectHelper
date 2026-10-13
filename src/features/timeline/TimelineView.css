@@ -197,7 +197,7 @@
 .timeline-content {
     position: relative;
     min-height: 400px;
-    min-width: 100%; /* 축은 오른쪽 여백(END_GUTTER)만큼 짧다 — 행·줄무늬는 끝까지 채운다 */
+    min-width: 100%; /* 폭은 scrollWidth(축 + 오른쪽 여백) — 화면보다 좁으면 화면 끝까지 채운다 */
     padding-top: var(--timeline-label-headroom);
     background-color: var(--color-bg-primary);
 }

@@ -446,8 +446,21 @@ const single = (opName, args, store, ifMatch) => {
     if (op.check) op.check(args.body);
     assertRevision(store, ifMatch);
     const out = {};
-    const result = mustWrite(commit(store, (tasks) => op.apply(tasks, args, out)));
-    return { revision: result.meta.revision, ...out };
+    // 바뀐 것이 없으면 쓰지 않는다 — 같은 값을 다시 보낸 PATCH 도 리비전을 올렸고, 그러면 디바운스 중이던
+    // 브라우저의 편집이 낡은 If-Match 로 409 를 받아 **말없이 버려졌다**(2026-10-13 레드팀 2차). 비교는 op 를
+    // 돌리기 **전**에 떠 둔 문자열과 한다 — op 가 입력을 제자리에서 고쳤더라도 '같다'로 잘못 보지 않는다.
+    let unchanged = false;
+    const result = commit(store, (tasks) => {
+        const before = JSON.stringify(tasks);
+        const next = op.apply(tasks, args, out);
+        if (Array.isArray(next) && JSON.stringify(next) === before) {
+            unchanged = true;
+            return null; // withTasks 는 배열이 아니면 쓰지 않는다
+        }
+        return next;
+    });
+    if (unchanged) return { revision: store.readMeta().revision, ...out };
+    return { revision: mustWrite(result).meta.revision, ...out };
 };
 
 // ── 작업 CRUD ────────────────────────────────────────

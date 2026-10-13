@@ -42,12 +42,20 @@ function SortableTaskRow({ task, onContextMenu, ...props }) {
         opacity: isDragging ? 0.5 : 1,
     };
 
+    // 키보드 드래그는 **행 자체에 포커스가 있을 때만** 시작한다. 행의 리스너가 안쪽 버튼의 keydown 까지
+    // 받던 동안, 하위 작업 추가·들여쓰기·색·삭제 같은 버튼에 Tab 으로 가서 Enter/Space 를 누르면 동작
+    // 대신 드래그가 시작됐다 — 키보드로는 행 안의 어떤 버튼도 누를 수 없었다(2026-10-13 레드팀 2차).
+    const onKeyDown = (e) => {
+        if (e.target === e.currentTarget) listeners?.onKeyDown?.(e);
+    };
+
     return (
         <div
             ref={setNodeRef}
             style={style}
             {...attributes}
             {...listeners}
+            onKeyDown={onKeyDown}
             onContextMenu={(e) => {
                 if (onContextMenu) onContextMenu(e, task.id);
             }}
@@ -56,6 +64,26 @@ function SortableTaskRow({ task, onContextMenu, ...props }) {
         </div>
     );
 }
+
+// 키보드 드래그의 화면 낭독기 안내 — 기본값은 영어이고 내부 id(task_1)를 그대로 읽었다
+const nameOf = (id, tasks) => {
+    const walk = (list) => {
+        for (const t of list || []) {
+            if (t.id === id) return t.name;
+            const found = walk(t.children);
+            if (found) return found;
+        }
+        return null;
+    };
+    return walk(tasks) || '작업';
+};
+const DND_INSTRUCTIONS = { draggable: '행을 옮기려면 스페이스나 Enter 로 집고, 위아래 화살표로 옮긴 뒤 다시 누릅니다. Esc 는 취소입니다.' };
+const dndAnnouncements = (tasks) => ({
+    onDragStart: ({ active }) => `${nameOf(active.id, tasks)} 을(를) 집었습니다.`,
+    onDragOver: ({ active, over }) => (over ? `${nameOf(active.id, tasks)} → ${nameOf(over.id, tasks)} 자리` : undefined),
+    onDragEnd: ({ active, over }) => (over ? `${nameOf(active.id, tasks)} 을(를) ${nameOf(over.id, tasks)} 자리에 놓았습니다.` : '놓을 자리가 없어 취소했습니다.'),
+    onDragCancel: ({ active }) => `${nameOf(active.id, tasks)} 옮기기를 취소했습니다.`,
+});
 
 function TableView({
     tasks,
@@ -204,6 +232,7 @@ function TableView({
                     ) : (
                         <DndContext
                             sensors={sensors}
+                            accessibility={{ announcements: dndAnnouncements(tasks), screenReaderInstructions: DND_INSTRUCTIONS }}
                             collisionDetection={closestCenter}
                             onDragStart={handleDragStart}
                             onDragEnd={handleDragEnd}

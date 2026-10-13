@@ -18,6 +18,8 @@
   --color-warning: #F0AD4E;
   --color-danger: #D9534F;
   --color-overdue: #D9534F;
+  /* 빨강 **글자**(지연 날짜·경고 문구) — --color-danger 는 면·테두리용이라 흰 바탕 위 글자로는 3.96:1 이다 */
+  --color-danger-text: #C0392B;
 
   /* 배경 색상 */
   --color-bg-primary: #FFFFFF;
@@ -103,6 +105,7 @@
   --color-border: #404040;
   --color-grid: #333333;
   --color-overdue: #FF6B6B;
+  --color-danger-text: #FF8A80;
   /* 어두운 면 위에서는 라이트용 파랑(#2E6DA9)이 3:1 아래로 떨어진다 — 밝은 쪽으로 뒤집는다 */
   --color-link: #7FB3EE;
 

@@ -112,9 +112,14 @@
     padding: 2px 8px;
     border: 1px solid var(--status-color);
     border-radius: 10px;
-    color: var(--status-color);
+    /* 글자는 상태색을 어둡게 섞는다 — 그대로 쓰면 완료(#2E9E6B) 11px 가 3.38:1 이었다. 테두리는 원색 그대로 */
+    color: color-mix(in srgb, var(--status-color) 68%, black);
     font-size: 11px;
     font-weight: 600;
+}
+
+[data-theme="dark"] .inspector-status {
+    color: color-mix(in srgb, var(--status-color) 60%, white);
 }
 
 .inspector-facts {
@@ -136,7 +141,7 @@
 }
 
 .inspector-facts dd.is-late {
-    color: var(--color-danger);
+    color: var(--color-danger-text); /* 글자색 — --color-danger(#D9534F)는 흰 바탕 위 3.96:1 */
     font-weight: 600;
 }
 
@@ -204,7 +209,7 @@
 }
 
 .inspector-link:hover {
-    color: var(--color-primary);
+    color: var(--color-link); /* 글자색 — --color-primary(#4A90E2)는 흰 바탕 위 3.29:1 로 AA 미달 */
     text-decoration: underline;
 }
 

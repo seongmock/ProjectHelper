@@ -83,14 +83,34 @@ const mergeIntervals = (intervals) => {
 // 화면에서 사라졌다. 앞 단계의 끝날에 다음 단계가 시작하는 것(맞닿음)은 겹침이 아니다 — 단계를
 // 마일스톤 날짜로 잇는 계획(SOW 등)이 늘 그렇다. **하나라도 겹치면 null** 이고 빗금 띠로 돌아간다:
 // 일부만 쉐브론으로 그리면 한 행에 두 표현이 섞여, 어느 쪽이 무엇을 뜻하는지 읽을 수 없다.
+//
+// 시작일이 같은 두 단계는 겹침이다 — 정렬이 동률을 어떻게 놓느냐에 따라 판정이 갈렸다(하루짜리
+// [6/1~6/1] 다음 [6/1~6/30] 은 체인, 순서를 뒤집으면 빗금). 그리고 보는 것은 **체인 후보 구간**이다:
+// 자기 자식들을 감싸기만 하는 중간 노드의 기간(3단 WBS 의 요약 기간)은 빼야 한다 — 그 기간이 자식들과
+// "겹쳐서" 흔한 WBS 에서 체인이 한 번도 되지 않았다(collectChainIntervals).
 const resolveChain = (intervals) => {
     if (intervals.length === 0) return null;
     const sorted = [...intervals].sort((a, b) => (a.start < b.start ? -1 : a.start > b.start ? 1 : 0));
     for (let i = 1; i < sorted.length; i++) {
-        if (sorted[i].start < sorted[i - 1].end) return null;
+        if (sorted[i].start < sorted[i - 1].end || sorted[i].start === sorted[i - 1].start) return null;
     }
     return sorted.map(({ start, end, name, color, task }) => ({ startDate: start, endDate: end, name, color, task }));
 };
+
+// 체인 후보 구간 — collectHidden 과 같은 자손을 훑되, 자식이 있는 노드의 자기 기간이 **자손 구간의
+// 범위 안**에 들어가면 뺀다(그것은 자식들의 요약이지 따로 하는 일이 아니다). 범위를 벗어나는 기간은
+// 남긴다 — 그러면 자식과 겹치므로 빗금 띠가 되고, 없는 체인을 지어내지 않는다.
+const collectChainIntervals = (nodes) => (nodes || []).flatMap(node => {
+    const inner = collectChainIntervals(node.children);
+    const ranges = (node.timeRanges && node.timeRanges.length > 0)
+        ? node.timeRanges
+        : [{ startDate: node.startDate, endDate: node.endDate }];
+    const own = ranges.map(range => rangeInterval(range, node)).filter(Boolean);
+    if (inner.length === 0) return own;
+    const lo = inner.reduce((m, iv) => (iv.start < m ? iv.start : m), inner[0].start);
+    const hi = inner.reduce((m, iv) => (iv.end > m ? iv.end : m), inner[0].end);
+    return [...own.filter(iv => iv.start < lo || iv.end > hi), ...inner];
+});
 
 // 화면의 행 하나에 대한 요약. 접혀 있지 않거나 숨은 일정이 없으면 null 이다
 // (호출부가 "요약할 것이 없다"를 분기 없이 읽을 수 있어야 한다).
@@ -106,7 +126,7 @@ export const resolveRollup = (task) => {
     if (segments.length === 0 && milestones.length === 0) return null;
 
     milestones.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
-    return { segments, chain: resolveChain(intervals), milestones, taskCount };
+    return { segments, chain: resolveChain(collectChainIntervals(children)), milestones, taskCount };
 };
 
 // 툴팁 — 끌어올린 막대가 **어느 자손의 것인지**는 이름 말고 읽을 방법이 없다.
@@ -123,9 +143,12 @@ export const rollupSegmentTitle = (segment) => {
 // 단계 칸의 옅은 바탕을 **불투명한 색**으로 미리 섞는다(색 × alpha + 바탕 × (1−alpha)). 반투명으로
 // 칠하면 그 행의 부모 막대가 비쳐 칸 색이 진해지고 글자가 묻힌다. CSS 변수나 fill-opacity 에 기대지
 // 않는 이유는 '이미지로 복사'(html2canvas)가 SVG 를 문서 밖에서 그리기 때문이다 — 변수는 풀리지 않는다.
-// 16진 색(#rgb·#rrggbb)만 섞고, 그 밖의 형식이면 null(호출부가 반투명으로 폴백한다).
+// 16진 색(#rgb·#rrggbb)과 rgb()만 섞고, 그 밖의 형식(이름 색 등)이면 null(호출부가 반투명으로 폴백한다).
 const parseHex = (c) => {
-    const m = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(typeof c === 'string' ? c.trim() : '');
+    const text = typeof c === 'string' ? c.trim() : '';
+    const rgb = /^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/i.exec(text); // rgb()/rgba() 도 받는다(알파는 무시)
+    if (rgb) return [rgb[1], rgb[2], rgb[3]].map(v => Math.min(255, Number(v)));
+    const m = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(text);
     if (!m) return null;
     const h = m[1].length === 3 ? m[1].replace(/./g, ch => ch + ch) : m[1];
     return [0, 2, 4].map(i => parseInt(h.slice(i, i + 2), 16));

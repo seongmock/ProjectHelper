@@ -265,6 +265,24 @@ describe('resolveRollup — 단계 체인(쉐브론)', () => {
         expect(r.chain).toBeNull();
     });
 
+    it('시작일이 같으면 겹침이다 — 자식 순서에 따라 판정이 갈리지 않는다', () => {
+        const oneDay = step('a', '하루', '2026-06-01', '2026-06-01');
+        const month = step('b', '한 달', '2026-06-01', '2026-06-30');
+        expect(resolveRollup(collapsed(oneDay, month)).chain).toBeNull();
+        expect(resolveRollup(collapsed(month, oneDay)).chain).toBeNull();
+    });
+
+    it('3단 WBS: 자식들을 감싸기만 하는 중간 노드의 기간은 체인 판정에서 빠진다', () => {
+        const mid = task('m', '중간', {
+            timeRanges: [range('2026-02-01', '2026-05-31')],
+            children: [step('g1', 'G1', '2026-02-01', '2026-03-15'), step('g2', 'G2', '2026-03-16', '2026-05-31')],
+        });
+        expect(resolveRollup(collapsed(mid)).chain.map(s => s.name)).toEqual(['G1', 'G2']);
+        // 중간 노드의 기간이 자식 범위를 **벗어나면** 따로 하는 일이 있다는 뜻 — 겹치므로 체인이 아니다
+        const wider = task('w', '넓음', { timeRanges: [range('2026-01-01', '2026-05-31')], children: mid.children });
+        expect(resolveRollup(collapsed(wider)).chain).toBeNull();
+    });
+
     it('툴팁은 이름과 기간', () => {
         expect(chainStepTitle({ name: 'Kick-off', startDate: '2026-07-01', endDate: '2026-07-31' }))
             .toBe('Kick-off (2026-07-01 ~ 2026-07-31)');
@@ -277,8 +295,9 @@ describe('tintOver — 단계 칸의 불투명 바탕', () => {
         expect(tintOver('#4A90E2', '#FFFFFF', 0)).toBe('#ffffff');
         expect(tintOver('#f00', '#000', 1)).toBe('#ff0000');
     });
-    it('16진이 아니면 null — 호출부가 반투명으로 폴백한다', () => {
-        expect(tintOver('rgb(1,2,3)', '#fff', 0.5)).toBeNull();
+    it('rgb() 도 섞고, 그 밖(이름 색·없음)은 null — 호출부가 반투명으로 폴백한다', () => {
+        expect(tintOver('rgb(255, 0, 0)', '#000000', 1)).toBe('#ff0000');
+        expect(tintOver('red', '#fff', 0.5)).toBeNull();
         expect(tintOver(undefined, '#fff', 0.5)).toBeNull();
     });
     it('섞는 바탕이 App.css 의 --color-bg-primary 와 같다 — 따로 적힌 값이 낡으면 칸 색이 틀린다', () => {

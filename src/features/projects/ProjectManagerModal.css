@@ -28,7 +28,7 @@
 }
 
 .pm-tab.is-active {
-    color: var(--color-primary);
+    color: var(--color-link); /* 글자색 — --color-primary(#4A90E2)는 흰 바탕 위 3.29:1 로 AA 미달 */
     border-bottom-color: var(--color-primary);
 }
 
@@ -93,6 +93,13 @@
 .pm-active-check {
     color: var(--color-primary);
     flex-shrink: 0;
+}
+
+.pm-row-name-text {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .pm-row-meta {

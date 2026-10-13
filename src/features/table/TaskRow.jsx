@@ -165,6 +165,8 @@ function TaskRow({
                         <button
                             className="expand-toggle icon"
                             onClick={handleToggleExpand}
+                            aria-label={task.expanded ? `${task.name} 접기` : `${task.name} 펼치기`}
+                            aria-expanded={!!task.expanded}
                         >
                             {task.expanded ? '▼' : '▶'}
                         </button>
@@ -212,6 +214,7 @@ function TaskRow({
                         type="date"
                         value={firstRange?.startDate || ''}
                         max={firstRange?.endDate || undefined}
+                        aria-label={`시작일 — ${task.name}`}
                         onChange={(e) => handleDateChange('startDate', e.target.value)}
                         onClick={(e) => e.stopPropagation()}
                     />
@@ -223,6 +226,7 @@ function TaskRow({
                         type="date"
                         value={firstRange?.endDate || ''}
                         min={firstRange?.startDate || undefined}
+                        aria-label={`종료일 — ${task.name}`}
                         onChange={(e) => handleDateChange('endDate', e.target.value)}
                         onClick={(e) => e.stopPropagation()}
                     />
@@ -356,7 +360,7 @@ function TaskRow({
                             e.stopPropagation();
                             handleDelete();
                         }}
-                        title="삭제 (Delete)"
+                        title="삭제"
                     >
                         <Trash2 size={15} aria-hidden="true" />
                     </button>

@@ -20,12 +20,16 @@ function ColorPicker({ color, onChange, colors = DEFAULT_COLORS, gestureKey = nu
         <div className="color-picker-container">
             <div className="color-grid">
                 {colors.map((c) => (
-                    <div
+                    // 버튼이어야 키보드로 닿는다 — onClick 만 단 div 라 Tab 순서에 없었다
+                    <button
+                        type="button"
                         key={c}
                         className={`color-option ${color === c ? 'selected' : ''}`}
                         style={{ backgroundColor: c }}
                         onClick={() => onChange(c)}
                         title={c}
+                        aria-label={`색 ${c}`}
+                        aria-pressed={color === c}
                     />
                 ))}
                 <label className="color-option custom-color-picker" title="사용자 지정 색상">

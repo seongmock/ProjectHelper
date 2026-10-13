@@ -4,6 +4,9 @@ import { storage } from '../../utils/storage';
 import Modal from '../../shared/ui/Modal';
 import './ProjectManagerModal.css';
 
+// 이름 길이 상한 — 제한이 없던 동안 200자 이름이 토스트를 화면 폭 3줄로 펼쳐 모달의 '닫기'를 덮었다
+const PROJECT_NAME_MAX = 80;
+
 // 프로젝트와 버전(스냅샷)을 한 곳에서 관리한다.
 //
 // 왜 합쳤나: 예전 저장/불러오기 모달은 스냅샷을 **"프로젝트"** 라고 불렀다("'X' 프로젝트를
@@ -198,6 +201,7 @@ function ProjectManagerModal({
                                             <input
                                                 className="pm-input"
                                                 data-testid="pm-project-rename-input"
+                                                maxLength={PROJECT_NAME_MAX}
                                                 value={editName}
                                                 autoFocus
                                                 onChange={(e) => setEditName(e.target.value)}
@@ -211,7 +215,7 @@ function ProjectManagerModal({
                                             <>
                                                 <span className="pm-row-name">
                                                     {isActive && <Check size={14} aria-hidden="true" className="pm-active-check" />}
-                                                    {project.name}
+                                                    <span className="pm-row-name-text" title={project.name}>{project.name}</span>
                                                 </span>
                                                 <span className="pm-row-meta">
                                                     {isActive && <span className="pm-badge">현재</span>}
@@ -255,6 +259,7 @@ function ProjectManagerModal({
                         <input
                             className="pm-input"
                             data-testid="pm-new-project-input"
+                            maxLength={PROJECT_NAME_MAX}
                             placeholder="새 프로젝트 이름"
                             value={newProjectName}
                             onChange={(e) => setNewProjectName(e.target.value)}

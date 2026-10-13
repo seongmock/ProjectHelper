@@ -54,3 +54,13 @@ button.sync-indicator.sync-error:hover {
         animation: none;
     }
 }
+
+/* 화면 낭독기 전용 알림 영역(SyncIndicator.jsx) — 화면에는 그리지 않는다 */
+.sync-announcer {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+}

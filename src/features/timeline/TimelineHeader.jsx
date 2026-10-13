@@ -3,7 +3,7 @@ import { dateUtils } from '../../utils/dateUtils';
 import { monthGridLines } from './timelineGeometry';
 import './TimelineHeader.css';
 
-function TimelineHeader({ startDate, endDate, timeScale, containerWidth, showToday = true, singleAxis = false, onClick }) {
+function TimelineHeader({ startDate, endDate, timeScale, containerWidth, totalWidth, showToday = true, singleAxis = false, onClick }) {
     // 월별 또는 분기별 범위 생성
     const timeUnits = useMemo(() => {
         if (timeScale === 'monthly') {
@@ -85,7 +85,7 @@ function TimelineHeader({ startDate, endDate, timeScale, containerWidth, showTod
         const monthPx = lines.length > 0 ? containerWidth / lines.length : Infinity;
         const step = [1, 3, 6, 12, 24, 60].find(s => s >= (timeScale === 'monthly' ? 1 : 3) && monthPx * s >= 46) ?? 60;
         return (
-            <div className="timeline-header single-axis" onClick={onClick}>
+            <div className="timeline-header single-axis" style={totalWidth ? { minWidth: totalWidth } : undefined} onClick={onClick}>
                 <div className="timeline-units" style={{ width: containerWidth }}>
                     {lines.map(line => (
                         <div
@@ -93,7 +93,10 @@ function TimelineHeader({ startDate, endDate, timeScale, containerWidth, showTod
                             className="timeline-unit"
                             style={{ left: `${line.x}px`, width: `${line.width}px` }}
                         >
-                            {(line.year * 12 + line.month - 1) % step === 0 && (
+                            {/* 마지막 칸은 남은 자리가 라벨 폭('2028.10' ≈ 44px)보다 좁으면 생략한다 — 오른쪽 끝에서
+                                글자가 잘렸다(1024 폭). 그 달은 격자선이 여전히 말한다. */}
+                            {(line.year * 12 + line.month - 1) % step === 0
+                                && !(line === lines[lines.length - 1] && (totalWidth ?? containerWidth) - line.x < 46) && (
                                 <span className="unit-label">{`${line.year}.${String(line.month).padStart(2, '0')}`}</span>
                             )}
                         </div>
@@ -104,7 +107,7 @@ function TimelineHeader({ startDate, endDate, timeScale, containerWidth, showTod
     }
 
     return (
-        <div className="timeline-header" onClick={onClick}>
+        <div className="timeline-header" style={totalWidth ? { minWidth: totalWidth } : undefined} onClick={onClick}>
             {/* 년도 행 */}
             <div className="timeline-years" style={{ width: containerWidth }}>
                 {yearGroups.map((yearGroup, index) => (

@@ -130,7 +130,6 @@ function App() {
         refreshProjects,
     } = useProjectSync({
         tasks,
-        setTasks,
         setTasksSilent,
         resetTasks,
         applySettings: applyLoadedSettings,
@@ -323,11 +322,18 @@ function App() {
     });
 
     // 팔레트 목록. 핸들러는 전부 이미 툴바·헤더가 쓰고 있는 것들이다 — 여기서 새로 만들지 않는다.
+    // 테마를 **바꾸면** 날짜 라벨은 그 테마의 기본값으로(미니멀은 켜짐). 이미 고른 테마를 다시 누르는 것은
+    // 아무 일도 아니다. 메뉴와 팔레트가 이것 하나를 쓴다 — 둘이 각자 규칙을 가지면 갈라진다.
+    const changeChartTheme = useCallback((v) => {
+        if (v !== chartTheme) setSetting({ chartTheme: v, showMilestoneDates: !!getTheme(v).milestoneDateLabels });
+    }, [chartTheme, setSetting]);
+
     const commands = useMemo(() => buildCommands({
         viewMode,
         settings: {
             showInspector, darkMode, timeScale, colorMode,
             showTaskNames, showBarLabels, showBarDates, showToday, isCompact, snapEnabled,
+            showDependencies, showMilestoneDates, showPhaseChain, chartTheme,
         },
         canUndo,
         canRedo,
@@ -340,6 +346,7 @@ function App() {
             setViewMode,
             setSetting,
             toggleSetting,
+            setChartTheme: changeChartTheme,
             zoomIn: () => setZoom(zoomLevel + 0.1),
             zoomOut: () => setZoom(zoomLevel - 0.1),
             copyImage: () => timelineRef.current?.copyToClipboard(),
@@ -353,6 +360,7 @@ function App() {
     }), [
         viewMode, showInspector, darkMode, timeScale, colorMode, showTaskNames, showBarLabels,
         showBarDates, showToday, isCompact, snapEnabled, zoomLevel, canUndo, canRedo,
+        showDependencies, showMilestoneDates, showPhaseChain, chartTheme, changeChartTheme,
         projects, activeProjectId, handleAddTask, undo, redo, setViewMode, setSetting, setZoom, toggleSetting,
         io, switchProject,
     ]);
@@ -433,10 +441,7 @@ function App() {
                     showPhaseChain={showPhaseChain}
                     onTogglePhaseChain={() => toggleSetting('showPhaseChain')}
                     chartTheme={chartTheme}
-                    // 테마를 **바꾸면** 날짜 라벨은 그 테마의 기본값으로 돌아간다(미니멀은 켜짐).
-                    // 그 뒤에 표시 옵션에서 따로 바꿀 수 있다. 이미 고른 테마를 다시 누르는 것은
-                    // 아무 일도 아니어야 한다 — 예전에는 그것만으로 사용자의 선택이 초기화됐다.
-                    onThemeChange={(v) => v !== chartTheme && setSetting({ chartTheme: v, showMilestoneDates: !!getTheme(v).milestoneDateLabels })}
+                    onThemeChange={changeChartTheme}
                     colorMode={colorMode}
                     onColorModeChange={(v) => setSetting({ colorMode: v })}
                     showInspector={showInspector}

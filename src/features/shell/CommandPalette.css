@@ -60,7 +60,7 @@
 
 .command-label mark {
     background-color: transparent;
-    color: var(--color-primary);
+    color: var(--color-link); /* 글자색 — --color-primary(#4A90E2)는 흰 바탕 위 3.29:1 로 AA 미달 */
     font-weight: 700;
 }
 

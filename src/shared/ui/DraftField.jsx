@@ -6,6 +6,10 @@ import { useEffect, useRef, useState } from 'react';
 export default function DraftField({ tag: Tag = 'input', value, onCommit, ...rest }) {
     const [draft, setDraft] = useState(value);
     const isEditing = useRef(false);
+    // Escape 로 버린 편집을 blur 가 다시 커밋하지 않게. setDraft(value) 는 다음 렌더에야 보이므로,
+    // 같은 이벤트 안에서 도는 onBlur 의 commit 은 아직 편집된 draft 를 들고 있다 — 그래서 Escape 가
+    // 편집을 버리는 대신 저장했다(2026-10-13 레드팀 2차). 표의 이름 편집은 이미 버린다.
+    const cancelled = useRef(false);
 
     // 바깥(다른 편집 표면·undo·AI 쓰기)에서 값이 바뀌면 따라간다. 편집 중에는 덮지 않는다.
     useEffect(() => {
@@ -14,7 +18,12 @@ export default function DraftField({ tag: Tag = 'input', value, onCommit, ...res
 
     const commit = () => {
         isEditing.current = false;
-        if (draft !== value) onCommit(draft);
+        if (cancelled.current) {
+            cancelled.current = false;
+            return;
+        }
+        // onCommit 이 false 를 돌려주면 거절이다(예: 빈 이름) — 화면도 원래 값으로 되돌린다
+        if (draft !== value && onCommit(draft) === false) setDraft(value);
     };
 
     return (
@@ -27,6 +36,7 @@ export default function DraftField({ tag: Tag = 'input', value, onCommit, ...res
                 if (e.key === 'Enter' && Tag === 'input') e.currentTarget.blur();
                 if (e.key === 'Escape') {
                     isEditing.current = false;
+                    cancelled.current = true;
                     setDraft(value);
                     e.currentTarget.blur();
                 }

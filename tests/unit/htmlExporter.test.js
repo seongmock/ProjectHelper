@@ -131,6 +131,41 @@ describe('exportToHtml — 미니멀 테마 · 표시 옵션', () => {
     });
 });
 
+describe('exportToHtml — 설정값은 코드로 새지 않는다 (저장형 XSS)', () => {
+    // 설정은 <script> 안에 보간된다. 값이 문자열 그대로였던 동안 서버 설정에 따옴표를 넣으면
+    // 내보낸 문서를 연 모든 사람에게 스크립트가 실행됐다(2026-10-13 레드팀 2차 — 넷 다 실행 확인).
+    const evil = {
+        chartTheme: "x';window.__xss=1;'",
+        timeScale: '</script><img src=x onerror=window.__xss=1>',
+        zoomLevel: '1;window.__xss=1',
+        showToday: 'window.__xss=1',
+        showBarDates: 'window.__xss=1',
+        showTaskNames: 'window.__xss=1',
+    };
+
+    it('어느 값도 문서에 나타나지 않고, 기본값으로 들어간다', () => {
+        const html = exportToHtml([task()], evil);
+        expect(html).not.toContain('__xss');
+        expect(html).toContain("const CHART_THEME = 'default';");
+        expect(html).toContain("const TIME_SCALE = 'monthly';");
+        expect(html).toContain('const ZOOM_LEVEL = 1;');
+    });
+
+    it('날짜는 로컬 자정으로 읽는다 — 정규식이 템플릿 안에서 망가지지 않았다', () => {
+        const html = exportToHtml([task()], {});
+        const script = html.match(/<script>([\s\S]*)<\/script>/)[1];
+        const parseDate = new Function(script.match(/function parseDate\(str\) \{[\s\S]*?\n {8}\}/)[0] + '; return parseDate;')();
+        const d = parseDate('2026-03-31');
+        expect([d.getFullYear(), d.getMonth(), d.getDate(), d.getHours()]).toEqual([2026, 2, 31, 0]);
+    });
+
+    it('그래도 스크립트는 파싱된다', () => {
+        const html = exportToHtml([task()], evil);
+        const script = html.match(/<script>([\s\S]*)<\/script>/)[1];
+        expect(() => new Function(script)).not.toThrow();
+    });
+});
+
 describe('exportToHtml — 상태 색상 모드', () => {
     // 앱 화면과 내보낸 문서의 색이 갈리면 색상 모드 자체가 의미를 잃는다.
     const done = task({ id: 'done1', progress: 100 });

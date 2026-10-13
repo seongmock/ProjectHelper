@@ -71,10 +71,10 @@ describe('초기값', () => {
 describe('사용자 조작은 저장한다', () => {
     it('setSetting 은 상태를 바꾸고 저장한다', async () => {
         const { useSettingsStore } = await freshStore();
-        useSettingsStore.getState().setSetting({ timeScale: 'weekly' });
-        expect(useSettingsStore.getState().timeScale).toBe('weekly');
+        useSettingsStore.getState().setSetting({ timeScale: 'quarterly' });
+        expect(useSettingsStore.getState().timeScale).toBe('quarterly');
         expect(saveSettings).toHaveBeenCalledTimes(1);
-        expect(saveSettings.mock.calls[0][0]).toMatchObject({ timeScale: 'weekly' });
+        expect(saveSettings.mock.calls[0][0]).toMatchObject({ timeScale: 'quarterly' });
     });
 
     it('저장 payload 에는 알려진 키만 실린다 (액션 함수가 서버로 새어 나가면 안 된다)', async () => {
@@ -93,9 +93,9 @@ describe('사용자 조작은 저장한다', () => {
 
     it('가져온 설정은 사용자의 명시적 선택이므로 적용하고 저장한다', async () => {
         const { useSettingsStore } = await freshStore();
-        useSettingsStore.getState().importSettings({ chartTheme: 'ocean', 낯선키: 1 });
-        expect(useSettingsStore.getState().chartTheme).toBe('ocean');
-        expect(saveSettings).toHaveBeenCalledWith({ chartTheme: 'ocean' });
+        useSettingsStore.getState().importSettings({ chartTheme: 'lg', 낯선키: 1 });
+        expect(useSettingsStore.getState().chartTheme).toBe('lg');
+        expect(saveSettings).toHaveBeenCalledWith({ chartTheme: 'lg' });
     });
 
     it('가져온 설정에 알려진 키가 하나도 없으면 아무 일도 하지 않는다', async () => {
@@ -143,5 +143,34 @@ describe('getSettingsSnapshot — 컴포넌트 밖에서 쓰는 현재 값', () 
         expect(Object.keys(snap).sort()).toEqual(Object.keys(SETTING_DEFAULTS).sort());
         expect(snap.zoomLevel).toBe(2);
         expect(typeof snap.setSetting).toBe('undefined');
+    });
+});
+
+describe('값은 타입이 맞춰져 들어온다 — 서버·에이전트·가져온 파일이 무엇을 보내든', () => {
+    it('문자열 "false" 는 꺼짐이다 — 켜짐으로 그려지면서 메뉴는 꺼짐이라 읽히던 결함', async () => {
+        const { useSettingsStore } = await freshStore();
+        useSettingsStore.getState().applyServerSettings({ showDependencies: 'false', showPhaseChain: 'true', showToday: 'yes' });
+        const st = useSettingsStore.getState();
+        expect(st.showDependencies).toBe(false);
+        expect(st.showPhaseChain).toBe(true);
+        expect(st.showToday).toBe(true); // 'yes' 는 모르는 값 → 기본값
+    });
+
+    it('모르는 열거값은 기본값, 옛 테마 id sow 는 minimal 이다', async () => {
+        const { useSettingsStore } = await freshStore();
+        useSettingsStore.getState().applyServerSettings({ chartTheme: 'sow', timeScale: 'fortnight', colorMode: 'rainbow' });
+        const st = useSettingsStore.getState();
+        expect([st.chartTheme, st.timeScale, st.colorMode]).toEqual(['minimal', 'monthly', 'task']);
+        useSettingsStore.getState().applyServerSettings({ chartTheme: "x';alert(1);'" });
+        expect(useSettingsStore.getState().chartTheme).toBe('default');
+    });
+
+    it('배율은 숫자로, 한계 안으로', async () => {
+        const { normalizeSetting } = await import('../../src/stores/settingsSchema');
+        expect(normalizeSetting('zoomLevel', '1.5')).toBe(1.5);
+        expect(normalizeSetting('zoomLevel', '1;alert(1)')).toBe(1);
+        expect(normalizeSetting('zoomLevel', 999)).toBe(20);
+        expect(normalizeSetting('zoomLevel', '')).toBe(1);
+        expect(normalizeSetting('darkMode', null)).toBeNull();
     });
 });

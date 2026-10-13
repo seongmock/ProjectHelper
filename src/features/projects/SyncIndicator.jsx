@@ -26,10 +26,15 @@ function SyncIndicator({ state, onRetry, onRecover }) {
         </>
     );
 
+    // 화면 낭독기 알림은 상태와 **무관하게 늘 있는** 영역이 맡는다. 알림을 표시 요소에 붙여 두면 실패·삭제됨
+    // 상태에서 그 요소가 <button> 으로 바뀌며 live 영역이 사라져, 정작 '저장 실패'가 읽히지 않았다.
+    const announcer = <span className="sync-announcer" aria-live="polite">{label}</span>;
+
     // 누를 수 있는 상태는 둘이고 하는 일이 다르다: 실패는 재시도, 삭제됨은 새 프로젝트로
     // 옮기기. 같은 버튼에 같은 동작을 붙이면 삭제된 프로젝트에 404 를 다시 던지게 된다.
     if (canRetry || canRecover) {
-        return (
+        return (<>
+            {announcer}
             <button
                 type="button"
                 className={`sync-indicator sync-${tone}`}
@@ -41,20 +46,21 @@ function SyncIndicator({ state, onRetry, onRecover }) {
             >
                 {content}
             </button>
-        );
+        </>);
     }
 
-    return (
+    return (<>
+        {announcer}
         <span
             className={`sync-indicator sync-${tone}`}
             title={hint}
-            aria-live="polite"
+            aria-hidden="true"
             data-sync-state={state.phase}
             data-testid="sync-indicator"
         >
             {content}
         </span>
-    );
+    </>);
 }
 
 export default SyncIndicator;

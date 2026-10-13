@@ -17,7 +17,9 @@ export const zoomToSelection = ({ x1, x2, contentWidth, zoomLevel, viewportWidth
     const span = right - left;
     if (!(span > 0)) return null;
 
-    const zoom = clampZoom(zoomLevel * (contentWidth / span));
+    // 고른 구간이 화면 폭(viewportWidth)을 채우는 배율. contentWidth 는 이미 zoomLevel 배라 그것으로 나누면
+    // 배율이 zoomLevel² 로 곱해졌다 — 배율 2 에서 고르면 상한까지 튀고, 0.5 에서는 절반만 채웠다.
+    const zoom = clampZoom(zoomLevel * (viewportWidth / span));
     const nextContentWidth = viewportWidth * zoom;
     // 배율이 상한에 걸리면 구간이 화면보다 넓게 남을 수 있다 — 그래도 왼쪽 끝은 맞춘다.
     const scrollLeft = (left / contentWidth) * nextContentWidth;

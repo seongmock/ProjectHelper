@@ -166,3 +166,32 @@ test('늦게 도착한 초기 로드가 사용자의 편집을 되돌리지 않�
 
     await page.getByTitle('테마 변경').click(); // 전역 설정이므로 뒷 스펙을 위해 되돌린다
 });
+
+// 로드는 편집이 아니다. 초기 로드가 되돌릴 수 있는 기록으로 들어가던 동안 히스토리 첫 칸이 부팅용
+// 샘플이었고, 로드 직후 Ctrl+Z 한 번이 **프로젝트 전체를 샘플로 바꿔 서버에 저장했다** — 그리고
+// 자동 저장이 로드한 트리를 그대로 되써서, 페이지를 열기만 해도 리비전이 올라 다른 탭의 편집이
+// 409 로 버려졌다(2026-10-13 레드팀 2차, 4팀 모두 재현).
+test('페이지를 열기만 해서는 쓰지 않고, 로드 직후 Ctrl+Z 는 아무것도 되돌리지 않는다', async ({ page, request }) => {
+    const mine = [{ id: 'mine', name: '내 작업 하나뿐', color: '#4A90E2', expanded: true, children: [], milestones: [],
+        timeRanges: [{ id: 'mr', startDate: '2026-03-01', endDate: '2026-03-10', dependencies: [] }] }];
+    await request.post('/api/data', { data: mine });
+    const revision = async () => (await (await request.get('/api/revision')).json()).revision;
+    const before = await revision();
+
+    await page.reload();
+    await expect(page.getByText('데이터 불러오는 중')).toHaveCount(0);
+    await expect(page.getByText('내 작업 하나뿐').first()).toBeVisible();
+    await page.waitForTimeout(2500); // 디바운스(1.5s)가 지나도 쓰기가 없어야 한다
+    expect(await revision()).toBe(before);
+
+    await expect(page.getByTitle(/실행 취소/).first()).toBeDisabled();
+    // 포커스는 문서에 있다(새로고침 직후) — 어디를 누르지 않는다. (5,5) 를 눌렀더니 레일의 접기 버튼이라
+    // railExpanded 가 켜진 채 남아 뒤 스펙들이 넓어진 레일로 돌았다
+    await page.keyboard.press('Control+z');
+    await page.waitForTimeout(2500);
+    await expect(page.getByText('내 작업 하나뿐').first()).toBeVisible();
+    await expect(page.getByText('프로젝트 기획')).toHaveCount(0); // 부팅용 샘플의 첫 작업
+    const data = await (await request.get('/api/data')).json();
+    expect((data.data ?? data).map(t => t.id)).toEqual(['mine']);
+    expect(await revision()).toBe(before);
+});

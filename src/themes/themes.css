@@ -275,7 +275,12 @@
     border-radius: var(--band-r) 0 0 var(--band-r);
 }
 /* 선택: 투명한 잡기 영역이 아니라 띠를 두른다. 띠 층은 불투명도가 걸려 있어 거기에 그리면 흐려진다 */
-.timeline-view[data-chart-theme="minimal"] .timeline-bar.selected {
+/* 막대 상자 자체는 그림자를 갖지 않는다(선택 링은 ::after, 지연은 색이 말한다) — 지연 막대의 인라인
+   그림자를 걷어내자 기본 .timeline-bar 그림자가 살아나 보이지 않는 20px 상자에 회색 그림자가 생겼다 */
+.timeline-view[data-chart-theme="minimal"] .timeline-bar,
+.timeline-view[data-chart-theme="minimal"] .timeline-bar:hover,
+.timeline-view[data-chart-theme="minimal"] .timeline-bar.selected,
+.timeline-view[data-chart-theme="minimal"] .timeline-bar.overdue {
     box-shadow: none;
 }
 .timeline-view[data-chart-theme="minimal"] .timeline-bar.selected::after {
@@ -311,10 +316,15 @@
     background-color: rgba(255, 255, 255, 0.82);
 }
 
-/* 마일스톤: 마커는 12px 로 작게 그리되 잡는 자리는 24px — 기본 규칙(TimelineBar.css)의 4px 로는 모자라다 */
+/* 마일스톤: 마커는 12px 로 작게 그리되 잡는 자리는 24px — 기본 규칙(TimelineBar.css)의 4px 로는 모자라다.
+   컴팩트는 scale(0.8) 이라 30px 이 필요하다(패딩과 같은 음수 여백이라 배치는 그대로다) */
 .timeline-view[data-chart-theme="minimal"] .milestone-shape {
     padding: 6px;
     margin: -6px;
+}
+.timeline-view[data-chart-theme="minimal"].compact-mode .milestone-shape {
+    padding: 9px;
+    margin: -9px;
 }
 /* 마일스톤 라벨: 말풍선이 아니라 11px 회색 글자. 첫 행 라벨은 아래 행으로 내려와 막대 위에 앉으므로
    투명하면 막대 색 위에서 읽히지 않는다(1.6:1) — 옅은 흰 바탕을 깐다 */

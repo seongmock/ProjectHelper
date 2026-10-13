@@ -15,8 +15,10 @@
 }
 
 .color-option {
-    width: 20px;
-    height: 20px;
+    /* 포인터 타깃 24×24(WCAG 2.5.8) — 20px 이었다 */
+    width: 24px;
+    height: 24px;
+    padding: 0;
     border-radius: 50%;
     cursor: pointer;
     border: 2px solid transparent;

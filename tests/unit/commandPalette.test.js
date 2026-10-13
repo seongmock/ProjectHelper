@@ -110,6 +110,7 @@ describe('buildCommands', () => {
         zoomIn: vi.fn(), zoomOut: vi.fn(), copyImage: vi.fn(),
         exportFile: vi.fn(), importFile: vi.fn(), exportHtml: vi.fn(),
         openProjectManager: vi.fn(), openPromptGuide: vi.fn(), switchProject: vi.fn(),
+        setChartTheme: vi.fn(),
     });
 
     const build = (over = {}, h = handlers()) => buildCommands({
@@ -131,6 +132,18 @@ describe('buildCommands', () => {
     it('되돌릴 것이 없으면 실행 취소가 목록에 없다', () => {
         expect(ids(build())).not.toContain('task:undo');
         expect(ids(build({ canUndo: true }))).toContain('task:undo');
+    });
+
+    it('표시 옵션 메뉴의 새 토글 셋과 차트 테마가 팔레트에 있다 — 빠져 있어 찾을 수 없었다', () => {
+        const h = handlers();
+        const list = build({ settings: { chartTheme: 'default', timeScale: 'monthly', colorMode: 'task' } }, h);
+        expect(ids(list)).toEqual(expect.arrayContaining([
+            'display:showDependencies', 'display:showMilestoneDates', 'display:showPhaseChain',
+            'display:theme:lg', 'display:theme:minimal',
+        ]));
+        expect(ids(list)).not.toContain('display:theme:default'); // 지금 테마는 제시하지 않는다
+        list.find(c => c.id === 'display:theme:minimal').run();
+        expect(h.setChartTheme).toHaveBeenCalledWith('minimal'); // 메뉴와 같은 처리기
     });
 
     it('현재 뷰는 전환 명령으로 제시하지 않는다', () => {

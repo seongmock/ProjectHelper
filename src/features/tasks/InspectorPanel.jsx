@@ -149,7 +149,9 @@ function RangeRow({ range, task, isFocused, onPatch, onRemove }) {
                     max={range.endDate || undefined}
                     aria-label="시작일"
                     data-testid="inspector-range-start"
-                    onChange={(e) => onPatch({ startDate: e.target.value })}
+                    // 빈 값은 무시한다(표의 날짜 입력과 같은 가드). 서버가 400 으로 거부하는데 그 작업만이 아니라
+                    // 같은 블롭에 실린 **모든** 편집이 끝없이 재시도하며 실패했다
+                    onChange={(e) => e.target.value && onPatch({ startDate: e.target.value })}
                 />
                 <span aria-hidden="true">~</span>
                 <input
@@ -158,7 +160,7 @@ function RangeRow({ range, task, isFocused, onPatch, onRemove }) {
                     min={range.startDate || undefined}
                     aria-label="종료일"
                     data-testid="inspector-range-end"
-                    onChange={(e) => onPatch({ endDate: e.target.value })}
+                    onChange={(e) => e.target.value && onPatch({ endDate: e.target.value })}
                 />
             </div>
 
@@ -243,7 +245,7 @@ function MilestoneRow({ milestone, isFocused, onPatch, onRemove }) {
                     value={milestone.date || ''}
                     aria-label="마일스톤 날짜"
                     data-testid="inspector-milestone-date"
-                    onChange={(e) => onPatch({ date: e.target.value })}
+                    onChange={(e) => e.target.value && onPatch({ date: e.target.value })}
                 />
             </div>
 
@@ -382,8 +384,12 @@ function InspectorPanel({
         ...(summary?.milestones || []).map(m => m.id)]);
     const brokenRefs = (dependencyIssues?.dangling || []).filter(d => ownIds.has(d.holderId));
 
-    // "연결 추가"의 주체. 지목한 것이 있으면 그것, 없으면 작업 자체다.
-    const linkSourceId = focusedMilestoneId || focusedRangeId || task?.id;
+    // "연결 추가"의 주체. 지목한 것이 있으면 그것, 없으면 작업의 **기간**이다(기간이 하나뿐이면 그것).
+    // 작업 id 를 주체로 쓰던 동안 막대 클릭으로 시작한 연결은 '작업 → 기간' 간선이 됐고, 작업과 그 작업의
+    // 기간은 순환 판정에서 다른 노드라 K1→K2, K2→K1 이 둘 다 저장됐다(2026-10-13 레드팀 2차). 기간이
+    // 여럿이면 어느 것인지 모르므로 작업 id 로 남는다 — 기간 카드를 눌러 지목하면 그 기간이 주체다.
+    const onlyRangeId = summary?.ranges?.length === 1 ? summary.ranges[0].id : null;
+    const linkSourceId = focusedMilestoneId || focusedRangeId || onlyRangeId || task?.id;
     const linkLabel = focusedMilestoneId ? ' 이 마일스톤에 연결 추가'
         : focusedRangeId ? ' 이 기간에 연결 추가'
             : ' 연결 추가';
@@ -410,7 +416,8 @@ function InspectorPanel({
                             className="inspector-name"
                             data-testid="inspector-name"
                             value={task.name}
-                            onCommit={(name) => onUpdateTask(task.id, { name })}
+                            // 빈 이름은 저장하지 않는다(표의 인라인 편집과 같은 가드) — 원래 이름으로 돌아온다
+                            onCommit={(name) => (name.trim() ? onUpdateTask(task.id, { name }) : false)}
                             aria-label="작업 이름"
                         />
                         {summary.parentName && (
@@ -454,6 +461,7 @@ function InspectorPanel({
                             max="100"
                             step="5"
                             data-testid="inspector-progress"
+                            aria-label="진행률"
                             value={task.progress ?? 0}
                             /* 드래그 한 번은 되돌리기 한 번이다 — 슬라이더는 커밋 시점이
                                없어서(텍스트는 blur/Enter) 제스처 이름으로 묶는다 */

@@ -1042,6 +1042,51 @@ test.describe('접힌 가지의 요약 막대', () => {
         }
     });
 
+    test('이미지로 복사에서도 단계 칸이 행 가운데에 제 높이로 찍힌다 — 반 높이로 아래에 찍히던 회귀', async ({ page }) => {
+        await collapse(page, '프로젝트 기획');
+        const step = page.getByTestId('phase-step').first();
+        await expect(step).toBeVisible();
+        // 캡처가 만든 캔버스를 가로챈다(클립보드는 headless 에서 막혀 다운로드로 떨어진다 — 그래도 toBlob 은 불린다)
+        await page.evaluate(() => {
+            const orig = HTMLCanvasElement.prototype.toBlob;
+            HTMLCanvasElement.prototype.toBlob = function (...args) { window.__capture = this; return orig.apply(this, args); };
+        });
+        // 캡처 좌표계의 원점(.timeline-container 왼쪽 위)에서 칸의 위치를 미리 잰다 — 캡처 중에는 배치가 바뀐다
+        const geo = await step.evaluate(el => {
+            const c = document.querySelector('.timeline-container').getBoundingClientRect();
+            const r = el.getBoundingClientRect();
+            return { x: r.left - c.left + 20, top: r.top - c.top, h: r.height };
+        });
+        await page.getByTitle('이미지로 복사').click();
+        await expect(page.locator('.toast').filter({ hasText: /복사되었습니다|다운로드했습니다/ })).toBeVisible({ timeout: 15000 });
+        const px = await page.evaluate(({ x, top, h }) => {
+            const cv = window.__capture;
+            const scale = cv.width / document.querySelector('.timeline-container').getBoundingClientRect().width;
+            const ctx = cv.getContext('2d');
+            const at = (y) => Array.from(ctx.getImageData(Math.round(x * scale), Math.round(y * scale), 1, 1).data.slice(0, 3));
+            // 가운데는 칸 이름 글자가 지나간다 — 글자가 없는 위·아래 가장자리 안쪽과, 칸 바로 위·아래 바깥을 본다
+            return { upper: at(top + 2), lower: at(top + h - 2), above: at(top - 3), below: at(top + h + 3) };
+        }, geo);
+        // 칸의 위쪽 가장자리와 아래쪽 가장자리가 같은 칸 색이다 — 회귀 때는 위쪽 절반이 바탕이었다
+        expect(px.upper).not.toEqual([255, 255, 255]);
+        expect(px.lower).toEqual(px.upper);
+        // 칸 바깥은 칸 색이 아니다 — 칸이 제 높이(화면과 같은 높이)로 찍혔다
+        expect(px.above).not.toEqual(px.upper);
+        expect(px.below).not.toEqual(px.upper);
+    });
+
+    test('연결 모드에서 접힌 행(단계 칸)을 누르면 거절하고 안내한다 — 화살표 없는 작업 단위 연결이 저장되던 것', async ({ page }) => {
+        await collapse(page, '프로젝트 기획');
+        await page.locator('.timeline-bar[title^="개발 ("]').click({ position: { x: 5, y: 5 }, button: 'right' });
+        await page.getByTestId('inspector-link').click();
+        await page.getByTestId('phase-step').first().click();
+        await expect(page.locator('.toast').filter({ hasText: '막대(기간)나 마일스톤을 눌러 연결하세요' })).toBeVisible();
+        await expect(page.locator('.toast').filter({ hasText: '연결했습니다' })).toHaveCount(0);
+        await page.keyboard.press('Escape');
+        await page.getByTitle('인스펙터 패널').click();
+        await expect(page.locator('.inspector-panel')).toHaveCount(0);
+    });
+
     test('하위 일정이 겹치지 않으면 단계 체인으로 이어 그리고, 칸마다 이름을 쓴다', async ({ page }) => {
         const steps = page.getByTestId('phase-step');
         await collapse(page, '프로젝트 기획');

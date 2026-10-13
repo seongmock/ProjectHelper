@@ -33,7 +33,13 @@ const TREE = [{
     ],
 }];
 
-const RESET = { chartTheme: 'default', showMilestoneDates: false, showDependencies: true, showBarLabels: false, darkMode: null };
+// 화면 배치를 바꾸는 설정은 전부 되돌린다 — 앞 스펙이 남긴 값(레일 펼침·인스펙터·배율)으로 폭이 바뀌면
+// 잡는 자리·가장자리 측정이 엉뚱한 곳을 잰다
+const RESET = {
+    chartTheme: 'default', showMilestoneDates: false, showDependencies: true, showBarLabels: false, darkMode: null,
+    showPhaseChain: true, railExpanded: false, showInspector: false, zoomLevel: 1, timeScale: 'monthly',
+    isCompact: false, colorMode: 'task', showTaskNames: true,
+};
 
 test.beforeEach(async ({ page, request }) => {
     await request.post('/api/settings', { data: RESET });

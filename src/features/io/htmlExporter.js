@@ -2,6 +2,7 @@ import { dateUtils } from '../../utils/dateUtils';
 import { getTaskStatus, flattenAll, findDependencyIssues } from '../../utils/taskTree';
 import { summarizeRowDependencies, describeRowDependencies } from '../table/dependencyBadges';
 import { getStatusStyles, getStatusColor, getTheme } from '../../themes/index.js';
+import { normalizeSettings } from '../../stores/settingsSchema.js';
 
 // 라벨 배치는 **앱과 같은 코드**를 쓴다. 내보낸 HTML 은 정적 산출물이라, 배치 규칙을 여기에
 // 다시 적으면 반드시 낡는다 — 실제로 낡아 있었다: 앱은 층(tier)을 늘려 겹침을 없애는데
@@ -138,7 +139,12 @@ const tintCss = (listId) => `
         }
         #ph-gantt-${listId}.ph-tint .today-label { background-color: transparent; color: #A50034; box-shadow: none; font-weight: 400; }`;
 
-export const exportToHtml = (tasks, settings = {}) => {
+export const exportToHtml = (tasks, rawSettings = {}) => {
+    // 설정은 아래 템플릿의 <script> 안에 **코드로** 들어간다(CHART_THEME = '...' 같은 보간). 값이 문자열
+    // 그대로였던 동안 chartTheme 에 따옴표 하나만 넣으면 내보낸 문서를 연 모든 사람에게 스크립트가 실행됐다
+    // (저장형 XSS — 서버의 설정 검증은 구조만 본다). 그래서 여기서 **타입을 강제한 값**만 쓴다:
+    // 불리언은 true/false, 배율은 숫자, 나머지는 아는 열거값 중 하나다. 작업 데이터는 toSafeJson 이 막는다.
+    const settings = normalizeSettings(rawSettings);
     const tasksJson = toSafeJson(tasks);
     const theme = getTheme(settings.chartTheme);
     // 옅은 막대 테마(미니멀)는 앱처럼 다크 모드를 무시한다. lg 내보내기는 예전처럼 darkMode 를
@@ -172,8 +178,8 @@ export const exportToHtml = (tasks, settings = {}) => {
 
     // Generate unique ID for scope isolation
     const listId = 'chk_' + Math.random().toString(36).substr(2, 9);
-    const zoomLevel = settings.zoomLevel || 1.0;
-    const isCompact = settings.isCompact || false;
+    const zoomLevel = settings.zoomLevel;
+    const isCompact = settings.isCompact;
 
     return `<!-- ProjectHelper Gantt Export -->
 <div id="ph-gantt-${listId}" class="ph-gantt-container ${isCompact ? 'compact-mode' : ''} ${tint ? 'ph-tint' : ''}" style="display: flex; flex-direction: column; width: 100%; height: 100%; overflow: hidden; background-color: var(--color-bg-primary); color: var(--color-text-primary); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
@@ -680,13 +686,13 @@ ${inlineModuleSource(milestoneShapesSource)}
         }
 
         const ZOOM_LEVEL = ${zoomLevel};
-        const TIME_SCALE = '${settings.timeScale || 'monthly'}';
-        const CHART_THEME = '${settings.chartTheme || 'default'}';
+        const TIME_SCALE = '${settings.timeScale}';
+        const CHART_THEME = '${settings.chartTheme}';
         // 옅은 막대 테마(미니멀): 막대·마일스톤 표현과 저장 색 → 테마 색 매핑
         const TINT = ${tint};
         const COLOR_MAP = ${toSafeJson(theme.colorMap || {})};
         function mapColor(c) { return (typeof c === 'string' && COLOR_MAP[c.toLowerCase()]) || c; }
-        const SHOW_DEPENDENCIES = ${settings.showDependencies !== false};
+        const SHOW_DEPENDENCIES = ${settings.showDependencies};
         const SHOW_MILESTONE_DATES = ${!!settings.showMilestoneDates};
         // 앱의 milestoneLabelText 와 같은 규칙: 날짜 라벨이면 yy.mm.dd, 이름은 툴팁으로
         function milestoneText(m) {
@@ -729,7 +735,12 @@ ${inlineModuleSource(milestoneShapesSource)}
 
         // Helpers
         const ONE_DAY = 24 * 60 * 60 * 1000;
-        function parseDate(str) { return new Date(str); }
+        // 'YYYY-MM-DD' 는 **로컬 자정**으로 읽는다(앱의 dateUtils 와 같은 규칙). new Date(str) 는 UTC 자정이라
+        // 아래의 일수 계산(로컬 setHours)과 섞이면 KST 밖에서 날짜·월 라벨이 하루 밀렸다.
+        function parseDate(str) {
+            var m = /^(\\d{4})-(\\d{2})-(\\d{2})$/.exec(str); // 템플릿 리터럴 안이라 \\ 를 두 번 쓴다
+            return m ? new Date(+m[1], +m[2] - 1, +m[3]) : new Date(str);
+        }
         function formatDate(date, format) { 
              const y = date.getFullYear();
              const m = String(date.getMonth()+1).padStart(2,'0');
@@ -955,7 +966,7 @@ ${inlineModuleSource(milestoneShapesSource)}
 
                 if (taskMinDate && taskMaxDate) {
                     var tLeft = getPosPercent(taskMinDate, startDate, totalDays);
-                    var tWidth = getWidthPercent(getDaysBetween(taskMinDate, taskMaxDate), totalDays);
+                    var tWidth = getWidthPercent(getDaysBetween(taskMinDate, taskMaxDate) + 1, totalDays);
                     // Register Task ID with type 'task'
                     coordMap.set(task.id, { x: tLeft + tWidth/2, y: rowCenter, right: tLeft + tWidth, left: tLeft, type: 'task' });
                 }
@@ -966,7 +977,9 @@ ${inlineModuleSource(milestoneShapesSource)}
                     var end = parseDate(range.endDate);
                     
                     var leftPerc = getPosPercent(start, startDate, totalDays);
-                    var widthPerc = getWidthPercent(getDaysBetween(start, end), totalDays);
+                    // 끝날을 **포함**한다(+1) — 앱의 막대(dateUtils.getDuration)와 같다. 빼던 동안 모든 막대가 하루
+                    // 짧았고, 하루짜리 기간은 폭 0 이라 LG·미니멀 내보내기에서 아예 보이지 않았다.
+                    var widthPerc = getWidthPercent(getDaysBetween(start, end) + 1, totalDays);
                     
                     var entry = { x: leftPerc + widthPerc/2, y: rowCenter, right: leftPerc + widthPerc, left: leftPerc, type: 'range' };
                     if (range.id) coordMap.set(range.id, entry);

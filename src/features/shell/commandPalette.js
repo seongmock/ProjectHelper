@@ -5,6 +5,7 @@
 // — 팔레트에만 있는 동작을 만들지 마라(찾을 수 있는 곳이 하나 더 늘 뿐이다).
 //
 // 그리기는 CommandPalette.jsx 가 한다. 점수·포함 여부 판정은 전부 여기 있고 단위테스트가 붙는다.
+import { THEMES } from '../../themes/index.js';
 
 // 질의 하나를 텍스트에 맞춰 본다. 반환 { score, indices } | null.
 //   - 부분 문자열이면 높은 점수 (앞에서 걸릴수록 높다)
@@ -152,13 +153,30 @@ export const buildCommands = ({
             ['showToday', '오늘 표시'],
             ['isCompact', '컴팩트 보기'],
             ['snapEnabled', '드래그 스냅'],
-        ].forEach(([key, label]) => {
+            // 표시 옵션 메뉴(DisplayOptionsMenu)에 새로 생긴 셋 — 여기 빠져 있어 팔레트로는 찾을 수 없었다
+            ['showDependencies', '의존성 화살표', 'dependency arrow 연결 선'],
+            ['showMilestoneDates', '마일스톤 날짜 라벨', 'milestone date 날짜'],
+            ['showPhaseChain', '접힌 단계 이어 그리기', 'chevron phase 쉐브론 단계 접기'],
+        ].forEach(([key, label, keywords]) => {
             cmds.push({
                 id: `display:${key}`,
                 group: '표시',
                 label,
+                keywords,
                 state: onOff(settings[key]),
                 run: () => h.toggleSetting(key),
+            });
+        });
+
+        // 차트 테마 — 고르는 규칙(날짜 라벨 기본값)은 메뉴와 **같은 처리기**(h.setChartTheme)가 한다
+        THEMES.forEach(theme => {
+            if (theme.id === settings.chartTheme) return;
+            cmds.push({
+                id: `display:theme:${theme.id}`,
+                group: '표시',
+                label: `차트 테마: ${theme.label}`,
+                keywords: `theme 테마 ${theme.shortLabel}`,
+                run: () => h.setChartTheme(theme.id),
             });
         });
 

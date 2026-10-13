@@ -205,7 +205,7 @@ const TimelineView = forwardRef(({
         return map;
     }, [flatTasks]);
 
-    const { timelineScrollRef, taskNamesScrollRef, dateRange, contentWidth, todayPosition } =
+    const { timelineScrollRef, taskNamesScrollRef, dateRange, contentWidth, scrollWidth, todayPosition } =
         useTimelineScale({ tasks, timeScale, showToday, zoomLevel, showTaskNames });
 
     const {
@@ -244,7 +244,7 @@ const TimelineView = forwardRef(({
     const handleZoomSelectStart = (e) => {
         if (e.button !== 0 || isLinkingMode || !onZoomChange) return;
         // 막대·마일스톤 위에서 시작한 드래그는 그것들의 것이다
-        if (e.target.closest('.timeline-bar, .milestone-marker, .timeline-rollup-bar, .rollup-milestone-marker')) return;
+        if (e.target.closest('.timeline-bar, .milestone-marker, .timeline-rollup-bar, .rollup-milestone-marker, .timeline-phase-step')) return;
 
         const rect = e.currentTarget.getBoundingClientRect();
         const x0 = e.clientX - rect.left;
@@ -477,12 +477,15 @@ const TimelineView = forwardRef(({
                         containerWidth={contentWidth}
                         showToday={showToday}
                         singleAxis={!!theme.singleAxis}
+                        // 머리글 상자는 sticky 라 폭을 주지 않으면 화면 폭에 머문다 — 배율 >1 에서 오른쪽으로
+                        // 스크롤하면 아래 테두리와 바탕이 사라졌다
+                        totalWidth={scrollWidth}
                         onClick={() => onSelectTask(null)}
                     />
 
                     <div
                         className={`timeline-content ${isLinkingMode ? 'linking-mode' : ''}`}
-                        style={{ width: `${contentWidth}px` }}
+                        style={{ width: `${scrollWidth}px` }}
                         onMouseDown={handleZoomSelectStart}
                         onClick={(e) => {
                             // 빈 영역 클릭 시 선택 해제
@@ -511,22 +514,6 @@ const TimelineView = forwardRef(({
                             }
                         }}
                     >
-                        {/* 가이드라인 (드래그 시에만 표시) */}
-                        {guideLineX !== null && (
-                            <div className="timeline-guide-line" style={{ left: guideLineX }} />
-                        )}
-
-                        {/* 드래그로 고르는 중인 구간 */}
-                        {zoomSelection && (
-                            <div
-                                className="zoom-selection"
-                                style={{
-                                    left: `${Math.min(zoomSelection.x0, zoomSelection.x1)}px`,
-                                    width: `${Math.abs(zoomSelection.x1 - zoomSelection.x0)}px`,
-                                }}
-                            />
-                        )}
-
                         {/* 한 줄 머리글 테마는 본문에도 월 격자를 긋는다 — 1월은 연도 경계라 진하게 */}
                         {theme.singleAxis && monthGridLines(dateRange, contentWidth).map(line => (
                             <div
@@ -581,12 +568,30 @@ const TimelineView = forwardRef(({
                                     showMilestoneDates={showMilestoneDates}
                                     showPhaseChain={showPhaseChain}
                                     darkMode={darkMode}
+                                    isCompact={isCompact}
                                     timeScale={timeScale}
                                     snapEnabled={snapEnabled}
                                     chartTheme={chartTheme}
                                     colorMode={colorMode}
                                 />
                             ))
+                        )}
+                        {/* 가이드선·구간 선택은 행들 **뒤**에 둔다 — 앞에 끼면 LG 줄무늬(.timeline-row:nth-child)의 짝·홀이
+                            드래그하는 동안 한 칸씩 뒤집혔다. 절대배치라 그리는 자리는 같고, 위에 오는 것은 z-index 가 정한다. */}
+                        {/* 가이드라인 (드래그 시에만 표시) */}
+                        {guideLineX !== null && (
+                            <div className="timeline-guide-line" style={{ left: guideLineX }} />
+                        )}
+
+                        {/* 드래그로 고르는 중인 구간 */}
+                        {zoomSelection && (
+                            <div
+                                className="zoom-selection"
+                                style={{
+                                    left: `${Math.min(zoomSelection.x0, zoomSelection.x1)}px`,
+                                    width: `${Math.abs(zoomSelection.x1 - zoomSelection.x0)}px`,
+                                }}
+                            />
                         )}
                     </div>
                 </div>

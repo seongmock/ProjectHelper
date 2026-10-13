@@ -5,9 +5,10 @@ import { computeDateRange, computeTodayPosition } from './timelineGeometry';
 
 // 축의 오른쪽 끝에 남겨 두는 여백(px). 축은 마지막 달의 말일에서 끝나므로 말일의 마일스톤은
 // 정확히 오른쪽 가장자리에 앉고, 마커의 오른쪽 반이 스크롤 영역 밖으로 잘렸다. 마커 반쪽(회전한
-// 16px 다이아몬드 + hover 확대 ≈ 13px)이 들어갈 만큼만 뺀다 — 여백만큼 .timeline-content 는
-// min-width: 100% 로 채워져 줄무늬·행은 끝까지 간다.
-const END_GUTTER = 14;
+// 16px 다이아몬드 + hover 확대 ≈ 13px)이 들어갈 만큼만 뺀다. 축은 contentWidth 까지, 행·줄무늬·
+// 머리글 바탕은 **scrollWidth(= contentWidth + 여백)** 까지 그린다 — 행을 축 폭에서 멈추던 동안 배율이
+// 1 보다 크면 끝에 행 없는 빈 띠가 남았다.
+export const END_GUTTER = 14;
 
 export function useTimelineScale({ tasks, timeScale, showToday, zoomLevel, showTaskNames }) {
     const timelineScrollRef = useRef(null);
@@ -18,6 +19,10 @@ export function useTimelineScale({ tasks, timeScale, showToday, zoomLevel, showT
     useEffect(() => {
         if (!timelineScrollRef.current) return;
         const observer = new ResizeObserver((entries) => {
+            // 캡처(useTimelineCapture)는 스크롤 영역을 펼치려고 크기를 덮어쓴다. 그것을 실측으로 받으면
+            // 축이 그 폭 × 배율로 다시 넓어지고, 캡처가 또 펼치는 되먹임이 돈다 — 배율 2 에서 폭 36216px,
+            // 배율 3 에서는 이미지가 나오지 않았다(2026-10-13 레드팀 2차). 캡처 중의 크기는 화면의 크기가 아니다.
+            if (timelineScrollRef.current?.closest('.capturing')) return;
             for (const entry of entries) setContainerWidth(entry.contentRect.width);
         });
         observer.observe(timelineScrollRef.current);
@@ -46,5 +51,5 @@ export function useTimelineScale({ tasks, timeScale, showToday, zoomLevel, showT
         [dateRange, contentWidth, showToday]
     );
 
-    return { timelineScrollRef, taskNamesScrollRef, dateRange, contentWidth, todayPosition };
+    return { timelineScrollRef, taskNamesScrollRef, dateRange, contentWidth, scrollWidth: contentWidth + END_GUTTER, todayPosition };
 }
