@@ -44,6 +44,8 @@ function Toolbar({
     onToggleDependencies,
     showMilestoneDates,
     onToggleMilestoneDates,
+    showPhaseChain,
+    onTogglePhaseChain,
 
     chartTheme,
     onThemeChange,
@@ -161,6 +163,8 @@ function Toolbar({
                                 onToggleDependencies={onToggleDependencies}
                                 showMilestoneDates={showMilestoneDates}
                                 onToggleMilestoneDates={onToggleMilestoneDates}
+                                showPhaseChain={showPhaseChain}
+                                onTogglePhaseChain={onTogglePhaseChain}
                                 chartTheme={chartTheme}
                                 onThemeChange={onThemeChange}
                                 colorMode={colorMode}

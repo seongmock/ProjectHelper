@@ -164,6 +164,7 @@ const TimelineView = forwardRef(({
     showBarDates = false,
     showDependencies = true,
     showMilestoneDates = false,
+    showPhaseChain = true,
     snapEnabled = true,
     darkMode,
     toast,
@@ -578,6 +579,8 @@ const TimelineView = forwardRef(({
                                     showBarLabels={showBarLabels}
                                     showBarDates={showBarDates}
                                     showMilestoneDates={showMilestoneDates}
+                                    showPhaseChain={showPhaseChain}
+                                    darkMode={darkMode}
                                     timeScale={timeScale}
                                     snapEnabled={snapEnabled}
                                     chartTheme={chartTheme}

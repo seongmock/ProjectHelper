@@ -18,11 +18,12 @@
 
 // 기간 하나 → [start, end]. 역전된 기간(종료 < 시작)은 고쳐 쓰지도, 버리지도 않는다 —
 // 이름이 가리키는 두 날짜를 그대로 덮는다. 판정과 교정은 인스펙터 기간 카드의 몫이다.
-const rangeInterval = (range, name) => {
+const rangeInterval = (range, node) => {
     const a = range?.startDate;
     const b = range?.endDate;
     if (!a || !b) return null;
-    return a <= b ? { start: a, end: b, name } : { start: b, end: a, name };
+    const [start, end] = a <= b ? [a, b] : [b, a];
+    return { start, end, name: node.name, color: range.color || node.color, task: node };
 };
 
 // 접힌 가지 아래의 모든 자손(자기 `expanded` 와 무관하게 끝까지)에서 기간·마일스톤을 긁는다.
@@ -36,7 +37,7 @@ const collectHidden = (nodes, acc) => {
             ? node.timeRanges
             : [{ startDate: node.startDate, endDate: node.endDate }];
         ranges.forEach(range => {
-            const interval = rangeInterval(range, node.name);
+            const interval = rangeInterval(range, node);
             if (interval) acc.intervals.push(interval);
         });
 
@@ -77,6 +78,20 @@ const mergeIntervals = (intervals) => {
     return merged.map(({ names, ...rest }) => ({ ...rest, names: [...names] }));
 };
 
+// 숨은 일정이 **하나도 겹치지 않고 차례로 이어지면** 단계 체인(쉐브론)으로 그린다 — 단계마다 칸이
+// 따로 있어 이름을 칸 안에 쓸 수 있다. 빗금 띠는 이름이 툴팁에만 있어서 접는 순간 "무엇이 언제"가
+// 화면에서 사라졌다. 앞 단계의 끝날에 다음 단계가 시작하는 것(맞닿음)은 겹침이 아니다 — 단계를
+// 마일스톤 날짜로 잇는 계획(SOW 등)이 늘 그렇다. **하나라도 겹치면 null** 이고 빗금 띠로 돌아간다:
+// 일부만 쉐브론으로 그리면 한 행에 두 표현이 섞여, 어느 쪽이 무엇을 뜻하는지 읽을 수 없다.
+const resolveChain = (intervals) => {
+    if (intervals.length === 0) return null;
+    const sorted = [...intervals].sort((a, b) => (a.start < b.start ? -1 : a.start > b.start ? 1 : 0));
+    for (let i = 1; i < sorted.length; i++) {
+        if (sorted[i].start < sorted[i - 1].end) return null;
+    }
+    return sorted.map(({ start, end, name, color, task }) => ({ startDate: start, endDate: end, name, color, task }));
+};
+
 // 화면의 행 하나에 대한 요약. 접혀 있지 않거나 숨은 일정이 없으면 null 이다
 // (호출부가 "요약할 것이 없다"를 분기 없이 읽을 수 있어야 한다).
 export const resolveRollup = (task) => {
@@ -91,7 +106,7 @@ export const resolveRollup = (task) => {
     if (segments.length === 0 && milestones.length === 0) return null;
 
     milestones.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
-    return { segments, milestones, taskCount };
+    return { segments, chain: resolveChain(intervals), milestones, taskCount };
 };
 
 // 툴팁 — 끌어올린 막대가 **어느 자손의 것인지**는 이름 말고 읽을 방법이 없다.
@@ -104,6 +119,29 @@ export const rollupSegmentTitle = (segment) => {
     const who = rest > 0 ? `${shown} 외 ${rest}개` : shown;
     return `숨은 하위 일정: ${who} (${segment.startDate} ~ ${segment.endDate})`;
 };
+
+// 단계 칸의 옅은 바탕을 **불투명한 색**으로 미리 섞는다(색 × alpha + 바탕 × (1−alpha)). 반투명으로
+// 칠하면 그 행의 부모 막대가 비쳐 칸 색이 진해지고 글자가 묻힌다. CSS 변수나 fill-opacity 에 기대지
+// 않는 이유는 '이미지로 복사'(html2canvas)가 SVG 를 문서 밖에서 그리기 때문이다 — 변수는 풀리지 않는다.
+// 16진 색(#rgb·#rrggbb)만 섞고, 그 밖의 형식이면 null(호출부가 반투명으로 폴백한다).
+const parseHex = (c) => {
+    const m = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(typeof c === 'string' ? c.trim() : '');
+    if (!m) return null;
+    const h = m[1].length === 3 ? m[1].replace(/./g, ch => ch + ch) : m[1];
+    return [0, 2, 4].map(i => parseInt(h.slice(i, i + 2), 16));
+};
+
+// 섞을 바탕 — App.css 의 --color-bg-primary 와 같은 값이어야 한다(단위 테스트가 대조한다)
+export const CHAIN_BACKGROUND = { light: '#FFFFFF', dark: '#1E1E1E' };
+
+export const tintOver = (color, background, alpha) => {
+    const fg = parseHex(color);
+    const bg = parseHex(background);
+    if (!fg || !bg) return null;
+    return '#' + fg.map((v, i) => Math.round(v * alpha + bg[i] * (1 - alpha)).toString(16).padStart(2, '0')).join('');
+};
+
+export const chainStepTitle = (step) => `${step.name} (${step.startDate} ~ ${step.endDate})`;
 
 export const rollupMilestoneTitle = (milestone) =>
     `숨은 마일스톤: ${milestone.label || '마일스톤'} (${milestone.date}) — ${milestone.via}`;

@@ -56,6 +56,7 @@ function App() {
     const showBarDates = useSettingsStore(s => s.showBarDates);
     const showDependencies = useSettingsStore(s => s.showDependencies);
     const showMilestoneDates = useSettingsStore(s => s.showMilestoneDates);
+    const showPhaseChain = useSettingsStore(s => s.showPhaseChain);
     const chartTheme = useSettingsStore(s => s.chartTheme);
     const colorMode = useSettingsStore(s => s.colorMode);
     const showInspector = useSettingsStore(s => s.showInspector);
@@ -429,6 +430,8 @@ function App() {
                     onToggleDependencies={() => toggleSetting('showDependencies')}
                     showMilestoneDates={showMilestoneDates}
                     onToggleMilestoneDates={() => toggleSetting('showMilestoneDates')}
+                    showPhaseChain={showPhaseChain}
+                    onTogglePhaseChain={() => toggleSetting('showPhaseChain')}
                     chartTheme={chartTheme}
                     // 테마를 **바꾸면** 날짜 라벨은 그 테마의 기본값으로 돌아간다(미니멀은 켜짐).
                     // 그 뒤에 표시 옵션에서 따로 바꿀 수 있다. 이미 고른 테마를 다시 누르는 것은
@@ -508,6 +511,7 @@ function App() {
                                     showBarDates={showBarDates}
                                     showDependencies={showDependencies}
                                     showMilestoneDates={showMilestoneDates}
+                                    showPhaseChain={showPhaseChain}
                                     onOpenMilestoneAdd={openMilestoneAdd}
                                     toast={toast}
                                     chartTheme={chartTheme}

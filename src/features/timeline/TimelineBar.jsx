@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { dateUtils } from '../../utils/dateUtils';
 import { isTaskOverdue, getTaskStatus } from '../../utils/taskTree';
 import { getStatusColor, getTheme, themeColor } from '../../themes/index.js';
-import { rollupSegmentTitle, rollupMilestoneTitle } from './rollupBars';
+import { rollupSegmentTitle, rollupMilestoneTitle, chainStepTitle, tintOver, CHAIN_BACKGROUND } from './rollupBars';
 import { placeMilestoneLabels, milestoneLabelStyle } from './milestoneLabels';
 import { visibleMilestoneItems, milestoneLabelText, isDateInRange } from './timelineGeometry';
 import { milestoneShape } from '../../shared/milestoneShapes';
@@ -33,6 +33,8 @@ function TimelineBar({
     showBarLabels = true, // Toolbar toggle
     showBarDates = true, // Toolbar toggle
     showMilestoneDates = false, // 표시 옵션 — 마일스톤 라벨을 날짜로
+    showPhaseChain = true, // 표시 옵션 — 접힌 가지를 단계 체인(쉐브론)으로
+    darkMode = false,
     timeScale = 'monthly',
     snapEnabled = true,
     chartTheme = 'default',
@@ -444,12 +446,52 @@ function TimelineBar({
     // 편집 대상이 아니다: 드래그도 우클릭 메뉴도 없고, 클릭하면 대표 행(이 작업)을 고른다.
     // 그 안의 무엇을 고치려면 가지를 펼쳐야 한다 — 요약은 하나의 막대에 여러 작업을 담으므로
     // 여기서 끌면 무엇이 움직여야 하는지 화면이 말해 줄 수 없다.
+    // 단계 체인 — 숨은 하위 일정이 하나도 겹치지 않을 때(rollupBars.resolveChain). 칸마다 이름을
+    // 쓴다. 모양은 SVG 다: html2canvas 는 clip-path 를 무시해서 CSS 로 깎은 쉐브론은 '이미지로 복사'
+    // 에서 사각형이 된다(LG 화살표 바가 SVG 인 것과 같은 이유). 바탕은 옅게(28%, 바탕색과 미리 섞은
+    // 불투명 색 — tintOver) 칠하고 글자는 본문 색이다 — 진한 색 위의 흰 글자는 색에 따라 대비가
+    // 무너진다. 편집 대상이 아닌 것은 빗금 띠와 같다(클릭하면 이 행을 고른다).
+    // 밝게 고정되는 테마(forceLight)는 다크 모드여도 흰 바탕이다.
+    const chainBackground = CHAIN_BACKGROUND[(darkMode && !getTheme(chartTheme).forceLight) ? 'dark' : 'light'];
+    const renderChain = (chain) => chain.map((step, i) => {
+        const { width, offset } = dateUtils.calculateWidth(step.startDate, step.endDate, startDate, endDate, containerWidth);
+        const w = Math.max(width - 2, 1); // 칸 사이 2px 틈 — 맞닿은 단계가 한 덩어리로 보이지 않게
+        const tip = Math.min(8, w / 3);    // 화살 깊이. 좁은 칸에서는 줄인다
+        const notch = i === 0 ? 0 : tip;   // 첫 칸은 평평하게 시작한다(그림의 '사전 논의')
+        const color = colorMode === 'status'
+            ? (getStatusColor(getTaskStatus(step.task, today), chartTheme) || themeColor(step.color, chartTheme))
+            : themeColor(step.color, chartTheme);
+        return (
+            <div
+                key={`${step.startDate}~${step.endDate}~${i}`}
+                className="timeline-phase-step"
+                data-testid="phase-step"
+                style={{ left: `${offset}px`, width: `${w}px` }}
+                title={chainStepTitle(step)}
+                onClick={(e) => { e.stopPropagation(); onSelect(task.id); }}
+            >
+                <svg className="phase-step-shape" width={w} height="100%" viewBox={`0 0 ${w} 10`} preserveAspectRatio="none" aria-hidden="true">
+                    <polygon
+                        points={`0,0 ${w - tip},0 ${w},5 ${w - tip},10 0,10 ${notch},5`}
+                        fill={tintOver(color, chainBackground, 0.28) || color || '#98A2B3'}
+                        fillOpacity={tintOver(color, chainBackground, 0.28) ? 1 : 0.28}
+                    />
+                </svg>
+                {w > 28 && (
+                    <span className="phase-step-label" style={{ paddingLeft: `${notch + 4}px`, paddingRight: `${tip + 2}px` }}>
+                        {step.name}
+                    </span>
+                )}
+            </div>
+        );
+    });
+
     const renderRollup = () => {
         if (!rollup) return null;
 
         return (
             <>
-                {rollup.segments.map(segment => {
+                {showPhaseChain && rollup.chain ? renderChain(rollup.chain) : rollup.segments.map(segment => {
                     const { width, offset } = dateUtils.calculateWidth(
                         segment.startDate, segment.endDate, startDate, endDate, containerWidth
                     );
@@ -488,7 +530,7 @@ function TimelineBar({
 
     return (
         <div
-            className={`timeline-row level-${level} ${isDragTarget ? 'drag-target' : ''}`}
+            className={`timeline-row level-${level} ${isDragTarget ? 'drag-target' : ''} ${showPhaseChain && rollup?.chain ? 'has-phase-chain' : ''}`}
             data-task-id={task.id}
             onContextMenu={(e) => {
                 e.preventDefault();

@@ -361,6 +361,55 @@
     opacity: 1;
 }
 
+/* 단계 체인 — 접힌 가지의 하위 일정이 겹치지 않고 이어질 때(rollupBars.resolveChain).
+   빗금 띠와 같은 층(위에 얹는다)이고 같은 규칙으로 편집 대상이 아니다. 모양은 SVG(TimelineBar). */
+.timeline-phase-step {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    height: 26px;
+    z-index: var(--z-timeline-rollup);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+}
+.compact-mode .timeline-phase-step,
+[data-chart-theme="minimal"] .timeline-phase-step {
+    height: 20px;
+}
+.phase-step-shape {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+}
+.phase-step-label {
+    position: relative;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1;
+    color: var(--color-text-primary);
+    pointer-events: none;
+}
+.compact-mode .phase-step-label,
+[data-chart-theme="minimal"] .phase-step-label {
+    font-size: 11px;
+}
+.timeline-phase-step:hover {
+    filter: brightness(0.94);
+}
+/* 체인이 있는 행에서는 부모 자신의 막대를 흐린다. 부모의 기간은 대개 자식들을 아우르는 범위라
+   칸들과 같은 자리에 겹치고, 진한 그대로면 칸 사이 틈과 가장자리로 비쳐 체인을 흐린다.
+   지우지 않는 이유: 부모의 기간이 자식보다 길면 그 바깥은 부모 막대만이 말해 준다. */
+.timeline-row.has-phase-chain > .timeline-bar {
+    opacity: 0.2;
+}
+
 /* 숨은 마일스톤: 속이 빈 작은 마름모 — 실제 마일스톤(속이 찬 도형)과 구별된다 */
 .rollup-milestone-marker {
     position: absolute;

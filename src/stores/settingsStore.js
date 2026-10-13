@@ -26,6 +26,7 @@ export const SETTING_DEFAULTS = {
     showBarLabels: false,
     showBarDates: false,
     showDependencies: true, // 타임라인·HTML 내보내기의 의존성 화살표
+    showPhaseChain: true, // 접힌 가지의 하위 일정이 겹치지 않으면 단계 체인(쉐브론)으로 — 끄면 빗금 띠
     showMilestoneDates: false, // 마일스톤 라벨에 이름 대신 날짜(yy.mm.dd) — 테마를 고르면 그 테마의 기본값으로
     chartTheme: 'default',
     colorMode: 'task', // 'task' = 작업 색상 | 'status' = 일정 상태 색상 + 범례

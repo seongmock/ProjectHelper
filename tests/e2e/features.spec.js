@@ -1020,13 +1020,61 @@ test.describe('접힌 가지의 요약 막대', () => {
         await expect(rollupBars(page)).toHaveCount(0);
     });
 
+    // '접힌 단계 이어 그리기'(기본 켜짐)를 끄고 켠다 — 전역 설정이라 테스트가 끝에서 되돌린다
+    const togglePhaseChain = async (page) => {
+        await page.getByTitle('표시 옵션').click();
+        await page.getByRole('menuitemcheckbox', { name: '접힌 단계 이어 그리기' }).click();
+        await page.keyboard.press('Escape');
+    };
+
     test('떨어져 있는 구간은 한 덩어리로 뭉치지 않는다', async ({ page }) => {
         // '프로젝트 기획' 의 두 자식은 01-20 / 01-21 로 맞닿지 않는다(하루 뜬다).
         // min~max 한 덩어리로 그리면 없는 일정을 있다고 말하는 셈이다.
+        // 겹치지 않으므로 기본은 단계 체인이다 — 빗금 띠의 합치기 규칙을 보려면 그것을 끈다.
+        await togglePhaseChain(page);
+        try {
+            await collapse(page, '프로젝트 기획');
+            await expect(rollupBars(page)).toHaveCount(2);
+            await expect(rollupBars(page).first()).toHaveAttribute('title', /요구사항 분석/);
+            await expect(rollupBars(page).last()).toHaveAttribute('title', /설계 문서 작성/);
+        } finally {
+            await togglePhaseChain(page);
+        }
+    });
+
+    test('하위 일정이 겹치지 않으면 단계 체인으로 이어 그리고, 칸마다 이름을 쓴다', async ({ page }) => {
+        const steps = page.getByTestId('phase-step');
         await collapse(page, '프로젝트 기획');
-        await expect(rollupBars(page)).toHaveCount(2);
-        await expect(rollupBars(page).first()).toHaveAttribute('title', /요구사항 분석/);
-        await expect(rollupBars(page).last()).toHaveAttribute('title', /설계 문서 작성/);
+        await expect(steps).toHaveCount(2);
+        await expect(rollupBars(page)).toHaveCount(0);
+        // 칸 안에 이름이 **보인다** — 빗금 띠는 이름이 툴팁에만 있었다
+        await expect(steps.first().locator('.phase-step-label')).toHaveText('요구사항 분석');
+        await expect(steps.last().locator('.phase-step-label')).toHaveText('설계 문서 작성');
+        await expect(steps.first()).toHaveAttribute('title', /요구사항 분석 \(2026-01-\d\d ~ 2026-01-20\)/);
+        // 시간 순서대로 왼쪽에서 오른쪽
+        const [a, b] = await steps.evaluateAll(els => els.map(el => el.getBoundingClientRect().left));
+        expect(a).toBeLessThan(b);
+        // 칸을 누르면 그 행을 고른다(편집 대상이 아니다 — 빗금 띠와 같다)
+        await steps.first().click();
+        await expect(row(page, '프로젝트 기획')).toHaveClass(/selected/);
+
+        // 겹치는 가지('개발')는 빗금 띠 그대로다 — 한 행에 두 표현을 섞지 않는다
+        await collapse(page, '개발');
+        await expect(rollupBars(page)).toHaveCount(1);
+        await expect(steps).toHaveCount(2);
+
+        // 체인이 있어도 이미지로 복사가 된다 — 쉐브론이 SVG 라 캡처에서 모양이 유지된다
+        await page.getByTitle('이미지로 복사').click();
+        await expect(page.locator('.toast').filter({ hasText: /복사되었습니다|다운로드했습니다/ })).toBeVisible({ timeout: 15000 });
+
+        // 끄면 빗금 띠로 돌아간다
+        await togglePhaseChain(page);
+        try {
+            await expect(steps).toHaveCount(0);
+            await expect(rollupBars(page)).toHaveCount(3);
+        } finally {
+            await togglePhaseChain(page);
+        }
     });
 
     test('접힌 가지 안의 마일스톤도 표식으로 남는다', async ({ page }) => {
