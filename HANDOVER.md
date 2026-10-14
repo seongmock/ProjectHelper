@@ -314,6 +314,26 @@ Postgres+pgvector · 멀티테넌시 · RAG/Copilot · Workflow 엔진 · 실시
 
 ## 5. 세션 로그
 
+### 2026-10-14 (2) — 재발 방지 문서화 · 푸시 · CI 가 막은 보안 권고 해소
+
+사용자 요청: 재발 방지 문서화 + git 푸시. `CLAUDE.md` 에 **"재발 방지 규칙"** 절(11개 규칙, 각각을 막는 장치)과
+`tests/unit/regressionGuards.test.js`(불리언 설정은 전부 팔레트에 · 캡처 영역에 `color-mix()`/`clip-path` 금지 —
+둘 다 위반을 넣어 실패를 확인), §4 에 레드팀 잔여 결함 표, §6 체크리스트의 헬스 체크 주소를 `:8443` 으로.
+
+10커밋을 main 에 푸시하자 **CI `checks` 잡이 `npm audit --audit-level=high` 에서 실패**했다 — 코드가 아니라
+그 사이 공개된 권고다(9/29 CI 는 초록). 프런트: tinypool **critical**(Prototype Pollution→RCE, vitest 3 이
+`^1.1.1` 로 묶음)·@vitest/mocker·brace-expansion·source-map-js. server: proxy-addr critical·express·qs·body-parser.
+mcp(CI 가 감사하지 않는다): @modelcontextprotocol/sdk·fast-uri·ip-address 등.
+- 프런트: **vitest·@vitest/coverage-v8 3.2.7 → 4.1.11**(권고 해소 최소 버전, 개발 의존성) + `npm audit fix`.
+  server·mcp 는 `npm audit fix`(락파일만, 메이저 없음). MCP 서버 기동 확인.
+- **vitest 4 의 v8 커버리지는 줄이 아니라 실제 구문을 센다** — 같은 커밋을 두 버전으로 재서 확인했다(구문 수
+  4585 → 1858, 구문·줄 97.9 → 94.2%, 함수 87.7 → 92.0%, 분기 91.4 → 88.7%). 덜 테스트된 것이 아니라 자가 바뀌어
+  임계값만 다시 정했다: statements·lines 95 → 92, functions 80 → **90**(올림), branches 88 그대로(`vitest.config.js` 주석).
+
+검증: lint 0 error · unit 666/666(커버리지 게이트 통과) · server 359/359 · 빌드 · **E2E 159/159 (skip 0)**,
+sqlite 159/159 · `npm audit --audit-level=high` 프런트·server·mcp 모두 0.
+배포 안 함 — 런타임 의존성 변경은 server·mcp 락파일의 패치 버전뿐이고 다음 배포에 함께 나간다.
+
 ### 2026-10-14 — 컨플루언스에서 빈 차트 · 미니멀 라벨 바탕 · 접힌 행의 마일스톤 라벨
 
 **컨플루언스에 붙인 HTML 내보내기가 머리글만 남은 빈 차트였다(사용자 보고, 현/구 버전 HTML 비교 제공).**
