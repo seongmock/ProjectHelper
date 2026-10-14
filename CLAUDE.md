@@ -25,7 +25,7 @@ npm run dev          # Vite dev server, http://localhost:5173, hot-reload
 npm run dev:api      # Express API server (PORT env, default 3000)
 npm run build        # Production build → dist/
 npm run lint         # ESLint 9 (flat config)
-npm run test:unit    # Vitest — 도메인 순수함수 + XSS 회귀 (663건)
+npm run test:unit    # Vitest — 도메인 순수함수 + XSS 회귀 (666건)
 npm run test:coverage # 위 + 커버리지 게이트 (vitest.config.js 의 임계값 — CI 와 같은 조건)
 npm run test:server  # node:test — 검증·서비스·저장소·레지스트리·감사·의존성·인증·메트릭 (359건)
 npm run test:e2e     # Playwright E2E 159건 (API·dev 서버 자동 기동)
@@ -47,7 +47,7 @@ npx playwright test -g "프로젝트"                   # by test-title substrin
 npx playwright test --headed --debug                # watch it / step through
 ```
 
-**변경 후에는 `npm run verify`** — 합격 기준은 lint 0 error · unit 663/663 · server 359/359 ·
+**변경 후에는 `npm run verify`** — 합격 기준은 lint 0 error · unit 666/666 · server 359/359 ·
 빌드 성공 · **E2E 159/159 (skip 0)**.
 
 **테스트는 지워서 초록불을 만들 수 있다** — 그래서 CI 에 개수 바닥(`scripts/assert-test-floor.mjs`,
@@ -724,6 +724,54 @@ Dependencies now live at the range level.
 - **대비는 CSS transition 이 끝난 뒤에 재라.** 전환 중간값을 잡으면 4.40:1 / `font-weight: 598`
   같은 유령 결함이 나온다. 배경은 조상과 **알파 합성**해야 한다 — `rgba(0,0,0,0.016)` 을 그대로
   읽으면 검정 위 검정 글자로 1.36:1 이 나온다(실제로 나왔고, 내가 만든 오탐이었다).
+
+### 재발 방지 규칙 — 2026-10 레드팀(1·2차)과 사용자 보고에서 굳힌 것
+
+아래는 **한 번 이상 실제로 운영에 나갔거나, 모든 테스트가 초록인 채로 존재했던** 결함 종류다. 각 줄에 그것을
+지금 막고 있는 장치를 적었다 — 장치가 없는 것은 규칙을 지키는 수밖에 없다. 상세 경위는 `HANDOVER.md` §5
+2026-10-04 · 10-13 · 10-13(2) · 10-14 세션 로그에 있다.
+
+- **로드는 편집이 아니다.** 서버에서 읽어 온 트리는 `resetTasks` + `skipNextSaveRef = true` 로 넣는다(초기 로드·
+  프로젝트 전환·409 재로드 모두). 되돌릴 수 있는 `setTasks` 로 넣던 동안 로드 직후 Ctrl+Z 한 번이 **프로젝트 전체를
+  부팅용 샘플로 바꿔 저장했고**, 페이지를 열기만 해도 쓰기가 나가 다른 탭의 편집을 409 로 버렸다.
+  가드: `ai-sync.spec.js` *"페이지를 열기만 해서는 쓰지 않고…"*.
+- **HTML 내보내기의 `<script>` 에는 HTML 엔티티 꼴의 문자열(`&amp;`, `&#39;` …)을 두지 않는다.** 컨플루언스는
+  매크로를 저장할 때 스크립트 안의 엔티티까지 글자로 풀어서, `'&#39;'` 가 `'''` 가 되어 **스크립트 전체가 죽고
+  머리글만 남았다**(앱·테스트는 전부 정상이었다). JS 이스케이프(`\u0026…`)로 적는다 — 템플릿 리터럴 안이므로
+  소스에는 백슬래시를 **둘** 쓴다(하나면 템플릿이 그 자리에서 엔티티로 되돌린다). 같은 이유로 템플릿 안의 정규식
+  `\d` 도 소스에서는 `\\d` 다(lint 의 `no-useless-escape` 가 하나짜리를 잡는다). 가드: `htmlExporter.test.js`
+  *"컨플루언스에 붙여도 스크립트가 산다"*, `export-html.spec.js` *"컨플루언스처럼 엔티티를 풀어 붙여도…"*.
+- **설정값은 코드로 새지 않는다.** 설정은 서버(구조만 검증)·에이전트·가져온 JSON 에서 오고, 내보내기는 그것을
+  `<script>` 에 **보간**한다(저장형 XSS 였다). 모든 설정은 `src/stores/settingsSchema.js` 의 `normalizeSetting` 을
+  지난다 — 스토어도 내보내기도. **새 설정 키는 `SETTING_DEFAULTS` 에 기본값과 함께 추가**하고, 열거값이면 `ENUMS`
+  에도 넣는다. 테마 id 를 바꾸면 `ALIASES` 에 옛 id 를 남긴다('sow'→'minimal').
+- **새 불리언 표시 옵션은 표시 옵션 메뉴와 명령 팔레트 둘 다에 넣는다.** 메뉴에만 넣었던 셋이 팔레트에서 찾아지지
+  않았다. 가드: `regressionGuards.test.js` *"켜고 끄는 설정은 전부 명령 팔레트에 있다"*(빼려면 이유를 거기 적는다).
+- **'이미지로 복사'(html2canvas)가 그리지 못하는 것을 캡처 영역(`features/timeline/**`, `themes.css`)에 쓰지 않는다.**
+  `color-mix()` 는 캡처를 **통째로 실패**시켰고, `clip-path` 는 무시된다(모양은 SVG 로). 가드: `regressionGuards.test.js`.
+  패턴으로 못 잡는 것 둘 — **`translateY(-50%)` 로 옮긴 상자의 자식**과 **`height="100%"` SVG** 는 캡처에서 어긋난다
+  (단계 체인 칸·미니멀 채움 위 글자가 반쯤 밀려 찍혔다). 세로 가운데는 `top: calc(50% - h/2)`, SVG 높이는 px 로.
+  새 그림을 캡처 영역에 넣으면 **캔버스를 가로채 픽셀을 보는 E2E** 를 붙인다(`features.spec.js` *"이미지로 복사에서도
+  단계 칸이…"* 가 본보기 — 수정을 되돌리면 실패하는 것을 확인했다).
+- **`'YYYY-MM-DD'` 를 `new Date(str)` 로 읽어 날짜끼리 비교·환산하지 않는다.** UTC 자정이라 KST 에서 9시간이
+  올림돼 화살표 끝이 하루 밀렸고, 말일 마일스톤이 축 밖으로 판정돼 **아예 그려지지 않았다**. 앱은 `dateUtils`
+  (로컬 자정)·`isDateInRange`, 내보내기는 자기 `parseDate`(로컬). CI 는 UTC 라 이 종류는 거기서 보이지 않는다 —
+  날짜 경계를 다루는 E2E 는 `test.use({ timezoneId: 'Asia/Seoul' })`(`minimal-theme.spec.js`), 단위는 `TZ=Asia/Seoul`
+  로도 돌려 본다.
+- **아무것도 바뀌지 않은 쓰기는 쓰지 않는다** — 클라이언트(`planRangeDrop`/`planMilestoneDrop` 이 빈 목록)와 서버
+  (`taskService.single()` 이 op 전 스냅샷과 비교) 둘 다. 클릭·ESC·같은 값 PATCH 가 리비전을 올리면 undo 칸을 먹고
+  다른 탭의 편집을 409 로 버린다.
+- **라벨을 "자리가 있을 때만" 다는 곳은 화면 전체를 한 번에 판정한다.** 행마다 따로 정하면 두 행 사이 띠에서 위
+  행의 아래 라벨과 아래 행의 위 라벨이 포개진다(`rollupLabels.planRollupLabels`). 자리가 없으면 그리지 않고 툴팁에
+  남긴다 — 겹쳐 그리지 않는다.
+- **글자를 막대 위에 얹을 때 상자나 헤일로로 대비를 메우지 않는다**(미니멀). 흰 상자는 막대를 도려낸 것처럼,
+  헤일로는 진한 색 위에서 번진 것처럼 보였다(사용자 지적). 채움 색 위는 채움 **안에** 더 잘 읽히는 글자색으로
+  다시 그린다(`readableTextOn`). 대비 숫자만 보고 고르지 말고 **확대 스크린샷을 눈으로 본다**.
+- **E2E 는 전역 설정을 바꿨으면 되돌리고, 화면 배치를 재는 스펙은 시작할 때 배치에 영향을 주는 설정을 전부 초기화한다**
+  (`minimal-theme.spec.js` 의 `RESET`). 화면 좌표를 아무 데나 누르지 않는다 — (5,5) 는 레일 접기 버튼이라 `railExpanded`
+  가 켜진 채 뒤 스펙들로 샜다. 비동기로 자리 잡는 값(여백·폭)은 한 번 재지 말고 `expect.poll`.
+- **새 가드 테스트는 수정을 잠시 되돌려 실패하는지 본다.** 통과만 확인한 가드는 아무것도 지키지 않을 수 있다
+  (실제로 이번 사이클에 그런 테스트 하나가 위치를 틀리게 재고 있었다 — 가운데 픽셀이 라벨 글자를 짚었다).
 
 ### Tree-update invariants (critical for correctness)
 
