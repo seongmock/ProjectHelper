@@ -1235,9 +1235,11 @@ test.describe('타임라인 위쪽 여백', () => {
         await page.reload();
         await expect(page.getByText('데이터 불러오는 중')).toHaveCount(0);
 
+        // 여백은 레이아웃이 자리를 잡은 뒤에 붙는다 — 한 번만 재면 전체 실행의 부하에서 그 전 프레임을 잡았다
+        // (2026-10-14 전체 E2E 에서 1회, 단독 실행 3/3 통과). 붙을 때까지 다시 잰다.
+        await expect.poll(async () => (await measure()).padTop).toBeGreaterThan(0); // 사용자가 위를 골랐으니 자리를 잡는다
         y = await measure();
         expect(y.count).toBeGreaterThanOrEqual(5);
-        expect(y.padTop).toBeGreaterThan(0);        // 사용자가 위를 골랐으니 자리를 잡는다
         expect(y.top).toBeGreaterThanOrEqual(y.headerBottom);
     });
 });

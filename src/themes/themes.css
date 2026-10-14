@@ -262,9 +262,11 @@
 .timeline-view[data-chart-theme="minimal"] .bar-progress-fill {
     position: absolute;
     left: 0;
-    top: 50%;
+    /* translateY(-50%) 가 아니라 계산한 top — '이미지로 복사'(html2canvas)가 transform 으로 옮긴 상자의 자식을
+       어긋나게 그려, 채움 안에 다시 그린 흰 라벨이 아래로 밀려 잘렸다(단계 체인 칸과 같은 원인) */
+    top: calc(50% - var(--band-h) / 2);
     height: var(--band-h);
-    transform: translateY(-50%);
+    transform: none;
     border-radius: var(--band-r);
     pointer-events: none;
 }
@@ -302,8 +304,13 @@
 .timeline-view[data-chart-theme="minimal"] .resize-handle:hover {
     background-color: rgba(0, 0, 0, 0.08);
 }
-/* 바 라벨은 옅은 바탕과 진한 진행률 위를 함께 지나간다 — 흰 바탕을 깔아야 어느 색 위에서도 읽힌다
-   (진한 빨강 #d64545 위 검은 글자는 3.4:1 이었다) */
+/* 바 라벨은 옅은 바탕과 진한 진행률 위를 함께 지나간다. 글자는 본문 검정이고, 채움 색이 흰 글자에 더 맞으면
+   (빨강) 채운 구간만 흰 글자로 다시 그린다(.bar-label-on-fill, TimelineBar). 상자도 헤일로도 깔지 않는다 —
+   흰 상자는 막대를 도려낸 것처럼, 헤일로는 진한 색 위에서 번진 것처럼 보였다(사용자 지적, 2026-10-14).
+   헤일로는 막대 밖에 떠 있는 마일스톤 라벨에만 쓴다. */
+.timeline-view[data-chart-theme="minimal"] {
+    --minimal-halo: 0 0 1px #fff, 0 0 2px #fff, 0 0 3px #fff, 0 0 3px #fff;
+}
 .timeline-view[data-chart-theme="minimal"] .bar-label {
     color: var(--minimal-n900);
     text-shadow: none;
@@ -311,9 +318,23 @@
     font-weight: 400;
     line-height: 14px;
     opacity: 1;
-    padding: 0 3px;
-    border-radius: 2px;
-    background-color: rgba(255, 255, 255, 0.82);
+}
+
+/* 채움 안에 다시 그린 라벨(TimelineBar 의 labelOnFill) — 채움이 바닥 라벨보다 위에 와야 그 구간을 덮는다 */
+.timeline-view[data-chart-theme="minimal"] .bar-progress-fill.has-label {
+    overflow: hidden;
+    z-index: calc(var(--z-timeline-milestone) + 1);
+}
+/* 바닥 라벨의 .bar-content 는 왼쪽 리사이즈 핸들(.resize-handle, 8px) 다음에 온다 — 같은 x 에서 시작한다 */
+.timeline-view[data-chart-theme="minimal"] .bar-progress-fill.has-label > .bar-content {
+    margin-left: 8px;
+    height: 100%;
+    pointer-events: none;
+}
+/* 캡처는 막대에 옅은 테두리를 그린다(.capturing .timeline-bar) — 미니멀의 막대 상자는 투명한 잡기 영역이라
+   그 테두리가 띠 바깥에 빈 사각형으로 찍혔다 */
+.timeline-view.capturing[data-chart-theme="minimal"] .timeline-bar {
+    border: none;
 }
 
 /* 마일스톤: 마커는 12px 로 작게 그리되 잡는 자리는 24px — 기본 규칙(TimelineBar.css)의 4px 로는 모자라다.
@@ -327,16 +348,22 @@
     margin: -9px;
 }
 /* 마일스톤 라벨: 말풍선이 아니라 11px 회색 글자. 첫 행 라벨은 아래 행으로 내려와 막대 위에 앉으므로
-   투명하면 막대 색 위에서 읽히지 않는다(1.6:1) — 옅은 흰 바탕을 깐다 */
+   맨글자로는 막대 색 위에서 읽히지 않는다(1.6:1) — 바 라벨과 같은 헤일로. 흰 상자를 깔던 동안은 그 상자가
+   월 격자선과 '오늘' 선을 끊어 놓았다. */
 .timeline-view[data-chart-theme="minimal"] .milestone-label,
 .timeline-view[data-chart-theme="minimal"] .milestone-marker:hover .milestone-label {
-    background-color: rgba(255, 255, 255, 0.85);
+    background-color: transparent;
     color: var(--minimal-n600);
+    text-shadow: var(--minimal-halo);
     box-shadow: none;
     padding: 0 2px;
-    border-radius: 2px;
     font-size: 11px;
     font-weight: 400;
+}
+/* 캡처는 모든 text-shadow 를 지운다(.capturing *) — 미니멀의 헤일로는 장식이 아니라 가독성이라 남긴다 */
+.capturing .timeline-view[data-chart-theme="minimal"] .milestone-label,
+.timeline-view.capturing[data-chart-theme="minimal"] .milestone-label {
+    text-shadow: var(--minimal-halo) !important;
 }
 
 /* 오늘: 1px 점선 + 10px '오늘' 글자(붉은 알약 대신) */

@@ -277,3 +277,29 @@ test('미니멀 테마로 내보내면 같은 규칙으로 그린다 — 옅은 
     }));
     expect(onTop).toEqual([true, true, true]);
 });
+
+// 컨플루언스는 HTML 매크로를 저장할 때 <script> 안의 엔티티까지 글자로 풀어 버린다. 작은따옴표 엔티티가
+// 따옴표 하나가 되어 스크립트가 문법 오류로 죽고, 머리글만 남은 빈 차트가 됐다(2026-10-14 실제 보고).
+// 여기서 그 변환을 그대로 흉내 낸 문서를 띄워 실제로 그려지는지 본다.
+test('컨플루언스처럼 엔티티를 풀어 붙여도 차트가 그려진다 — 세 테마', async ({ page, context }) => {
+    await page.goto('/');
+    await expect(page.getByText('데이터 불러오는 중')).toHaveCount(0);
+    for (const chartTheme of ['default', 'lg', 'minimal']) {
+        const html = await page.evaluate(async ({ data, chartTheme }) => {
+            const mod = await import('/src/features/io/htmlExporter.js');
+            return mod.exportToHtml(data, { zoomLevel: 1, timeScale: 'monthly', chartTheme, showTaskNames: true });
+        }, { data: TREE, chartTheme });
+        const decoded = html
+            .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
+            .replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+
+        const doc = await context.newPage();
+        const errors = [];
+        doc.on('pageerror', e => errors.push(e.message));
+        await doc.setContent(`<div style="width:1200px;height:600px">${decoded}</div>`);
+        await expect(doc.locator('.timeline-bar'), chartTheme).toHaveCount(TREE.length, { timeout: 5000 });
+        await expect(doc.locator('.task-item'), chartTheme).toHaveCount(TREE.length);
+        expect(errors, chartTheme).toEqual([]);
+        await doc.close();
+    }
+});

@@ -116,14 +116,10 @@ function clampInterval([start, end], containerWidth) {
 // 위 자리를 요구하지 않는다"가 조건 없이 성립한다. 대가는 첫 행 라벨이 아래 행 영역으로
 // 내려온다는 것인데, 그것은 다른 행들이 이미 하는 일이다. 위로 올리고 싶으면 손으로
 // 'top' 을 고른다 — 그때만 여백이 생긴다.
-function* autoSlots(preferBelow) {
-    for (let tier = 0; ; tier++) {
-        if (preferBelow) {
-            yield { position: 'bottom', tier };
-            continue;
-        }
-        yield { position: 'top', tier };
-        yield { position: 'bottom', tier };
+function* autoSlots(preferBelow, positions, maxTier) {
+    const order = positions ?? (preferBelow ? ['bottom'] : ['top', 'bottom']);
+    for (let tier = 0; tier <= maxTier; tier++) {
+        for (const position of order) yield { position, tier };
     }
 }
 
@@ -133,8 +129,13 @@ const overlaps = (a, b) => a.start < b.end && a.end > b.start;
 /**
  * @param {Array<{id, x, label, labelPosition}>} items  화면에 보이는 마일스톤들
  * @param {number} containerWidth  바 컨테이너 폭(px)
- * @param {{preferBelow?: boolean}} [options]  첫 행이면 preferBelow — 위쪽 여백을 안 쓴다
- * @returns {Map<string, {position, tier, shiftX, maxWidth}>}
+ * @param {{preferBelow?: boolean, positions?: string[], maxTier?: number, reserved?: Array}} [options]
+ *   preferBelow — 첫 행이면 위쪽 여백을 안 쓴다.
+ *   positions / maxTier / reserved — **"자리가 있을 때만"** 라벨을 다는 호출(접힌 행의 숨은 마일스톤)용.
+ *   auto 가 쓸 수 있는 칸과 층의 상한을 정하고, 이미 다른 라벨이 앉은 구간({position, tier, start, end})을
+ *   피한다. 자리를 못 찾은 항목은 **결과에서 빠진다**(= 라벨을 그리지 않는다, 툴팁에는 남는다).
+ *   주지 않으면 지금까지와 같다(층은 끝없이 늘어나므로 모든 항목이 자리를 얻는다).
+ * @returns {Map<string, {position, tier, shiftX, maxWidth, start, end}>}  start/end 는 차지한 구간(px)
  */
 export function placeMilestoneLabels(items, containerWidth, options) {
     const result = new Map();
@@ -155,22 +156,25 @@ export function placeMilestoneLabels(items, containerWidth, options) {
     const manual = prepared.filter(m => m.labelPosition && m.labelPosition !== 'auto');
     const auto = prepared.filter(m => !m.labelPosition || m.labelPosition === 'auto');
 
+    for (const r of options?.reserved ?? []) reserve(r.position, r.tier ?? 0, { start: r.start, end: r.end });
+
     for (const m of manual) {
         const position = LABEL_POSITIONS.includes(m.labelPosition) ? m.labelPosition : 'top';
         const [start, end] = baseInterval(position, m.x, m.width);
         const { shiftX, maxWidth } = clampInterval([start, end], containerWidth);
-        result.set(m.id, { position, tier: 0, shiftX, maxWidth });
-        reserve(position, 0, { start: start + shiftX, end: end + shiftX });
+        const interval = { start: start + shiftX, end: end + shiftX };
+        result.set(m.id, { position, tier: 0, shiftX, maxWidth, ...interval });
+        reserve(position, 0, interval);
     }
 
     for (const m of auto) {
-        for (const { position, tier } of autoSlots(options?.preferBelow)) {
+        for (const { position, tier } of autoSlots(options?.preferBelow, options?.positions, options?.maxTier ?? Infinity)) {
             const [start, end] = baseInterval(position, m.x, m.width);
             const { shiftX, maxWidth } = clampInterval([start, end], containerWidth);
             const interval = { start: start + shiftX, end: end + shiftX };
             const taken = occupied.get(slotKey(position, tier)) ?? [];
             if (taken.some(other => overlaps(interval, other))) continue;
-            result.set(m.id, { position, tier, shiftX, maxWidth });
+            result.set(m.id, { position, tier, shiftX, maxWidth, ...interval });
             reserve(position, tier, interval);
             break;
         }

@@ -3,6 +3,7 @@ import { getTaskStatus, flattenAll, findDependencyIssues } from '../../utils/tas
 import { summarizeRowDependencies, describeRowDependencies } from '../table/dependencyBadges';
 import { getStatusStyles, getStatusColor, getTheme } from '../../themes/index.js';
 import { normalizeSettings } from '../../stores/settingsSchema.js';
+import { readableTextOn, DARK_TEXT } from '../timeline/rollupBars.js';
 
 // 라벨 배치는 **앱과 같은 코드**를 쓴다. 내보낸 HTML 은 정적 산출물이라, 배치 규칙을 여기에
 // 다시 적으면 반드시 낡는다 — 실제로 낡아 있었다: 앱은 층(tier)을 늘려 겹침을 없애는데
@@ -55,6 +56,22 @@ const buildStatusColorMap = (tasks, themeId) => {
 
 // \ubc94\ub840 \uc2a4\ud0c0\uc77c. \uc0c1\ud0dc \uc0c9\uc0c1 \ubaa8\ub4dc\uac00 \uc544\ub2c8\uba74 \uc544\uc608 \ub123\uc9c0 \uc54a\ub294\ub2e4 \u2014 \uc790\ub9bd\ud615 \uc0b0\ucd9c\ubb3c\uc5d0 \uc4f0\uc774\uc9c0 \uc54a\ub294
 // \uaddc\uce59\uc744 \ub0a8\uae30\uc9c0 \uc54a\uae30 \uc704\ud574\uc11c\ub2e4. \uc140\ub809\ud130\ub294 \ucee8\ud14c\uc774\ub108 id \ub85c \uc2a4\ucf54\ud504\ud55c\ub2e4(\ubb38\uc11c \uc804\uc5ed \uc624\uc5fc \ubc29\uc9c0).
+// 채움 색 → 그 위 글자색. 흰 글자가 더 잘 읽히는 색만 싣는다(나머지는 기본 검정).
+const buildOnFillTextMap = (tasks, theme) => {
+    const colors = new Set(getStatusStyles(theme.id).map(s => s.color));
+    const mapColor = (c) => (typeof c === 'string' && theme.colorMap?.[c.toLowerCase()]) || c;
+    flattenAll(tasks).forEach(t => {
+        colors.add(mapColor(t.color));
+        (t.timeRanges || []).forEach(r => colors.add(mapColor(r.color || t.color)));
+    });
+    const out = {};
+    colors.forEach(c => {
+        const text = readableTextOn(c);
+        if (typeof c === 'string' && text !== DARK_TEXT) out[c.toLowerCase()] = text;
+    });
+    return out;
+};
+
 const legendCss = (listId) => `
         #ph-gantt-${listId} .ph-legend {
             display: flex;
@@ -126,13 +143,14 @@ const tintCss = (listId) => `
         #ph-gantt-${listId}.ph-tint .timeline-bar:hover { opacity: 1; box-shadow: none; }
         #ph-gantt-${listId}.ph-tint .bar-label {
             position: relative; z-index: 1; /* 진행률 채움(절대배치)보다 위 — 없으면 채움이 글자를 덮었다 */
-            line-height: 14px; padding: 0 3px; border-radius: 2px; background-color: rgba(255, 255, 255, 0.82);
+            line-height: 14px; padding: 0 3px; /* 상자도 헤일로도 없다 — 채움 위는 채움 안에서 다시 그린다(앱과 같다) */
         }
         #ph-gantt-${listId}.ph-tint .milestone-shape .shape-div { width: 12px; height: 12px; box-shadow: none; }
         #ph-gantt-${listId}.ph-tint .milestone-shape svg.shape-icon { width: 16px; height: 16px; filter: none !important; }
         #ph-gantt-${listId}.ph-tint .milestone-label,
         #ph-gantt-${listId}.ph-tint .milestone-marker:hover .milestone-label {
-            background-color: rgba(255, 255, 255, 0.85); color: #5b5b58; box-shadow: none; padding: 0 2px; border-radius: 2px; font-weight: 400;
+            background-color: transparent; color: #5b5b58; box-shadow: none; padding: 0 2px; font-weight: 400;
+            text-shadow: 0 0 1px #fff, 0 0 2px #fff, 0 0 3px #fff, 0 0 3px #fff;
         }
         #ph-gantt-${listId}.ph-tint .today-marker {
             width: 0; background-color: transparent; opacity: 1; border-left: 1px dashed #A50034;
@@ -154,6 +172,9 @@ export const exportToHtml = (tasks, rawSettings = {}) => {
     // \uc0c1\ud0dc \uc0c9\uc0c1 \ubaa8\ub4dc\uac00 \uc544\ub2c8\uba74 \ube48 \ub9f5 \u2192 \uc544\ub798 \ud3f4\ubc31\uc774 \uae30\uc874 \ub3d9\uc791(\uc791\uc5c5 \uc0c9\uc0c1)\uc744 \uadf8\ub300\ub85c \uc720\uc9c0\ud55c\ub2e4
     const statusMode = settings.colorMode === 'status';
     const statusColorJson = toSafeJson(statusMode ? buildStatusColorMap(tasks, theme.id) : {});
+    // 미니멀: 진행률 채움 위 글자색을 **내보낼 때** 정해 싣는다(판정은 굽고 표현은 공유 — 앱의 readableTextOn 과
+    // 같은 답). 나올 수 있는 채움 색은 상태색 팔레트와 작업·기간 색(테마 색 매핑을 거친 것)뿐이다.
+    const onFillJson = toSafeJson(tint ? buildOnFillTextMap(tasks, theme) : {});
 
     // 의존성 판정은 **내보내는 시점에** 한 번 하고 결과를 심는다. 판정 로직(findDependencyIssues)
     // 자체를 심으려면 그것이 의존하는 트리 유틸까지 따라와야 하고, 내보낸 문서는 어차피
@@ -650,11 +671,15 @@ ${statusMode ? legendHtml(theme.id, tint) : ''}
         // 미이스케이프 시 self-XSS 가 아니라 열어보는 모든 사람에게 실행되는 저장형 XSS 가 된다.
         function esc(v) {
             return String(v == null ? '' : v)
-                .replace(/&/g, '&amp;')
-                .replace(/</g, '&lt;')
-                .replace(/>/g, '&gt;')
-                .replace(/"/g, '&quot;')
-                .replace(/'/g, '&#39;');
+                // HTML 엔티티를 **글자 그대로 적지 않는다** — JS 이스케이프(백슬래시 u0026 = 앰퍼샌드)로 적는다.
+                // 컨플루언스는 저장할 때 <script> 안의 엔티티까지 풀어 버린다: 작은따옴표 엔티티가 따옴표 하나로
+                // 바뀌어 문법 오류로 스크립트 전체가 죽고, 머리글만 남은 빈 차트가 됐다(2026-10-14 실제 보고).
+                // 이 스크립트에는 엔티티 꼴의 문자열을 두지 마라 — 단위 테스트가 막는다.
+                .replace(/&/g, '\\u0026amp;')
+                .replace(/</g, '\\u0026lt;')
+                .replace(/>/g, '\\u0026gt;')
+                .replace(/"/g, '\\u0026quot;')
+                .replace(/'/g, '\\u0026#39;');
         }
 
         // ---8<--- milestoneLabels.js (앱과 같은 소스, export 만 제거) ---8<---
@@ -692,6 +717,8 @@ ${inlineModuleSource(milestoneShapesSource)}
         const TINT = ${tint};
         const COLOR_MAP = ${toSafeJson(theme.colorMap || {})};
         function mapColor(c) { return (typeof c === 'string' && COLOR_MAP[c.toLowerCase()]) || c; }
+        // 채움 색(소문자) → 그 위 글자색. 흰 글자가 나은 색만 들어 있다 — 앱의 readableTextOn 이 내보낼 때 정했다
+        const ON_FILL_TEXT = ${onFillJson};
         const SHOW_DEPENDENCIES = ${settings.showDependencies};
         const SHOW_MILESTONE_DATES = ${!!settings.showMilestoneDates};
         // 앱의 milestoneLabelText 와 같은 규칙: 날짜 라벨이면 yy.mm.dd, 이름은 툴팁으로
@@ -810,15 +837,15 @@ ${inlineModuleSource(milestoneShapesSource)}
             const b = DEP_BADGES[taskId];
             if (!b) return '';
             const marks = [];
-            if (b.pre > 0) marks.push('&#8592;' + b.pre);
-            if (b.suc > 0) marks.push('&#8594;' + b.suc);
+            if (b.pre > 0) marks.push('\\u2190' + b.pre); // 왼쪽 화살표 (엔티티로 적지 않는다 — esc() 주석)
+            if (b.suc > 0) marks.push('\\u2192' + b.suc); // 오른쪽 화살표
             if (b.issue) marks.push(ISSUE_MARK[b.issue] || '');
             if (marks.length === 0) return '';
             const cls = 'ph-dep-badge' + (b.issue ? ' ph-dep-' + b.issue : '');
             return '<span class="' + cls + '" title="' + esc(b.title) + '">' + marks.join(' ') + '</span>';
         }
         // 색만으로 구분하지 않는다 — 글리프가 문제의 종류를 함께 말한다.
-        const ISSUE_MARK = { cycle: '&#8635;', overlap: '&#9888;', broken: '&#10006;' };
+        const ISSUE_MARK = { cycle: '\\u21bb', overlap: '\\u26a0', broken: '\\u2716' }; // 순환·경고·끊김 기호
 
         function renderTaskList() {
             elTaskList.innerHTML = DATA.map((task, index) => {
@@ -1050,8 +1077,14 @@ ${inlineModuleSource(milestoneShapesSource)}
                         var tintH = labelText ? Math.max(barH, 16) : barH;
                         var radius = isGroup ? 2 : 4;
                         var tintBg = isGroup ? 'color-mix(in srgb, #c4c4c1 55%, transparent)' : 'color-mix(in srgb, ' + color + ' 28%, transparent)';
+                        // 채움 색에 흰 글자가 더 맞으면 그 채움 **안에** 라벨을 흰 글자로 다시 그린다(앱과 같다 — 흰 상자·
+                        // 헤일로는 막대를 도려내거나 번진 것처럼 보였다). 안쪽 상자는 막대 전체 폭이라 바닥 라벨과 같은 줄이다.
+                        var onFill = labelText && ON_FILL_TEXT[String(color).toLowerCase()];
+                        var pct = Math.min(100, task.progress);
                         var tintProg = (!isGroup && task.progress > 0)
-                            ? '<div style="position:absolute;left:0;top:0;height:100%;width:' + Math.min(100, task.progress) + '%;background:' + color + ';border-radius:' + radius + 'px 0 0 ' + radius + 'px;pointer-events:none;"></div>'
+                            ? '<div style="position:absolute;left:0;top:0;height:100%;width:' + pct + '%;background:' + color + ';border-radius:' + radius + 'px 0 0 ' + radius + 'px;pointer-events:none;' + (onFill ? 'overflow:hidden;z-index:2;' : '') + '">' +
+                                (onFill ? '<div style="width:' + (10000 / pct) + '%;height:100%;display:flex;align-items:center;"><span class="bar-label" style="color:' + onFill + ';">' + labelText + '</span></div>' : '') +
+                              '</div>'
                             : '';
                         html += '<div class="timeline-bar" style="left:' + leftPerc + '%;width:' + widthPerc + '%;top:' + rowCenter + 'px;height:' + tintH + 'px;background-color:' + tintBg + ';border-radius:' + radius + 'px;overflow:hidden;" title="' + title + '">' +
                             tintProg +

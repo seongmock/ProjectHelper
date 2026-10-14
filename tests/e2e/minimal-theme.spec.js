@@ -112,9 +112,10 @@ test('미니멀 테마에서 바 이름을 켜면 얇은 띠도 글자 높이까
         expect(box.labelTop).toBeGreaterThanOrEqual(box.top);
         expect(box.labelBottom).toBeLessThanOrEqual(box.bottom);
     }
-    // 라벨은 흰 바탕을 깐다 — 진한 진행률(빨강 #d64545) 위의 검은 글자는 3.4:1 이었다
-    await expect(page.locator('.timeline-row[data-task-id="K3"] .bar-label'))
-        .toHaveCSS('background-color', 'rgba(255, 255, 255, 0.82)');
+    // 라벨 뒤에 상자도 헤일로도 깔지 않는다 — 흰 상자는 옅은 막대를 도려낸 것처럼 보였다(2026-10-14)
+    const label = page.locator('.timeline-row[data-task-id="K3"] .timeline-bar > .bar-content .bar-label');
+    await expect(label).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+    await expect(label).toHaveCSS('text-shadow', 'none');
     // 끄면 다시 얇은 띠다
     await request.post('/api/settings', { data: { showBarLabels: false } });
     await page.reload();
@@ -210,6 +211,26 @@ test('미니멀 헤더: 축을 크게 줄여도 월 라벨끼리 겹치지 않�
     await request.post('/api/settings', { data: { zoomLevel: 1 } });
 });
 
+test('미니멀: 채움 색에 흰 글자가 맞으면(빨강) 채운 구간만 흰 글자로 다시 그리고, 바닥 라벨과 정확히 겹친다', async ({ page, request }) => {
+    const late = structuredClone(TREE);
+    late[0].children[1] = { ...late[0].children[1], progress: 60,
+        timeRanges: [{ id: 'r4', startDate: iso(-60), endDate: iso(-10), dependencies: ['r3'] }] }; // 지난 일정 → 지연(빨강)
+    await request.post('/api/data', { data: late });
+    await request.post('/api/settings', { data: { chartTheme: 'minimal', showBarLabels: true, colorMode: 'status' } });
+    await page.reload();
+    const bar = page.locator('.timeline-row[data-task-id="K4"] .timeline-bar');
+    const onFill = bar.locator('.bar-progress-fill.has-label .bar-label');
+    await expect(onFill).toHaveCSS('color', 'rgb(255, 255, 255)');
+    const [base, top] = await Promise.all([
+        bar.locator(':scope > .bar-content .bar-label').boundingBox(),
+        onFill.boundingBox(),
+    ]);
+    expect(Math.abs(top.x - base.x)).toBeLessThan(0.5);
+    expect(Math.abs(top.y - base.y)).toBeLessThan(0.5);
+    // 파랑 채움(K3, 진행 50%)은 검은 글자가 더 잘 읽힌다 — 다시 그리지 않는다
+    await expect(page.locator('.timeline-row[data-task-id="K3"] .bar-progress-fill.has-label')).toHaveCount(0);
+});
+
 test('미니멀 테마는 다크 모드에서도 밝게 그린다', async ({ page }) => {
     await pickTheme(page, '미니멀');
     await page.getByTitle('테마 변경').click();
@@ -280,4 +301,31 @@ test('LG: 화살표를 켜고 꺼도 행 줄무늬가 뒤집히지 않는다', a
     await expect(page.locator('.timeline-view[data-chart-theme="lg"] .timeline-row')).toHaveCount(3);
     await expect(page.locator('.dependency-layer path[data-testid^="dependency-"]')).toHaveCount(0);
     expect(await stripes()).toEqual(before);
+});
+
+test('접힌 행의 숨은 마일스톤도 자리가 있으면 라벨을 달고, 이웃 행의 라벨과 포개지지 않는다', async ({ page, request }) => {
+    // 두 그룹을 접는다. 둘 다 같은 날짜에 숨은 마일스톤이 있어, 위 행의 '아래' 라벨과 아래 행의 '위' 라벨이
+    // 같은 띠에서 만난다 — 행마다 따로 판정하던 첫 구현은 여기서 포갰다
+    const group = (id, msLabel) => ({
+        id, name: id, color: '#888', expanded: false, milestones: [], timeRanges: [],
+        children: [{ id: `${id}c`, name: `${id} 자식`, color: '#4A90E2', expanded: true, children: [],
+            timeRanges: [{ id: `${id}r`, startDate: iso(-10), endDate: iso(40), dependencies: [] }],
+            milestones: [{ id: `${id}m`, label: msLabel, date: iso(20), color: '#E74C3C', shape: 'diamond' }] }],
+    });
+    await request.post('/api/data', { data: [group('A', '첫 그룹 마일스톤'), group('B', '둘째 그룹 마일스톤')] });
+    await page.reload();
+    const labels = page.getByTestId('rollup-milestone-label');
+    await expect(labels.first()).toBeVisible();
+    await expect(labels.filter({ hasText: '첫 그룹 마일스톤' })).toHaveCount(1);
+    const rects = await labels.evaluateAll(els => els.map(el => el.getBoundingClientRect().toJSON()));
+    for (let i = 0; i < rects.length; i++) {
+        for (let j = i + 1; j < rects.length; j++) {
+            const [a, b] = [rects[i], rects[j]];
+            const overlap = a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+            expect(overlap, `label ${i} × ${j}`).toBe(false);
+        }
+    }
+    // 자리가 없는 라벨은 그리지 않을 뿐, 마커와 툴팁은 남는다
+    await expect(page.getByTestId('rollup-milestone')).toHaveCount(2);
+    await expect(page.getByTestId('rollup-milestone').last()).toHaveAttribute('title', /둘째 그룹 마일스톤/);
 });

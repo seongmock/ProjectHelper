@@ -6,7 +6,7 @@
 // 접은 것이 똑같아 보였다.** 그 침묵이 다시 들어오지 않게 하는 것이 이 파일의 목적이다.
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { resolveRollup, rollupSegmentTitle, rollupMilestoneTitle, chainStepTitle, tintOver, CHAIN_BACKGROUND } from '../../src/features/timeline/rollupBars';
+import { resolveRollup, rollupSegmentTitle, rollupMilestoneTitle, chainStepTitle, tintOver, CHAIN_BACKGROUND, readableTextOn } from '../../src/features/timeline/rollupBars';
 
 const range = (startDate, endDate) => ({ id: `r-${startDate}`, startDate, endDate });
 
@@ -304,5 +304,18 @@ describe('tintOver — 단계 칸의 불투명 바탕', () => {
         const css = readFileSync(new URL('../../src/App.css', import.meta.url), 'utf8');
         const values = [...css.matchAll(/--color-bg-primary:\s*(#[0-9a-fA-F]{3,6})/g)].map(m => m[1].toUpperCase());
         expect(values).toEqual([CHAIN_BACKGROUND.light, CHAIN_BACKGROUND.dark]);
+    });
+});
+
+describe('readableTextOn — 채움 위 글자색', () => {
+    it('대비가 더 높은 쪽을 고른다 — 빨강은 흰 글자, 파랑·초록·노랑은 검은 글자', () => {
+        expect(readableTextOn('#d64545')).toBe('#ffffff');
+        expect(readableTextOn('#6b8fd6')).toBe('#1a1a19');
+        expect(readableTextOn('#3a9a5b')).toBe('#1a1a19');
+        expect(readableTextOn('#f0b429')).toBe('#1a1a19');
+    });
+    it('모르는 형식은 검은 글자', () => {
+        expect(readableTextOn('red')).toBe('#1a1a19');
+        expect(readableTextOn(undefined)).toBe('#1a1a19');
     });
 });

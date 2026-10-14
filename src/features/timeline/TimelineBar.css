@@ -431,6 +431,13 @@
     cursor: pointer;
 }
 
+/* 숨은 마일스톤 라벨의 기준점 — 실제 마커와 같은 크기의 빈 상자라 라벨 간격이 실제 마일스톤과 같다.
+   라벨은 .milestone-label 그대로라 테마별 표현(기본: 말풍선, 미니멀: 회색 글자)도 같다. */
+.rollup-label-anchor {
+    width: 16px;
+    height: 16px;
+}
+
 .rollup-milestone-marker:hover {
     opacity: 1;
 }

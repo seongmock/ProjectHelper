@@ -65,9 +65,10 @@ describe('exportToHtml — 런타임 이스케이프 헬퍼', () => {
     it('esc() 헬퍼가 산출물에 포함된다', () => {
         const html = exportToHtml([task()]);
         expect(html).toContain('function esc(');
-        expect(html).toContain('&amp;');
-        expect(html).toContain('&lt;');
-        expect(html).toContain('&quot;');
+        // 엔티티는 JS 이스케이프로 적는다(컨플루언스가 글자 그대로의 엔티티를 풀어 스크립트를 깨뜨렸다)
+        expect(html).toContain("'\\u0026amp;'");
+        expect(html).toContain("'\\u0026lt;'");
+        expect(html).toContain("'\\u0026quot;'");
     });
 
     it('사용자 데이터를 innerHTML 로 넣는 모든 지점이 esc() 를 통과한다', () => {
@@ -163,6 +164,37 @@ describe('exportToHtml — 설정값은 코드로 새지 않는다 (저장형 XS
         const html = exportToHtml([task()], evil);
         const script = html.match(/<script>([\s\S]*)<\/script>/)[1];
         expect(() => new Function(script)).not.toThrow();
+    });
+});
+
+describe('exportToHtml — 컨플루언스에 붙여도 스크립트가 산다', () => {
+    // 컨플루언스는 저장할 때 <script> 안의 HTML 엔티티까지 글자로 풀어 버린다. 작은따옴표 엔티티가 따옴표
+    // 하나가 되어 스크립트 전체가 문법 오류로 죽었고, 머리글만 남은 빈 차트가 됐다(2026-10-14 실제 보고).
+    const decodeEntities = (text) => text
+        .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
+        .replace(/&#x([0-9a-f]+);/gi, (_, h) => String.fromCharCode(parseInt(h, 16)))
+        .replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+    const scriptOf = (html) => html.match(/<script>([\s\S]*)<\/script>/)[1];
+    const all = (extra) => exportToHtml([task({ name: XSS, milestones: [{ id: 'm', date: '2026-03-01', label: BREAKOUT }] })],
+        { chartTheme: 'default', colorMode: 'status', ...extra });
+
+    it('스크립트에 HTML 엔티티 꼴의 문자열이 하나도 없다 — 세 테마 모두', () => {
+        for (const chartTheme of ['default', 'lg', 'minimal']) {
+            const script = scriptOf(all({ chartTheme }));
+            expect(script.match(/&(#\d+|#x[0-9a-f]+|[a-z]+);/gi) ?? [], chartTheme).toEqual([]);
+        }
+    });
+
+    it('엔티티를 풀어 버린 스크립트도 파싱된다', () => {
+        for (const chartTheme of ['default', 'lg', 'minimal']) {
+            expect(() => new Function(decodeEntities(scriptOf(all({ chartTheme }))))).not.toThrow();
+        }
+    });
+
+    it('esc() 는 여전히 이스케이프한다 — 엔티티를 JS 이스케이프로 적었을 뿐이다', () => {
+        const script = scriptOf(all({}));
+        const esc = new Function(script.match(/function esc\(v\) \{[\s\S]*?\n {8}\}/)[0] + '; return esc;')();
+        expect(esc(`<a href="x">'&'</a>`)).toBe('&lt;a href=&quot;x&quot;&gt;&#39;&amp;&#39;&lt;/a&gt;');
     });
 });
 

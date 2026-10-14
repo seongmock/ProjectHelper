@@ -292,3 +292,36 @@ describe('preferBelow — 첫 행 auto 는 아래로만 쌓는다', () => {
         expect(slots.every(s => s.startsWith('bottom:'))).toBe(true);
     });
 });
+
+describe('자리가 있을 때만 — positions · maxTier · reserved (접힌 행의 숨은 마일스톤 라벨)', () => {
+    const at = (id, x, label = '라벨') => ({ id, x, label });
+
+    it('층 상한을 넘어야 하는 항목은 결과에서 빠진다 — 겹치는 대신 그리지 않는다', () => {
+        const items = [at('a', 100), at('b', 102), at('c', 104)];
+        const placed = placeMilestoneLabels(items, 1000, { positions: ['top'], maxTier: 0 });
+        expect([...placed.keys()]).toEqual(['a']);
+        expect(placed.get('a')).toMatchObject({ position: 'top', tier: 0 });
+    });
+
+    it('허용한 칸만 쓴다', () => {
+        const placed = placeMilestoneLabels([at('a', 100), at('b', 102)], 1000, { positions: ['top', 'bottom'], maxTier: 0 });
+        expect(placed.get('a').position).toBe('top');
+        expect(placed.get('b').position).toBe('bottom');
+    });
+
+    it('이미 앉은 라벨(reserved)을 피한다', () => {
+        const own = placeMilestoneLabels([at('own', 100)], 1000);
+        const reserved = [...own.values()];
+        const placed = placeMilestoneLabels([at('h', 101)], 1000, { positions: ['top'], maxTier: 0, reserved });
+        expect(placed.has('h')).toBe(false);
+        const far = placeMilestoneLabels([at('h', 600)], 1000, { positions: ['top'], maxTier: 0, reserved });
+        expect(far.has('h')).toBe(true);
+    });
+
+    it('결과는 차지한 구간을 함께 돌려준다 — 다음 호출의 reserved 로 그대로 쓴다', () => {
+        const p = placeMilestoneLabels([at('a', 500)], 1000).get('a');
+        expect(p.end).toBeGreaterThan(p.start);
+        expect(p.start).toBeLessThan(500);
+        expect(p.end).toBeGreaterThan(500);
+    });
+});

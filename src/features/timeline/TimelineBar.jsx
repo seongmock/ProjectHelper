@@ -2,9 +2,10 @@ import { useState, useRef, useEffect } from 'react';
 import { dateUtils } from '../../utils/dateUtils';
 import { isTaskOverdue, getTaskStatus } from '../../utils/taskTree';
 import { getStatusColor, getTheme, themeColor } from '../../themes/index.js';
-import { rollupSegmentTitle, rollupMilestoneTitle, chainStepTitle, tintOver, CHAIN_BACKGROUND } from './rollupBars';
+import { rollupSegmentTitle, rollupMilestoneTitle, chainStepTitle, tintOver, CHAIN_BACKGROUND, readableTextOn, DARK_TEXT } from './rollupBars';
 import { placeMilestoneLabels, milestoneLabelStyle } from './milestoneLabels';
 import { visibleMilestoneItems, milestoneLabelText, isDateInRange } from './timelineGeometry';
+import { rollupMilestoneItems } from './rollupLabels';
 import { milestoneShape } from '../../shared/milestoneShapes';
 import './TimelineBar.css';
 
@@ -14,6 +15,8 @@ function TimelineBar({
     isFirstRow = false,
     // 접혀 있는 가지의 요약 (rollupBars.resolveRollup) — 접혀 있지 않으면 undefined
     rollup = null,
+    // 숨은 마일스톤 중 라벨을 달 것과 그 배치 — TimelineView 가 화면 전체를 보고 정한다(rollupLabels.js)
+    rollupLabels = null,
     level,
     startDate, // View start date
     endDate,   // View end date
@@ -324,13 +327,14 @@ function TimelineBar({
     // 라벨 배치는 milestoneLabels.js 가 판정한다(순수 — 단위테스트가 규칙을 고정한다).
     // 화면에 보이는 것만 넘긴다: 축 범위를 벗어난 마일스톤은 그려지지 않으므로 자리를
     // 차지하지도 않아야 한다.
+    // 이 행 자신의 마일스톤 라벨 배치. 무엇이 보이는지는 TimelineView 의 여백 계산과 **같은 함수**로 정한다.
+    // 접힌 행의 숨은 마일스톤 라벨(renderRollup)이 이 자리를 피해 가야 해서 바깥에서 한 번 계산한다.
+    const placements = placeMilestoneLabels(
+        visibleMilestoneItems(task, { start: startDate, end: endDate }, containerWidth, showMilestoneDates),
+        containerWidth, { preferBelow: isFirstRow });
+
     const renderMilestones = () => {
         if (!task.milestones || task.milestones.length === 0) return null;
-
-        // 무엇이 보이는지는 TimelineView 의 여백 계산과 **같은 함수**로 정한다
-        const visible = visibleMilestoneItems(task, { start: startDate, end: endDate }, containerWidth, showMilestoneDates);
-
-        const placements = placeMilestoneLabels(visible, containerWidth, { preferBelow: isFirstRow });
 
         return task.milestones.map((milestone) => {
             const currentDate = (draggingMilestone === milestone.id && draggedMilestoneDate)
@@ -504,6 +508,35 @@ function TimelineBar({
         );
     });
 
+    // 접힌 행의 숨은 마일스톤 라벨 — 무엇을 어디에 달지는 TimelineView 가 화면 전체를 보고 정했다(rollupLabels.js).
+    // 여기서는 그린다. 단계 체인 행에서 '아래' 라벨은 마커가 아니라 **칸의 아래 가장자리**에 붙인다 — 마커는 칸의
+    // 위 가장자리에 앉으므로 마커 아래에 달면 칸 이름을 덮는다.
+    const renderRollupLabels = () => {
+        if (!rollupLabels?.size) return null;
+        const chain = showPhaseChain && !!rollup.chain;
+        return rollupMilestoneItems(rollup, { start: startDate, end: endDate }, containerWidth, showMilestoneDates)
+            .filter(item => rollupLabels.has(item.id))
+            .map(item => {
+                const placement = rollupLabels.get(item.id);
+                const anchorTop = !chain ? undefined
+                    : placement.position === 'bottom' ? `calc(50% + ${stepH / 2}px)` : `calc(50% - ${stepH / 2}px)`;
+                return (
+                    <div
+                        key={`label-${item.id}`}
+                        className="milestone-marker rollup-label-anchor"
+                        style={{ left: `${item.x}px`, ...(anchorTop ? { top: anchorTop } : {}) }}
+                    >
+                        <span
+                            className="milestone-label"
+                            data-testid="rollup-milestone-label"
+                            style={milestoneLabelStyle(placement)}
+                            title={rollupMilestoneTitle(item.ms)}
+                        >{item.label}</span>
+                    </div>
+                );
+            });
+    };
+
     const renderRollup = () => {
         if (!rollup) return null;
 
@@ -528,6 +561,7 @@ function TimelineBar({
                         />
                     );
                 })}
+                {renderRollupLabels()}
                 {rollup.milestones.map(ms => {
                     if (!isDateInRange(ms.date, { start: startDate, end: endDate })) return null;
                     const left = (dateUtils.getDaysBetween(startDate, ms.date) / totalDays) * containerWidth;
@@ -603,6 +637,15 @@ function TimelineBar({
                     : (statusColor || (overdue ? 'var(--color-overdue, #d9534f)' : '#9e9e9e'));
 
                 const barColor = statusColor || themeColor(range.color || task.color, chartTheme);
+                const showName = showLabel || showBarLabels;
+                const nameText = range.label || task.name;
+                const dateText = `(${dateUtils.formatDate(new Date(range.startDate), 'YYYY.MM.DD')} ~ ${dateUtils.formatDate(new Date(range.endDate), 'MM.DD')})`;
+                const labelText = showName && showBarDates ? `${nameText} ${dateText}` : showName ? nameText : showBarDates ? dateText : '';
+                // 미니멀: 진행률로 채운 구간 위의 글자는 채움 색에 더 잘 읽히는 글자색으로 그 채움 **안에** 다시 그린다
+                // (빨강 → 흰 글자). 흰 상자나 헤일로를 깔던 동안 막대가 도려낸 것처럼, 또는 번진 것처럼 보였다
+                // (사용자 지적, 2026-10-14). 채움과 같은 상자라 위치·색이 어긋날 수 없다.
+                const fillTextColor = tint && labelText ? readableTextOn(barColor) : DARK_TEXT;
+                const labelOnFill = fillTextColor !== DARK_TEXT;
                 // 단계 체인이 있는 행의 부모 막대는 옅게 — opacity 로 흐리던 동안 '이미지로 복사'에는 진하게
                 // 찍혔고(캡처가 반영하지 않았다), 선택 표시까지 0.2 로 흐려져 보이지 않았다. 색을 바탕과 미리
                 // 섞으면 둘 다 없다. 지우지 않는 것은 부모 기간이 자식보다 길 때 그 바깥을 말해 주기 때문이다.
@@ -745,9 +788,16 @@ function TimelineBar({
                         {tint && <div className="bar-tint" style={tintLayer} />}
                         {!isLg && progress > 0 && !(tint && level === 0) && !dimForChain && (
                             <div
-                                className="bar-progress-fill"
+                                className={`bar-progress-fill ${labelOnFill ? 'has-label' : ''}`}
                                 style={{ width: `${progress}%`, ...(tint ? { background: barColor } : {}) }}
-                            />
+                            >
+                                {labelOnFill && (
+                                    // 바닥 라벨과 같은 줄에 오도록 막대 전체 폭의 상자를 둔다(넘치는 부분은 채움이 자른다)
+                                    <div className="bar-content" style={{ width: `${Math.max(width - 16, 0)}px` }} aria-hidden="true">
+                                        <span className="bar-label" style={{ color: fillTextColor }}>{labelText}</span>
+                                    </div>
+                                )}
+                            </div>
                         )}
                         {isActive && isCopyMode && (
                             <div style={{
@@ -806,20 +856,7 @@ function TimelineBar({
                                 Show Name if: sidebar hidden (showLabel) OR explicit "Name" toggle (showBarLabels) is ON.
                                 Show Date if: explicit "Date" toggle (showBarDates) is ON.
                             */}
-                            {((showLabel || showBarLabels) || showBarDates) && (
-                                <span className="bar-label">
-                                    {(() => {
-                                        const showName = showLabel || showBarLabels;
-                                        const nameText = range.label || task.name;
-                                        const dateText = `(${dateUtils.formatDate(new Date(range.startDate), 'YYYY.MM.DD')} ~ ${dateUtils.formatDate(new Date(range.endDate), 'MM.DD')})`;
-
-                                        if (showName && showBarDates) return `${nameText} ${dateText}`;
-                                        if (showName) return nameText;
-                                        if (showBarDates) return dateText;
-                                        return '';
-                                    })()}
-                                </span>
-                            )}
+                            {labelText && <span className="bar-label">{labelText}</span>}
                         </div>
                         <div
                             className="resize-handle resize-end"

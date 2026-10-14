@@ -164,6 +164,23 @@ export const tintOver = (color, background, alpha) => {
     return '#' + fg.map((v, i) => Math.round(v * alpha + bg[i] * (1 - alpha)).toString(16).padStart(2, '0')).join('');
 };
 
+// 색 위에 얹을 글자색 — 검정(#1a1a19)과 흰색 중 WCAG 대비가 **더 높은 쪽**. 미니멀 막대의 진행률 채움
+// 위 글자가 쓴다: 한 색으로 정하면 어느 채움에서는 떨어진다(검정은 빨강 위 3.98, 흰색은 파랑 위 3.22).
+// 모르는 형식이면 검정이다(기본 동작 그대로).
+const luminance = ([r, g, b]) => {
+    const f = (v) => { const c = v / 255; return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; };
+    return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
+};
+export const DARK_TEXT = '#1a1a19';
+export const readableTextOn = (color) => {
+    const rgb = parseHex(color);
+    if (!rgb) return DARK_TEXT;
+    const L = luminance(rgb);
+    const onDark = (1.05) / (L + 0.05);                       // 흰 글자
+    const onLight = (L + 0.05) / (luminance(parseHex(DARK_TEXT)) + 0.05); // 검은 글자
+    return onDark > onLight ? '#ffffff' : DARK_TEXT;
+};
+
 export const chainStepTitle = (step) => `${step.name} (${step.startDate} ~ ${step.endDate})`;
 
 export const rollupMilestoneTitle = (milestone) =>

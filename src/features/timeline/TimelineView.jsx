@@ -33,6 +33,7 @@ import { buildItemMap, visibleMilestoneItems, monthGridLines } from './timelineG
 import { getTheme } from '../../themes/index.js';
 import { resolveDependencyLinks } from './dependencyLinks';
 import { resolveRollup } from './rollupBars';
+import { planRollupLabels, rollupMilestoneItems } from './rollupLabels';
 import { placeMilestoneLabels, labelHeadroom } from './milestoneLabels';
 import { useTimelineScale } from './useTimelineScale';
 import { useBarDrag } from './useBarDrag';
@@ -225,6 +226,13 @@ const TimelineView = forwardRef(({
         const items = visibleMilestoneItems(first, dateRange, contentWidth, showMilestoneDates);
         return labelHeadroom(placeMilestoneLabels(items, contentWidth, { preferBelow: true }));
     }, [flatTasks, dateRange, contentWidth, showMilestoneDates]);
+
+    // 접힌 행의 숨은 마일스톤 라벨 — 행 사이 띠에서 포개지지 않도록 **화면 전체를 한 번에** 정한다(rollupLabels.js)
+    const rollupLabels = useMemo(() => planRollupLabels(flatTasks.map(task => ({
+        id: task.id,
+        own: visibleMilestoneItems(task, dateRange, contentWidth, showMilestoneDates),
+        hidden: rollupMilestoneItems(rollups.get(task.id), dateRange, contentWidth, showMilestoneDates),
+    })), contentWidth), [flatTasks, rollups, dateRange, contentWidth, showMilestoneDates]);
 
     // ── 구간 드래그 줌 (파형 뷰어와 같은 조작) ─────────────────────────────
     // 빈 곳을 좌우로 끌면 그 구간이 화면을 가득 채운다. 판정은 순수 zoomToSelection 이
@@ -547,6 +555,7 @@ const TimelineView = forwardRef(({
                                     task={task}
                                     isFirstRow={rowIndex === 0}
                                     rollup={rollups.get(task.id)}
+                                    rollupLabels={rollupLabels.get(task.id)}
                                     level={task.level}
                                     startDate={dateRange.start}
                                     endDate={dateRange.end}
